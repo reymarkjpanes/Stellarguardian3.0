@@ -50,6 +50,7 @@ export default function EditEvent() {
     try {
       const payload = {
         ...formData,
+        prizeTotal: formData.prizeTotal ? Number(formData.prizeTotal) : 0,
         capacity: formData.capacity ? Number(formData.capacity) : null,
         teamSizeMax: formData.teamSizeMax ? Number(formData.teamSizeMax) : 4
       };

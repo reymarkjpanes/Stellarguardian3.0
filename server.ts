@@ -520,7 +520,7 @@ app.post("/api/events/:id/apply", authenticateToken, (req: any, res) => {
 
 app.put("/api/events/:id", authenticateToken, (req: any, res) => {
   const { title, description, category, format, visibility, registrationDeadline, startDate, endDate, prizeTotal, prizeBreakdown, tags, rulesPublished, timelineConfirmed, capacity, teamSizeMax, bannerUrl, contactEmail } = req.body;
-  const event: any = db.prepare("SELECT hostUserId, state FROM events WHERE id = ?").get(req.params.id);
+  const event: any = db.prepare("SELECT * FROM events WHERE id = ?").get(req.params.id);
   if (!event) return res.status(404).json({ error: "Event not found" });
   if (event.hostUserId !== req.user.id) return res.status(403).json({ error: "Not host" });
 
