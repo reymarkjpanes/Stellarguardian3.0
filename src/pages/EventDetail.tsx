@@ -73,9 +73,8 @@ export default function EventDetail() {
   const confirmPublish = async () => {
     setActionLoading(true);
     try {
-      await fetchApi(`/events/${id}/state`, {
-        method: 'PUT',
-        body: JSON.stringify({ state: 'Published' })
+      await fetchApi(`/events/${id}/publish`, {
+        method: 'POST'
       });
       toast.success('Event published successfully!');
       loadEvent();
@@ -90,8 +89,8 @@ export default function EventDetail() {
     setActionLoading(true);
     try {
       await fetchApi(`/events/${id}/state`, {
-        method: 'PUT',
-        body: JSON.stringify({ state: newState })
+        method: 'POST',
+        body: JSON.stringify({ newState })
       });
       toast.success(`Event moved to ${newState}`);
       loadEvent();
@@ -102,13 +101,67 @@ export default function EventDetail() {
     }
   };
 
-  const handleActionClick = (actionKey: string) => {
+  const handleActionClick = async (actionKey: string) => {
     if (actionKey === 'fund') {
-      // Mock funding
-      toast.success("Funding mock triggered");
-      handleStateChange('Funded');
+      setActionLoading(true);
+      try {
+        await fetchApi(`/events/${id}/fund`, {
+          method: 'POST'
+        });
+        toast.success("Funding mock triggered successfully!");
+        loadEvent();
+      } catch (err: any) {
+        toast.error(err.message);
+      } finally {
+        setActionLoading(false);
+      }
     } else {
       setActiveTab(actionKey);
+    }
+  };
+
+  const handleCancel = async () => {
+    setActionLoading(true);
+    try {
+      await fetchApi(`/events/${id}/cancel`, {
+        method: 'POST'
+      });
+      toast.success('Event cancelled successfully.');
+      loadEvent();
+    } catch (err: any) {
+      toast.error(err.message);
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleArchive = async () => {
+    setActionLoading(true);
+    try {
+      await fetchApi(`/events/${id}/archive`, {
+        method: 'POST'
+      });
+      toast.success('Event archived successfully.');
+      loadEvent();
+    } catch (err: any) {
+      toast.error(err.message);
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleDelete = async () => {
+    setActionLoading(true);
+    try {
+      await fetchApi(`/events/${id}`, {
+        method: 'DELETE'
+      });
+      toast.success('Event deleted successfully.');
+      navigate('/dashboard');
+    } catch (err: any) {
+      toast.error(err.message);
+    } finally {
+      setActionLoading(false);
     }
   };
 
@@ -207,7 +260,7 @@ export default function EventDetail() {
                           description="Are you sure you want to cancel this event? This action cannot be undone and will prevent any further participation or updates."
                           confirmText="Yes, Cancel Event"
                           isDangerous={true}
-                          onConfirm={() => handleStateChange('Cancelled')}
+                          onConfirm={handleCancel}
                         >
                           <Button variant="danger">Cancel Event</Button>
                         </ConfirmationModal>
@@ -218,9 +271,20 @@ export default function EventDetail() {
                           description="Are you sure you want to archive this event? It will be hidden from public listings but remain accessible to participants."
                           confirmText="Yes, Archive Event"
                           isDangerous={true}
-                          onConfirm={() => handleStateChange('Archived')}
+                          onConfirm={handleArchive}
                         >
                           <Button variant="outline" className="border-red-300 text-red-700 hover:bg-red-100">Archive Event</Button>
+                        </ConfirmationModal>
+                      )}
+                      {isActionAllowed(event.state, 'delete') && (
+                        <ConfirmationModal
+                          title="Delete Event"
+                          description="Are you sure you want to delete this event? This action is permanent and will completely delete the event and all associated records."
+                          confirmText="Yes, Delete Event"
+                          isDangerous={true}
+                          onConfirm={handleDelete}
+                        >
+                          <Button variant="danger" className="bg-rose-600 hover:bg-rose-700 text-white">Delete Event</Button>
                         </ConfirmationModal>
                       )}
                     </div>

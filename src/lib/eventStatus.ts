@@ -39,9 +39,10 @@ export const EventStatus = {
   canComplete: (state: string) => state === 'Judging',
   canArchive: (state: string) => ['Completed', 'Cancelled'].includes(state),
   canCancel: (state: string) => !['Completed', 'Archived', 'Cancelled'].includes(state),
+  canDelete: (state: string) => ['Draft', 'Cancelled', 'Archived'].includes(state),
 };
 
-export type ActionType = 'edit' | 'apply' | 'submit' | 'score' | 'fund' | 'publish' | 'open_registration' | 'close_registration' | 'start_event' | 'begin_judging' | 'complete' | 'archive' | 'cancel';
+export type ActionType = 'edit' | 'apply' | 'submit' | 'score' | 'fund' | 'publish' | 'open_registration' | 'close_registration' | 'start_event' | 'begin_judging' | 'complete' | 'archive' | 'cancel' | 'delete';
 
 export const isActionAllowed = (state: string, action: ActionType): boolean => {
   switch (action) {
@@ -58,6 +59,7 @@ export const isActionAllowed = (state: string, action: ActionType): boolean => {
     case 'complete': return EventStatus.canComplete(state);
     case 'archive': return EventStatus.canArchive(state);
     case 'cancel': return EventStatus.canCancel(state);
+    case 'delete': return EventStatus.canDelete(state);
     default: return false;
   }
 };

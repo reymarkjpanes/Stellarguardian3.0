@@ -17,6 +17,33 @@ app.use(cors());
 const db = new Database("database.sqlite");
 db.pragma("journal_mode = WAL");
 
+// Setup Firestore synchronization
+import { loadStateFromFirestore, saveStateToFirestoreDebounced } from "./src/lib/serverFirebase";
+
+const originalPrepare = db.prepare.bind(db);
+db.prepare = function(sql: string) {
+  const statement = originalPrepare(sql);
+  const originalRun = statement.run.bind(statement);
+  statement.run = function(...args: any[]) {
+    const result = originalRun(...args);
+    const normalizedSql = sql.trim().toUpperCase();
+    if (
+      normalizedSql.startsWith("INSERT") ||
+      normalizedSql.startsWith("UPDATE") ||
+      normalizedSql.startsWith("DELETE") ||
+      normalizedSql.startsWith("REPLACE") ||
+      normalizedSql.startsWith("CREATE TABLE") ||
+      normalizedSql.startsWith("DROP") ||
+      normalizedSql.startsWith("ALTER")
+    ) {
+      saveStateToFirestoreDebounced(db);
+    }
+    return result;
+  };
+  return statement;
+};
+
+
 // Setup Schema
 db.exec(`
   CREATE TABLE IF NOT EXISTS users (
@@ -193,6 +220,9 @@ db.exec(`
     FOREIGN KEY(userId) REFERENCES users(id)
   );
 `);
+
+// Restore state from Cloud Firestore if available
+loadStateFromFirestore(db);
 
 // Auth Middleware
 const authenticateToken = (req: any, res: any, next: any) => {
@@ -549,6 +579,23 @@ app.post("/api/events/:id/archive", authenticateToken, (req: any, res) => {
 
   db.prepare("UPDATE events SET state = 'Archived' WHERE id = ?").run(req.params.id);
   res.json({ success: true, state: 'Archived' });
+});
+
+app.delete("/api/events/:id", authenticateToken, (req: any, res) => {
+  const event: any = db.prepare("SELECT hostUserId FROM events WHERE id = ?").get(req.params.id);
+  if (!event) return res.status(404).json({ error: "Event not found" });
+  if (event.hostUserId !== req.user.id) return res.status(403).json({ error: "Not host" });
+
+  db.transaction(() => {
+    db.prepare("DELETE FROM event_memberships WHERE eventId = ?").run(req.params.id);
+    db.prepare("DELETE FROM submissions WHERE eventId = ?").run(req.params.id);
+    db.prepare("DELETE FROM teams WHERE eventId = ?").run(req.params.id);
+    db.prepare("DELETE FROM milestones WHERE eventId = ?").run(req.params.id);
+    db.prepare("DELETE FROM sponsors WHERE eventId = ?").run(req.params.id);
+    db.prepare("DELETE FROM events WHERE id = ?").run(req.params.id);
+  })();
+
+  res.json({ success: true });
 });
 
 // Escrow Mocks

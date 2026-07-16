@@ -1,9 +1,10 @@
 import React, { useState } from 'react';
 import { Button, Input, Select, Badge, ConfirmDialog } from '../ui';
-import { Users, Send, UserCheck, UserX, Trash2, Edit } from 'lucide-react';
+import { Users, Send, UserCheck, UserX, Trash2, Edit, RefreshCw } from 'lucide-react';
 import { Event } from '../../types';
 import { fetchApi } from '../../lib/api';
 import { toast } from 'sonner';
+import { EmailTemplates } from './EmailTemplates';
 
 interface AdminTabProps {
   event: Event;
@@ -15,8 +16,10 @@ interface AdminTabProps {
 export function AdminTab({ event, user, onUpdate, onNavigate }: AdminTabProps) {
   const [inviteEmails, setInviteEmails] = useState('');
   const [inviteRole, setInviteRole] = useState('Participant');
+  const [inviteSubject, setInviteSubject] = useState(`Invitation to join ${event.title}`);
   const [inviteMessage, setInviteMessage] = useState('');
   const [actionLoading, setActionLoading] = useState(false);
+
 
   const handleApproveMembership = async (membershipId: number) => {
     setActionLoading(true);
@@ -80,8 +83,8 @@ export function AdminTab({ event, user, onUpdate, onNavigate }: AdminTabProps) {
     }
   };
 
-  const handleInvite = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleInvite = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
     if (!inviteEmails.trim()) return;
     
     const emails = inviteEmails.split(',').map(e => e.trim()).filter(e => e);
@@ -95,6 +98,7 @@ export function AdminTab({ event, user, onUpdate, onNavigate }: AdminTabProps) {
     
     setActionLoading(true);
     try {
+      // First, register invites in database
       await fetchApi('/invites', {
         method: 'POST',
         body: JSON.stringify({
@@ -104,8 +108,11 @@ export function AdminTab({ event, user, onUpdate, onNavigate }: AdminTabProps) {
           message: inviteMessage
         })
       });
-      toast.success(`Invitations sent successfully!`);
+
+      toast.success(`Successfully sent ${emails.length} invitation email(s) (simulated log generated)!`);
+      
       setInviteEmails('');
+      setInviteSubject(`Invitation to join ${event.title}`);
       setInviteMessage('');
       onUpdate();
     } catch (err: any) {
@@ -196,7 +203,18 @@ export function AdminTab({ event, user, onUpdate, onNavigate }: AdminTabProps) {
           <Users className="w-5 h-5 text-slate-500" />
           Invite People
         </h2>
-        <form onSubmit={handleInvite} className="space-y-4">
+
+        <EmailTemplates 
+          userId={user?.id || 'anonymous'}
+          eventTitle={event.title}
+          inviteRole={inviteRole}
+          onApplyTemplate={(subj, body) => {
+            setInviteSubject(subj);
+            setInviteMessage(body);
+          }}
+        />
+
+        <form onSubmit={(e) => e.preventDefault()} className="space-y-4">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div className="md:col-span-2">
               <Input 
@@ -219,16 +237,33 @@ export function AdminTab({ event, user, onUpdate, onNavigate }: AdminTabProps) {
             </div>
           </div>
           <Input 
-            label="Optional Message" 
+            label="Email Subject" 
+            value={inviteSubject}
+            onChange={(e) => setInviteSubject(e.target.value)}
+            placeholder={`Invitation to join ${event.title}`}
+          />
+          <Input 
+            label="Optional Message / Body" 
             value={inviteMessage}
             onChange={(e) => setInviteMessage(e.target.value)}
             placeholder="Join my upcoming event!"
           />
           <div className="flex items-center gap-3">
-            <Button type="submit" disabled={actionLoading || !inviteEmails.trim()}>
-              <Send className="w-4 h-4 mr-2" />
-              Send Invites
-            </Button>
+            <ConfirmDialog
+              title="Send Invitations"
+              description={
+                inviteEmails.trim()
+                  ? `Are you sure you want to send invitation emails to ${inviteEmails.split(',').map(em => em.trim()).filter(em => em).length} recipient(s)?`
+                  : 'Are you sure you want to send invitation emails to the specified guests?'
+              }
+              confirmText="Send Invites"
+              onConfirm={() => handleInvite()}
+            >
+              <Button type="button" disabled={actionLoading || !inviteEmails.trim()}>
+                <Send className="w-4 h-4 mr-2" />
+                Send Invites
+              </Button>
+            </ConfirmDialog>
             <Button 
               type="button" 
               variant="outline" 
