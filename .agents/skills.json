@@ -1,0 +1,20 @@
+{
+  "entries": [],
+  "inherits": [],
+  "exclude": [
+    "algorithmic-art",
+    "brand-guidelines",
+    "canvas-design",
+    "doc-coauthoring",
+    "docx",
+    "internal-comms",
+    "mcp-builder",
+    "pdf",
+    "pptx",
+    "skill-creator",
+    "slack-gif-creator",
+    "template-skill",
+    "theme-factory",
+    "xlsx"
+  ]
+}

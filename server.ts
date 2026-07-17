@@ -4,14 +4,107 @@ import Database from "better-sqlite3";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import cors from "cors";
+import helmet from "helmet";
+import rateLimit from "express-rate-limit";
+import crypto from "crypto";
+import { z } from "zod";
 import { createServer as createViteServer } from "vite";
 
-const app = express();
-const PORT = 3000;
-const JWT_SECRET = process.env.JWT_SECRET || "dev-secret-key-do-not-use-in-production";
+// ─── New Modular Routes (Phase 1 Architecture) ────────────────────────────────
+import { authRouter } from './server/routes/auth';
+import { notificationsRouter } from './server/routes/notifications';
+import { stellarRouter } from './server/routes/stellar';
+import { errorHandler } from './server/middleware/errorHandler';
 
-app.use(express.json());
-app.use(cors());
+// ─── Structured Logger ────────────────────────────────────────────────────────
+const log = {
+  info: (msg: string, ctx?: object) =>
+    console.log(JSON.stringify({ level: 'info', msg, ...ctx, ts: new Date().toISOString() })),
+  warn: (msg: string, ctx?: object) =>
+    console.warn(JSON.stringify({ level: 'warn', msg, ...ctx, ts: new Date().toISOString() })),
+  error: (msg: string, err?: unknown, ctx?: object) =>
+    console.error(JSON.stringify({ level: 'error', msg, error: err instanceof Error ? err.message : String(err), stack: err instanceof Error ? err.stack : undefined, ...ctx, ts: new Date().toISOString() })),
+};
+
+// ─── JWT Secret Guard ─────────────────────────────────────────────────────────
+const JWT_SECRET = process.env.JWT_SECRET;
+if (!JWT_SECRET) {
+  log.error('FATAL: JWT_SECRET environment variable is not set. Server will not start.');
+  process.exit(1);
+}
+
+const app = express();
+const PORT = process.env.PORT ? parseInt(process.env.PORT) : 3000;
+
+// ─── Security Middleware ───────────────────────────────────────────────────────
+app.use(helmet({
+  contentSecurityPolicy: {
+    directives: {
+      defaultSrc: ["'self'"],
+      scriptSrc: ["'self'", "'unsafe-inline'"],  // unsafe-inline needed for Vite dev
+      styleSrc: ["'self'", "'unsafe-inline'"],
+      imgSrc: ["'self'", 'data:', 'https:'],
+      connectSrc: ["'self'", 'https://horizon-testnet.stellar.org', 'https://horizon.stellar.org'],
+      fontSrc: ["'self'", 'https://fonts.googleapis.com', 'https://fonts.gstatic.com'],
+    },
+  },
+}));
+
+// ─── CORS ─────────────────────────────────────────────────────────────────────
+const allowedOrigins = process.env.ALLOWED_ORIGINS
+  ? process.env.ALLOWED_ORIGINS.split(',')
+  : ['http://localhost:5173', 'http://localhost:3000'];
+
+app.use(cors({
+  origin: (origin, callback) => {
+    // Allow requests with no origin (curl, mobile apps, Postman)
+    if (!origin || allowedOrigins.includes(origin)) return callback(null, true);
+    log.warn('CORS blocked request', { origin });
+    callback(new Error('Not allowed by CORS'));
+  },
+  credentials: true,
+}));
+
+// ─── Body Limits ──────────────────────────────────────────────────────────────
+app.use(express.json({ limit: '1mb' }));
+
+// ─── Rate Limiting ────────────────────────────────────────────────────────────
+const authLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 10,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: { code: 'RATE_LIMIT', message: 'Too many attempts. Please try again later.' } },
+});
+
+const generalLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 200,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: { code: 'RATE_LIMIT', message: 'Too many requests. Please slow down.' } },
+});
+
+app.use('/api/auth/', authLimiter);
+app.use('/api/', generalLimiter);
+
+// ─── State Machine ─────────────────────────────────────────────────────────────
+const VALID_TRANSITIONS: Record<string, string[]> = {
+  'Draft':                ['Funded', 'Cancelled'],
+  'Funded':               ['Published', 'Cancelled'],
+  'Published':            ['Registration Open', 'Cancelled'],
+  'Registration Open':    ['Registration Closed', 'Cancelled'],
+  'Registration Closed':  ['In Progress', 'Cancelled'],
+  'In Progress':          ['Judging', 'Cancelled'],
+  'Judging':              ['Completed'],
+  'Completed':            ['Archived'],
+  'Cancelled':            [],
+  'Archived':             [],
+};
+
+function isValidTransition(from: string, to: string): boolean {
+  return (VALID_TRANSITIONS[from] || []).includes(to);
+}
 
 // Initialize SQLite Database
 const db = new Database("database.sqlite");
@@ -239,32 +332,65 @@ const authenticateToken = (req: any, res: any, next: any) => {
 
 // --- API ROUTES ---
 
-// Auth
-app.post("/api/auth/signup", (req, res) => {
-  const { name, email, password } = req.body;
-  if (!name || !email || !password) return res.status(400).json({ error: "Missing fields" });
+// ─── Zod Schemas ──────────────────────────────────────────────────────────────
+const SignupSchema = z.object({
+  name: z.string().min(2).max(100).trim(),
+  email: z.string().email().max(255).trim().toLowerCase(),
+  password: z.string().min(8).max(128),
+});
 
-  const hashedPassword = bcrypt.hashSync(password, 10);
+const LoginSchema = z.object({
+  email: z.string().email().trim().toLowerCase(),
+  password: z.string().min(1),
+});
+
+const ScoreSchema = z.object({
+  score: z.number().int().min(0).max(100),
+  feedback: z.string().max(2000).optional(),
+});
+
+const InviteSchema = z.object({
+  eventId: z.number().int().positive(),
+  emails: z.array(z.string().email()).min(1).max(50),
+  role: z.enum(['Participant', 'Judge', 'Mentor']),
+  message: z.string().max(1000).optional(),
+});
+
+// ─── Auth Routes ──────────────────────────────────────────────────────────────
+app.post("/api/auth/signup", (req, res) => {
+  const result = SignupSchema.safeParse(req.body);
+  if (!result.success) {
+    return res.status(422).json({ error: { code: 'VALIDATION_ERROR', message: 'Invalid input', details: result.error.flatten() } });
+  }
+  const { name, email, password } = result.data;
+  const hashedPassword = bcrypt.hashSync(password, 12);
   try {
     const stmt = db.prepare("INSERT INTO users (name, email, password) VALUES (?, ?, ?)");
     const info = stmt.run(name, email, hashedPassword);
-    const token = jwt.sign({ id: info.lastInsertRowid, email, name }, JWT_SECRET, { expiresIn: "7d" });
-    res.json({ token, user: { id: info.lastInsertRowid, name, email, walletAddress: null, isAdmin: 0 } });
+    const token = jwt.sign({ id: info.lastInsertRowid, email, name }, JWT_SECRET, { expiresIn: "15m" });
+    log.info('User registered', { userId: info.lastInsertRowid, email });
+    res.status(201).json({ token, user: { id: info.lastInsertRowid, name, email, walletAddress: null, isAdmin: 0 } });
   } catch (err: any) {
-    res.status(400).json({ error: "Email may already exist" });
+    res.status(409).json({ error: { code: 'EMAIL_TAKEN', message: 'An account with this email already exists.' } });
   }
 });
 
 app.post("/api/auth/login", (req, res) => {
-  const { email, password } = req.body;
+  const result = LoginSchema.safeParse(req.body);
+  if (!result.success) {
+    return res.status(422).json({ error: { code: 'VALIDATION_ERROR', message: 'Invalid credentials format' } });
+  }
+  const { email, password } = result.data;
   const user: any = db.prepare("SELECT * FROM users WHERE email = ?").get(email);
   
   if (!user || !bcrypt.compareSync(password, user.password)) {
-    return res.status(401).json({ error: "Invalid credentials" });
+    log.warn('Failed login attempt', { email });
+    return res.status(401).json({ error: { code: 'INVALID_CREDENTIALS', message: 'Invalid email or password.' } });
   }
 
-  const token = jwt.sign({ id: user.id, email: user.email, name: user.name }, JWT_SECRET, { expiresIn: "7d" });
+  const token = jwt.sign({ id: user.id, email: user.email, name: user.name }, JWT_SECRET, { expiresIn: "15m" });
   const { password: _, ...userWithoutPassword } = user;
+  log.info('User logged in', { userId: user.id });
   res.json({ token, user: userWithoutPassword });
 });
 
@@ -598,16 +724,22 @@ app.delete("/api/events/:id", authenticateToken, (req: any, res) => {
   res.json({ success: true });
 });
 
-// Escrow Mocks
+// ─── Escrow / Funding ─────────────────────────────────────────────────────────
+// NOTE: This generates a testnet-ready transaction reference.
+// Phase 4 (Stellar integration) will replace this with a real Stellar SDK call.
 app.post("/api/events/:id/fund", authenticateToken, (req: any, res) => {
   const event: any = db.prepare("SELECT hostUserId, prizeTotal, state FROM events WHERE id = ?").get(req.params.id);
-  if (event.hostUserId !== req.user.id) return res.status(403).json({ error: "Not host" });
-  if (event.state !== 'Draft') return res.status(400).json({ error: "Already funded" });
+  if (!event) return res.status(404).json({ error: { code: 'NOT_FOUND', message: 'Event not found' } });
+  if (event.hostUserId !== req.user.id) return res.status(403).json({ error: { code: 'FORBIDDEN', message: 'Only the host can fund this event' } });
+  if (!isValidTransition(event.state, 'Funded')) {
+    return res.status(422).json({ error: { code: 'INVALID_TRANSITION', message: `Cannot fund event in state: ${event.state}` } });
+  }
 
   const host: any = db.prepare("SELECT walletAddress FROM users WHERE id = ?").get(req.user.id);
-  if (!host.walletAddress) return res.status(400).json({ error: "Wallet not connected" });
+  if (!host.walletAddress) return res.status(400).json({ error: { code: 'WALLET_REQUIRED', message: 'Please connect your Stellar wallet before funding.' } });
 
-  const txRef = "MOCK_TX_" + Math.random().toString(36).substr(2, 9).toUpperCase();
+  // Cryptographically secure transaction reference (placeholder for Stellar SDK integration)
+  const txRef = crypto.randomBytes(32).toString('hex');
   
   db.transaction(() => {
     db.prepare("UPDATE events SET state = 'Funded', fundingTxRef = ? WHERE id = ?").run(txRef, req.params.id);
@@ -615,6 +747,7 @@ app.post("/api/events/:id/fund", authenticateToken, (req: any, res) => {
       .run(req.params.id, event.prizeTotal, host.walletAddress, txRef);
   })();
 
+  log.info('Event funded', { eventId: req.params.id, txRef, userId: req.user.id });
   res.json({ success: true, txRef, state: 'Funded' });
 });
 
@@ -629,31 +762,45 @@ app.post("/api/events/:id/publish", authenticateToken, (req: any, res) => {
 
 app.post("/api/events/:id/state", authenticateToken, (req: any, res) => {
   const { newState } = req.body;
-  const event: any = db.prepare("SELECT hostUserId FROM events WHERE id = ?").get(req.params.id);
-  if (event.hostUserId !== req.user.id) return res.status(403).json({ error: "Not host" });
+  if (!newState || typeof newState !== 'string') {
+    return res.status(422).json({ error: { code: 'VALIDATION_ERROR', message: 'newState is required' } });
+  }
+  const event: any = db.prepare("SELECT hostUserId, state FROM events WHERE id = ?").get(req.params.id);
+  if (!event) return res.status(404).json({ error: { code: 'NOT_FOUND', message: 'Event not found' } });
+  if (event.hostUserId !== req.user.id) return res.status(403).json({ error: { code: 'FORBIDDEN', message: 'Only the host can change event state' } });
 
-  const validStates = ['Registration Open', 'Registration Closed', 'In Progress', 'Judging', 'Completed'];
-  if (!validStates.includes(newState)) return res.status(400).json({ error: "Invalid state transition" });
+  // Enforce state machine — forward-only transitions
+  if (!isValidTransition(event.state, newState)) {
+    return res.status(422).json({ 
+      error: { 
+        code: 'INVALID_TRANSITION', 
+        message: `Cannot transition from '${event.state}' to '${newState}'. Valid transitions: ${(VALID_TRANSITIONS[event.state] || []).join(', ') || 'none'}` 
+      } 
+    });
+  }
 
   db.prepare("UPDATE events SET state = ? WHERE id = ?").run(newState, req.params.id);
+  log.info('Event state changed', { eventId: req.params.id, from: event.state, to: newState, userId: req.user.id });
   res.json({ success: true, state: newState });
 });
 
 app.post("/api/events/:id/payout", authenticateToken, (req: any, res) => {
   const event: any = db.prepare("SELECT hostUserId, state, prizeTotal FROM events WHERE id = ?").get(req.params.id);
-  if (!event) return res.status(404).json({ error: "Event not found" });
-  if (event.hostUserId !== req.user.id) return res.status(403).json({ error: "Not host" });
-  if (event.state !== 'Completed') return res.status(400).json({ error: "Event not completed" });
+  if (!event) return res.status(404).json({ error: { code: 'NOT_FOUND', message: 'Event not found' } });
+  if (event.hostUserId !== req.user.id) return res.status(403).json({ error: { code: 'FORBIDDEN', message: 'Only the host can initiate payout' } });
+  if (event.state !== 'Completed') return res.status(400).json({ error: { code: 'INVALID_STATE', message: 'Event must be in Completed state to payout' } });
 
   const host: any = db.prepare("SELECT walletAddress FROM users WHERE id = ?").get(req.user.id);
-  const payoutTxRef = "MOCK_PAYOUT_" + Math.random().toString(36).substr(2, 9).toUpperCase();
+  // Cryptographically secure payout reference (placeholder for Stellar SDK disbursement in Phase 4)
+  const payoutTxRef = crypto.randomBytes(32).toString('hex');
 
   db.transaction(() => {
     db.prepare("INSERT INTO transactions (eventId, type, amountXLM, fromWallet, toWallet, txRef) VALUES (?, 'payout', ?, ?, 'WINNERS_WALLETS', ?)")
-      .run(req.params.id, event.prizeTotal, host.walletAddress || "ESCROW_SYSTEM", payoutTxRef);
+      .run(req.params.id, event.prizeTotal, host.walletAddress || 'ESCROW_ACCOUNT', payoutTxRef);
   })();
 
-  res.json({ success: true, message: "Payouts successfully triggered to winners' wallets!", txRef: payoutTxRef });
+  log.info('Payout initiated', { eventId: req.params.id, txRef: payoutTxRef, userId: req.user.id });
+  res.json({ success: true, message: "Payout initiated. Stellar SDK disbursement coming in Phase 4.", txRef: payoutTxRef });
 });
 
 // Membership and Invite Administration for Hosts
@@ -695,31 +842,40 @@ app.delete("/api/events/:id/invites/:inviteId", authenticateToken, (req: any, re
   res.json({ success: true });
 });
 
-// Invites
+// ─── Invites ──────────────────────────────────────────────────────────────────
 app.post("/api/invites", authenticateToken, (req: any, res) => {
-  const { eventId, emails, role, message } = req.body;
-  const event: any = db.prepare("SELECT title FROM events WHERE id = ?").get(eventId);
+  const result = InviteSchema.safeParse(req.body);
+  if (!result.success) {
+    return res.status(422).json({ error: { code: 'VALIDATION_ERROR', message: 'Invalid invite data', details: result.error.flatten() } });
+  }
+  const { eventId, emails, role, message } = result.data;
+
+  const event: any = db.prepare("SELECT title, hostUserId FROM events WHERE id = ?").get(eventId);
+  if (!event) return res.status(404).json({ error: { code: 'NOT_FOUND', message: 'Event not found' } });
+  if (event.hostUserId !== req.user.id) return res.status(403).json({ error: { code: 'FORBIDDEN', message: 'Only host can send invitations' } });
   
-  const insertInvite = db.prepare("INSERT INTO invitations (kind, eventId, email, token, invitedByUserId, expiresAt) VALUES (?, ?, ?, ?, ?, datetime('now', '+14 days'))");
+  const insertInvite = db.prepare("INSERT OR IGNORE INTO invitations (kind, eventId, email, token, invitedByUserId, expiresAt) VALUES (?, ?, ?, ?, ?, datetime('now', '+14 days'))");
   const insertEmail = db.prepare("INSERT INTO dev_emails (to_email, subject, body, invite_link) VALUES (?, ?, ?, ?)");
   
   const tokens: string[] = [];
   
   db.transaction(() => {
     for (const email of emails) {
-      const token = Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
+      // Cryptographically secure invite token
+      const token = crypto.randomBytes(32).toString('hex');
       insertInvite.run(`event_${role.toLowerCase()}`, eventId, email, token, req.user.id);
       
-      const appUrl = process.env.APP_URL || "http://localhost:3000";
+      const appUrl = process.env.APP_URL || 'http://localhost:3000';
       const inviteLink = `${appUrl}/invite/${token}`;
-      const emailBody = `You have been invited to join '${event.title}' as a ${role}.\nMessage: ${message || 'No message'}`;
+      const emailBody = `You have been invited to join '${event.title}' as a ${role}.\n${message ? `Message: ${message}` : ''}`;
       
       insertEmail.run(email, `Invitation to ${event.title}`, emailBody, inviteLink);
       tokens.push(token);
     }
   })();
   
-  res.json({ success: true, tokens });
+  log.info('Invites sent', { eventId, count: emails.length, role, userId: req.user.id });
+  res.json({ success: true, count: tokens.length });
 });
 
 app.get("/api/invites/:token", (req, res) => {
@@ -753,12 +909,16 @@ app.post("/api/invites/:token/accept", authenticateToken, (req: any, res) => {
   res.json({ success: true, eventId: invite.eventId });
 });
 
-// Dev Outbox
+// ─── Dev Outbox — ONLY IN DEVELOPMENT ────────────────────────────────────────
 app.get("/api/dev/emails", authenticateToken, (req: any, res) => {
-  const user = db.prepare("SELECT isAdmin FROM users WHERE id = ?").get(req.user.id) as any;
-  if (!user || user.isAdmin !== 1) return res.status(403).json({ error: "Forbidden" });
+  // Block this endpoint in production to prevent PII exposure
+  if (process.env.NODE_ENV === 'production') {
+    return res.status(404).json({ error: { code: 'NOT_FOUND', message: 'Not found' } });
+  }
+  const user = db.prepare("SELECT isAdmin FROM users WHERE id = ?").get((req as any).user.id) as any;
+  if (!user || user.isAdmin !== 1) return res.status(403).json({ error: { code: 'FORBIDDEN', message: 'Forbidden' } });
 
-  const emails = db.prepare("SELECT * FROM dev_emails ORDER BY sent_at DESC LIMIT 50").all();
+  const emails = db.prepare("SELECT id, to_email, subject, sent_at FROM dev_emails ORDER BY sent_at DESC LIMIT 50").all();
   res.json({ emails });
 });
 
@@ -875,21 +1035,31 @@ app.put("/api/events/:id/submissions/:submissionId", authenticateToken, (req: an
   res.json({ success: true });
 });
 
-// Evaluations
+// ─── Evaluations ──────────────────────────────────────────────────────────────
 app.post("/api/events/:id/submissions/:submissionId/score", authenticateToken, (req: any, res) => {
-  const { score, feedback } = req.body;
+  const result = ScoreSchema.safeParse(req.body);
+  if (!result.success) {
+    return res.status(422).json({ error: { code: 'VALIDATION_ERROR', message: 'Score must be an integer between 0 and 100', details: result.error.flatten() } });
+  }
+  const { score, feedback } = result.data;
   const { id: eventId, submissionId } = req.params;
 
   const event: any = db.prepare("SELECT state FROM events WHERE id = ?").get(eventId);
-  if (!event || event.state !== 'Judging') return res.status(400).json({ error: "Scoring only allowed during 'Judging' state" });
+  if (!event || event.state !== 'Judging') return res.status(400).json({ error: { code: 'INVALID_STATE', message: "Scoring only allowed during 'Judging' state" } });
 
-  const membership = db.prepare("SELECT status FROM event_memberships WHERE eventId = ? AND userId = ? AND role = 'Judge'").get(eventId, req.user.id) as any;
-  if (!membership || membership.status !== 'accepted') return res.status(403).json({ error: "Only accepted judges can score" });
+  const membership = db.prepare("SELECT status FROM event_memberships WHERE eventId = ? AND userId = ? AND role = 'Judge'").get(eventId, (req as any).user.id) as any;
+  if (!membership || membership.status !== 'accepted') return res.status(403).json({ error: { code: 'FORBIDDEN', message: 'Only accepted judges can score' } });
 
-  const submission = db.prepare("SELECT id FROM submissions WHERE id = ? AND eventId = ?").get(submissionId, eventId);
-  if (!submission) return res.status(404).json({ error: "Submission not found" });
+  const submission: any = db.prepare("SELECT id, userId FROM submissions WHERE id = ? AND eventId = ?").get(submissionId, eventId);
+  if (!submission) return res.status(404).json({ error: { code: 'NOT_FOUND', message: 'Submission not found' } });
 
-  db.prepare("INSERT OR REPLACE INTO evaluations (submissionId, judgeId, score, feedback) VALUES (?, ?, ?, ?)").run(submissionId, req.user.id, score, feedback);
+  // Conflict of interest check: judge cannot score their own submission
+  if (submission.userId === (req as any).user.id) {
+    return res.status(403).json({ error: { code: 'CONFLICT_OF_INTEREST', message: 'Judges cannot score their own submissions.' } });
+  }
+
+  db.prepare("INSERT OR REPLACE INTO evaluations (submissionId, judgeId, score, feedback) VALUES (?, ?, ?, ?)").run(submissionId, (req as any).user.id, score, feedback);
+  log.info('Submission scored', { submissionId, judgeId: (req as any).user.id, score, eventId });
   res.json({ success: true });
 });
 
@@ -915,6 +1085,18 @@ app.post("/api/events/:id/winners", authenticateToken, (req: any, res) => {
 
   res.json({ success: true, state: 'Completed' });
 });
+
+
+// ─── New Modular Routes (Phase 1) ─────────────────────────────────────────────
+// These complement the existing inline routes. Legacy inline routes remain
+// until full Phase 1 extraction is complete in subsequent sprints.
+// v2 auth routes with refresh tokens + password reset replace the old inline ones.
+app.use('/api/auth', authRouter);
+app.use('/api/notifications', notificationsRouter);
+app.use('/api/stellar', stellarRouter);
+
+// ─── Global Error Handler (must be LAST middleware before Vite) ────────────────
+app.use(errorHandler);
 
 // --- VITE MIDDLEWARE ---
 async function startServer() {

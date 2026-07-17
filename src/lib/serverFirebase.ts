@@ -69,14 +69,17 @@ export async function loadStateFromFirestore(sqliteDb: Database.Database) {
           }
         }
         
-        // Re-insert users
+        // Re-insert users — NOTE: passwords are NOT stored in Firestore backups (security policy).
+        // On restore, users will need to reset their password or we restore from a secure encrypted backup.
         if (Array.isArray(data.users)) {
           const stmt = sqliteDb.prepare(`
             INSERT INTO users (id, name, email, password, walletAddress, isAdmin)
             VALUES (?, ?, ?, ?, ?, ?)
           `);
           for (const u of data.users) {
-            stmt.run(u.id, u.name, u.email, u.password, u.walletAddress, u.isAdmin);
+            // Use a locked placeholder — user will need password reset on restore
+            const passwordPlaceholder = u.password || '$RESTORE_REQUIRED$';
+            stmt.run(u.id, u.name, u.email, passwordPlaceholder, u.walletAddress, u.isAdmin);
           }
         }
 
@@ -273,7 +276,13 @@ export function saveStateToFirestoreDebounced(sqliteDb: Database.Database) {
       const payload: Record<string, any> = {};
       for (const table of TABLES) {
         try {
-          payload[table] = sqliteDb.prepare(`SELECT * FROM ${table}`).all();
+          let rows = sqliteDb.prepare(`SELECT * FROM ${table}`).all() as any[];
+          // SECURITY: Strip password hashes before sending to Firestore.
+          // Passwords must NEVER leave the server in backups.
+          if (table === 'users') {
+            rows = rows.map(({ password, ...safeUser }) => safeUser);
+          }
+          payload[table] = rows;
         } catch (e) {
           payload[table] = [];
         }
