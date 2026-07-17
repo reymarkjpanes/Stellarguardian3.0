@@ -5,6 +5,7 @@ import { Event } from '../../types';
 import { fetchApi } from '../../lib/api';
 import { toast } from 'sonner';
 import { EmailTemplates } from './EmailTemplates';
+import { EscrowManager } from './EscrowManager';
 
 interface AdminTabProps {
   event: Event;
@@ -411,6 +412,9 @@ export function AdminTab({ event, user, onUpdate, onNavigate }: AdminTabProps) {
           </table>
         </div>
       </div>
+
+      {/* Stellar Escrow Management */}
+      <EscrowManager event={event} user={user} onUpdate={onUpdate} />
 
       {/* Danger Zone */}
       <div className="bg-red-50 p-8 border border-red-100 rounded-xl">

@@ -47,9 +47,15 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     setUser(user);
   };
 
-  const logout = () => {
-    localStorage.removeItem("token");
-    setUser(null);
+  const logout = async () => {
+    try {
+      await fetchApi("/auth/logout", { method: "POST" });
+    } catch (e) {
+      // Ignore errors on logout, just proceed with local cleanup
+    } finally {
+      localStorage.removeItem("token");
+      setUser(null);
+    }
   };
 
   return (
