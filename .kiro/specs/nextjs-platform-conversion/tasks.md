@@ -42,12 +42,12 @@ Tasks marked with `*` are optional test sub-tasks and can be skipped for a faste
     - _Requirements: 1.5_
 
 - [ ] 3. Supabase clients, migrations, and RLS
-  - [-] 3.1 Implement Supabase client factories
+  - [ ] 3.1 Implement Supabase client factories
     - Implement `createBrowserClient`, `createServerClient` (wired to `next/headers` cookies), and server-only `createServiceClient`
     - Ensure the server client calls `auth.getClaims()` immediately after creation with no intervening code
     - _Requirements: 2.1, 3.1, 3.2_
 
-  - [-] 3.2 Author initial database migrations for all core tables
+  - [ ] 3.2 Author initial database migrations for all core tables
     - Create Supabase CLI migrations (up/down) for all tables with foreign keys, indexes on frequently queried columns, CHECK constraints for enumerated values, `timestamptz` UTC timestamps, and `version` columns on mutable resources
     - Include partial unique indexes (one workspace Owner, one team per participant per event) and the GIN full-text index on events
     - _Requirements: 2.2, 2.4, 2.7, 19.1_
@@ -72,7 +72,7 @@ Tasks marked with `*` are optional test sub-tasks and can be skipped for a faste
     - _Requirements: 3.1, 3.2_
 
 - [ ] 4. Shared state machine module
-  - [-] 4.1 Implement the event lifecycle state machine
+  - [ ] 4.1 Implement the event lifecycle state machine
     - Implement `canTransition`, `validOutboundStates`, `isTerminal` over the 16 canonical states with Req 23.3 preconditions, rollback transitions, and terminal-state rules as a pure module importable by server and client
     - Eliminate the duplicate `server.ts` `VALID_TRANSITIONS` and `src/lib/eventStatus.ts` implementations
     - _Requirements: 6.2, 6.3, 23.1, 23.2, 23.3, 23.6, 23.7, 23.10_
@@ -85,7 +85,7 @@ Tasks marked with `*` are optional test sub-tasks and can be skipped for a faste
     - **Property 4: Terminal and rollback invariants hold**
     - **Validates: Requirements 23.6, 23.7**
 
-  - [-] 4.4 Implement the escrow lifecycle state machine
+  - [ ] 4.4 Implement the escrow lifecycle state machine
     - Implement `canEscrowTransition` over the 9 escrow states with cumulative-funding-driven transitions (PendingFunding → PartiallyFunded → FullyFunded)
     - _Requirements: 26.1, 26.2, 26.4_
 
@@ -98,7 +98,7 @@ Tasks marked with `*` are optional test sub-tasks and can be skipped for a faste
     - _Requirements: 39.1, 39.3, 39.4_
 
 - [ ] 5. Error model, response envelope, and permission matrix
-  - [-] 5.1 Implement the typed error hierarchy and global error handler
+  - [ ] 5.1 Implement the typed error hierarchy and global error handler
     - Implement `AppError` subclasses with stable codes and canonical HTTP statuses, and a single global handler mapping errors to `{ error: { code, message, details? } }`
     - Implement success envelopes `{ data }` and `{ data, meta }` with correct status mapping (201/204/400/401/403/404/409/422/429/503)
     - _Requirements: 18.1, 18.2, 18.3, 18.4, 20.5_

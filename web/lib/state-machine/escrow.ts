@@ -365,3 +365,14 @@ export function canEscrowTransition(
     unmetPreconditions,
   };
 }
+
+/**
+ * Returns every escrow state reachable from `from` given the current
+ * context — i.e. every `to` for which `canEscrowTransition` returns
+ * `ok: true`. Mirrors the event lifecycle module's `validOutboundStates`
+ * (`./event.ts`) for a consistent shared-module surface across lifecycles
+ * (Req 6.2).
+ */
+export function validEscrowOutboundStates(from: EscrowState, ctx: EscrowContext): EscrowState[] {
+  return GRAPH[from].filter((edge) => edge.unmet(ctx).length === 0).map((edge) => edge.to);
+}

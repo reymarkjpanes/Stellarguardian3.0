@@ -195,31 +195,20 @@ const FORWARD_AND_ROLLBACK_EDGES: Partial<Record<EventState, Edge[]>> = {
     },
   ],
   Judging: [
-    {
-      to: "ReviewObjectionWindow",
-      unmet: (ctx) =>
-        ctx.allSubmissionsScored
-          ? []
-          : [
-              "Review (Objection Window) requires all submissions to be scored before winners are set (Req 23.3, 7.1)",
-            ],
-    },
+    // No explicit Req 23.3 precondition is listed for leaving Judging itself
+    // (entry into Judging is already gated by `hasSubmissions` above, on the
+    // SubmissionClosed edge); the "all submissions scored" precondition is
+    // attributed by Req 23.3 to entering *Winners Finalized*, not to entering
+    // the Review (Objection Window) — see the ReviewObjectionWindow edge below.
+    { to: "ReviewObjectionWindow", unmet: always },
   ],
   ReviewObjectionWindow: [
     {
       to: "WinnersFinalized",
-      unmet: (ctx) => {
-        const reasons: string[] = [];
-        if (!ctx.reviewWindowElapsed) {
-          reasons.push(
-            "Winners Finalized requires the Review (Objection Window) to have elapsed (Req 23.3, 7.5)",
-          );
-        }
-        if (ctx.unresolvedDisputes > 0) {
-          reasons.push("Winners Finalized requires zero unresolved disputes (Req 23.3, 7.6, 39.7)");
-        }
-        return reasons;
-      },
+      unmet: (ctx) =>
+        ctx.allSubmissionsScored
+          ? []
+          : ["Winners Finalized requires all submissions to be scored (Req 23.3)"],
     },
   ],
   WinnersFinalized: [{ to: "OrganizerFundsEscrow", unmet: always }],

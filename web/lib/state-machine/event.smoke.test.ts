@@ -24,6 +24,20 @@ const baseCtx: TransitionContext = {
 };
 
 describe("event state machine smoke checks", () => {
+  it("blocks ReviewObjectionWindow -> WinnersFinalized until all submissions are scored", () => {
+    const result = canTransition("ReviewObjectionWindow", "WinnersFinalized", baseCtx);
+    expect(result.ok).toBe(false);
+    expect(result.unmetPreconditions).toContain(
+      "Winners Finalized requires all submissions to be scored (Req 23.3)",
+    );
+
+    const ready = canTransition("ReviewObjectionWindow", "WinnersFinalized", {
+      ...baseCtx,
+      allSubmissionsScored: true,
+    });
+    expect(ready.ok).toBe(true);
+  });
+
   it("blocks Draft -> Published without a judge assigned", () => {
     const result = canTransition("Draft", "Published", baseCtx);
     expect(result.ok).toBe(false);

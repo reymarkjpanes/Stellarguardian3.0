@@ -19,6 +19,10 @@
  * Behavior:
  *   - `AppError` instances are mapped 1:1 to `{ error: { code, message,
  *     details? } }` at their declared `httpStatus` (Req 18.2, 18.3).
+ *   - A raw `ZodError` that escaped a `safeParse` check (rather than being
+ *     wrapped in a `ValidationError` closer to the call site) is mapped to
+ *     the same 422 `VALIDATION_FAILED` envelope, with `details.fieldErrors`
+ *     populated from `z.flattenError` (Req 18.5).
  *   - Any other thrown value (unexpected exceptions, third-party library
  *     errors, thrown strings, etc.) is logged server-side with full detail
  *     and converted to a generic 500 `INTERNAL_SERVER_ERROR` response whose
@@ -26,8 +30,10 @@
  *     internal detail (Req 18.4, 20.5 - "leak-free 500").
  */
 import { NextResponse } from "next/server";
+import { z } from "zod";
 import type { ErrorEnvelope } from "@/types";
 import { AppError } from "./app-error";
+import { ValidationError } from "./errors";
 
 /** Stable code used for the generic, leak-free 500 fallback (Req 18.4). */
 export const INTERNAL_SERVER_ERROR_CODE = "INTERNAL_SERVER_ERROR";
@@ -62,6 +68,24 @@ export function handleApiError(error: unknown): NextResponse<ErrorEnvelope> {
         },
       },
       { status: error.httpStatus },
+    );
+  }
+
+  // A ZodError that escaped a safeParse check earlier in the call chain is
+  // still a validation failure, not an unexpected exception (Req 18.5).
+  if (error instanceof z.ZodError) {
+    const validationError = new ValidationError("The request failed validation.", {
+      fieldErrors: z.flattenError(error).fieldErrors,
+    });
+    return NextResponse.json(
+      {
+        error: {
+          code: validationError.code,
+          message: validationError.message,
+          details: validationError.details,
+        },
+      },
+      { status: validationError.httpStatus },
     );
   }
 

@@ -1,3 +1,4 @@
+import { z } from "zod";
 import { describe, expect, test, vi } from "vitest";
 import {
   BadRequestError,
@@ -81,6 +82,25 @@ describe("handleApiError", () => {
     expect(body.error.message).not.toContain("raw thrown string with internal detail");
 
     consoleSpy.mockRestore();
+  });
+
+  test("maps a raw ZodError to a 422 validation envelope with field-level details", async () => {
+    const schema = z.object({ name: z.string(), age: z.number() });
+    const result = schema.safeParse({ name: 42, age: "old" });
+    expect(result.success).toBe(false);
+
+    const response = handleApiError(result.error);
+
+    expect(response.status).toBe(422);
+    const body = await response.json();
+    expect(body.error.code).toBe("VALIDATION_FAILED");
+    expect(body.error.details).toHaveProperty("fieldErrors");
+    expect(
+      (body.error.details as { fieldErrors: Record<string, unknown> }).fieldErrors,
+    ).toHaveProperty("name");
+    expect(
+      (body.error.details as { fieldErrors: Record<string, unknown> }).fieldErrors,
+    ).toHaveProperty("age");
   });
 });
 
