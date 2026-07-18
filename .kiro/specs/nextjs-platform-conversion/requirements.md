@@ -12,8 +12,12 @@ This document specifies the requirements for converting the Stellar Guardian hac
 - **Judge**: A user assigned to evaluate submissions for a hackathon event
 - **Escrow_Account**: A Stellar blockchain account that holds prize funds in custody until disbursement conditions are met
 - **Wallet_Verifier**: The subsystem responsible for proving cryptographic ownership of a Stellar wallet address
-- **State_Machine**: The subsystem governing valid event lifecycle transitions (Draft → Funded → Published → Registration Open → Registration Closed → In Progress → Judging → Dispute Window → Completed → Archived/Cancelled)
-- **Dispute_Window**: A configurable time period after winners are announced during which participants can raise objections before prize disbursement is finalized
+- **State_Machine**: The subsystem governing valid event lifecycle transitions. The canonical, authoritative set of states and transitions is defined in Requirement 23 (Draft, Published, Registration Open, Registration Closed, Team Formation, Submission Open, Submission Closed, Judging, Review (Objection Window), Winners Finalized, Organizer Funds Escrow, Escrow Locked, Prize Distribution, Completed, Cancelled, Archived)
+- **Dispute**: A formal objection filed by an accepted participant during the Review (Objection Window) contesting a winner selection, evaluation, or prize allocation. A Dispute progresses through a defined lifecycle of states — Open, Under Review, Upheld, Dismissed, and Withdrawn — as defined authoritatively in Requirement 39. Upheld, Dismissed, and Withdrawn are terminal "resolved" states
+- **Dispute_Window**: The Review (Objection Window) state defined in the canonical state list of Requirement 23 — a configurable time period after winners are announced during which participants can raise objections before prize disbursement is finalized. "Dispute Window" and "Review (Objection Window)" refer to the same concept
+- **Team Captain**: A participant with elevated permissions over their team — inviting and removing members, designating a new captain, and submitting the team's project on behalf of all members
+- **Sponsor**: A user or organization with read-only visibility into an event they sponsor, without administrative authority over event operations
+- **Mentor**: A user who provides guidance to participants without judging submissions or holding administrative authority
 - **Idempotency_Key**: A client-generated unique identifier submitted with financial requests to ensure exactly-once processing
 - **Supabase**: The PostgreSQL-based backend-as-a-service providing database, authentication, row-level security, and real-time subscriptions
 - **RLS**: Row Level Security — PostgreSQL policies that restrict data access at the database layer
@@ -62,6 +66,9 @@ This document specifies the requirements for converting the Stellar Guardian hac
 5. THE Platform SHALL use Supabase client libraries for real-time subscriptions on event state changes, notifications, and team updates — replacing the naive Firestore sync
 6. IF the Supabase connection is unavailable, THEN THE Platform SHALL return a 503 Service Unavailable response with a structured error indicating temporary downtime
 7. THE Platform SHALL store all timestamps in UTC using the `timestamptz` PostgreSQL type
+8. IF the Supabase real-time subscription channel is unavailable while the core data store remains reachable, THEN THE Platform SHALL degrade gracefully for non-critical real-time updates by falling back to client polling rather than returning an error, and SHALL reserve the 503 Service Unavailable response of Requirement 2.6 for core data-store unavailability only
+
+> **Design-phase note (Requirements 2.6 vs 2.5/28.2):** Real-time delivery (Requirement 2.5, Requirement 28.2) and the 503 core-unavailability behavior (Requirement 2.6, Requirement 28) address different failure modes. The design phase SHALL define the polling fallback interval and which update categories are treated as non-critical (eligible for degraded polling) versus critical (requiring the data store to be reachable).
 
 ### Requirement 3: Authentication and Authorization
 
@@ -71,11 +78,12 @@ This document specifies the requirements for converting the Stellar Guardian hac
 
 1. THE Platform SHALL use Supabase Auth for user authentication, supporting email/password registration and login
 2. THE Platform SHALL issue and validate JWT access tokens through Supabase Auth with automatic token refresh handled client-side
-3. THE Platform SHALL enforce role-based access control with three roles: Organizer, Participant, and Judge — where a user can hold different roles across different events
+3. THE Platform SHALL enforce event-level role-based access control with the event-level roles Organizer, Participant, and Judge — where a user can hold different event-level roles across different events. The complete platform-wide and workspace-level role set is defined authoritatively in the Permission_Matrix of Requirement 27, which is the single source of truth for the full role list; the event-level roles named here are a subset of that authoritative set
 4. THE Platform SHALL implement authorization checks as reusable middleware functions composed in a fixed order: authenticate → authorize → validate → handle
 5. THE Platform SHALL reject requests to protected endpoints with a 401 Unauthorized response containing a structured error envelope when no valid token is provided
 6. IF a user attempts an action outside their role scope for a specific event, THEN THE Platform SHALL return a 403 Forbidden response with a descriptive error code
 7. THE Platform SHALL implement a single authorization helper for Organizer-only operations, eliminating the 15+ copy-pasted inline checks present in the current codebase
+8. THE Platform SHALL allow account creation and login via email/password independent of any wallet connection; wallet linking and verification SHALL be required only before a user performs a financial action (funding, disbursement, or claiming a prize), per Requirements 25 and 33
 
 ### Requirement 4: Organizer-Funded Escrow Model
 
@@ -90,6 +98,8 @@ This document specifies the requirements for converting the Stellar Guardian hac
 5. IF the funding transaction fails or is not found on-chain within 5 minutes of submission, THEN THE Platform SHALL keep the event in Draft state and notify the organizer with a descriptive error
 6. THE Platform SHALL expose a public verification endpoint that returns the escrow account's on-chain balance and transaction history for any funded event, enabling independent trust verification
 7. THE Platform SHALL support only @stellar/stellar-sdk (version 16+) for all blockchain operations, removing the duplicate stellar-sdk v13 dependency
+8. IF a Workspace_Owner initiates funding on behalf of an Organizer, THEN the Workspace_Owner's own Verified wallet SHALL be the signing wallet, and THE Platform SHALL record both the Workspace_Owner (as signer) and the Organizer (as event owner) on the funding Audit_Record. THE Platform SHALL NOT permit any wallet other than a Verified wallet belonging to the acting (signing) user to sign a funding transaction, and the refund destination SHALL be the wallet that actually signed the funding transaction
+9. THE Platform SHALL act as custodian of escrow funds between the confirmed funding transaction and final disbursement or refund — holding the encrypted escrow secret key (per Requirement 4.2) and signing disbursement and refund transactions on behalf of the event (per Requirement 8.3) — and this custodial posture SHALL be disclosed to users per Requirement 34. This custody does not contradict Requirement 4.1: the funding source SHALL always be the acting user's Verified wallet and the Platform private key SHALL NOT be used as a funding source, while the Platform retains custody of and signs distribution transactions from the escrow account.
 
 ### Requirement 5: Wallet Ownership Verification
 
@@ -105,18 +115,17 @@ This document specifies the requirements for converting the Stellar Guardian hac
 6. THE Platform SHALL store wallet addresses only after successful challenge-response verification and mark the association as cryptographically verified in the database
 7. THE Platform SHALL prevent wallet address changes without completing a new challenge-response flow for the new address
 
-### Requirement 6: Event State Machine
+### Requirement 6: Shared State Machine Module and Validation Contract
 
 **User Story:** As an organizer, I want a single, enforced event lifecycle with clear transitions, so that events progress through well-defined stages and invalid state changes are impossible.
 
 #### Acceptance Criteria
 
-1. THE State_Machine SHALL define exactly one canonical set of states and transitions shared between server and client: Draft → Funded → Published → Registration Open → Registration Closed → In Progress → Judging → Dispute Window → Completed → Archived, with Cancelled reachable from any non-terminal state
+1. THE canonical set of states and transitions is defined in Requirement 23; this requirement specifies only the shared-module implementation and validation-response contract, and SHALL NOT define its own state list
 2. THE State_Machine SHALL be implemented as a single TypeScript module importable by both server-side route handlers and client-side UI components
-3. WHEN a state transition is requested, THE State_Machine SHALL validate the transition against the canonical transition map before any database modification
+3. WHEN a state transition is requested, THE State_Machine SHALL validate the transition against the canonical transition map defined in Requirement 23 before any database modification
 4. IF an invalid state transition is requested, THEN THE Platform SHALL return a 422 response with the current state, requested state, and list of valid transitions from the current state
-5. THE State_Machine SHALL enforce preconditions for specific transitions: Funded requires on-chain escrow verification, Published requires at least one judge assigned, Completed requires the Dispute_Window to have elapsed without unresolved disputes
-6. THE Platform SHALL eliminate the duplicate state machine implementations (server.ts VALID_TRANSITIONS and src/lib/eventStatus.ts) in favor of the single shared module
+5. THE Platform SHALL eliminate the duplicate state machine implementations (server.ts VALID_TRANSITIONS and src/lib/eventStatus.ts) in favor of the single shared module
 
 ### Requirement 7: Dispute and Objection Window
 
@@ -124,13 +133,13 @@ This document specifies the requirements for converting the Stellar Guardian hac
 
 #### Acceptance Criteria
 
-1. WHEN winners are set by the organizer, THE State_Machine SHALL transition the event to Dispute Window state instead of directly to Completed
-2. THE Platform SHALL support a configurable dispute window duration per event (default: 72 hours, minimum: 24 hours, maximum: 168 hours)
-3. WHILE the event is in Dispute Window state, THE Platform SHALL accept dispute submissions from any accepted participant of that event
+1. WHEN winners are set by the organizer, THE State_Machine SHALL transition the event to Review (Objection Window) state instead of directly to Completed — the Review (Objection Window) is the same concept as the dispute/objection window, using the canonical state name from Requirement 23
+2. THE Platform SHALL support a configurable Review (Objection Window) duration per event (default: 72 hours, minimum: 24 hours, maximum: 168 hours)
+3. WHILE the event is in Review (Objection Window) state, THE Platform SHALL accept dispute submissions from any accepted participant of that event
 4. WHEN a dispute is submitted, THE Platform SHALL notify the organizer and all judges via in-app notification and email
-5. IF the dispute window elapses with zero unresolved disputes, THEN THE State_Machine SHALL automatically transition the event to Completed state
-6. IF unresolved disputes exist when the window elapses, THEN THE Platform SHALL keep the event in Dispute Window state and notify the organizer that manual resolution is required
-7. THE Platform SHALL prevent prize disbursement while any dispute remains unresolved
+5. IF the Review (Objection Window) has elapsed without unresolved disputes, THEN THE State_Machine SHALL automatically transition the event to Completed state
+6. IF unresolved disputes exist when the window elapses, THEN THE Platform SHALL keep the event in Review (Objection Window) state and notify the organizer that resolution is required per the Dispute lifecycle defined in Requirement 39
+7. THE Platform SHALL prevent prize disbursement until the Review (Objection Window) has elapsed without unresolved disputes
 
 ### Requirement 8: Prize Allocation Validation and Disbursement
 
@@ -140,11 +149,13 @@ This document specifies the requirements for converting the Stellar Guardian hac
 
 1. WHEN winners and prize amounts are submitted, THE Platform SHALL validate that the sum of all prize amounts does not exceed the confirmed on-chain escrow balance
 2. IF the total allocated prizes exceed the escrow balance, THEN THE Platform SHALL reject the winner submission with a 422 response showing the escrow balance and the attempted total allocation
-3. WHEN disbursement is triggered after a successful dispute window, THE Platform SHALL execute individual Stellar payments from the escrow account to each winner's verified wallet address
+3. WHEN disbursement is triggered after the Review (Objection Window) has elapsed without unresolved disputes, THE Platform SHALL execute individual Stellar payments from the escrow account to each winner's verified wallet address
 4. THE Platform SHALL record each disbursement transaction hash and associate it with the corresponding winner record
 5. IF a winner does not have a verified wallet address at disbursement time, THEN THE Platform SHALL skip that winner, hold their allocation in escrow, and notify the organizer
 6. THE Platform SHALL implement atomic disbursement: either all eligible winner payments succeed within a single Stellar transaction batch, or none are committed
-7. WHEN all prizes are disbursed and the dispute window has passed, THE Platform SHALL mark the event as Completed with a verifiable on-chain proof of disbursement
+
+> **Design-phase note (Requirement 8.6):** The "atomic disbursement" guarantee MUST be validated against Stellar transaction limits (a maximum of 100 operations per transaction) and against the chosen distribution mechanism (single transaction batch versus claimable balances). IF the number of eligible winners exceeds the per-transaction operation limit, THEN the design SHALL define a batching-with-all-or-nothing reconciliation strategy so that partial disbursement can be detected and either completed or fully reversed. This is a clarifying note to be resolved during the design phase, not an additional hard acceptance criterion.
+7. WHEN all prizes are disbursed and the Review (Objection Window) has elapsed without unresolved disputes, THE Platform SHALL mark the event as Completed with a verifiable on-chain proof of disbursement
 
 ### Requirement 9: Refund Path for Cancelled Events
 
@@ -152,7 +163,7 @@ This document specifies the requirements for converting the Stellar Guardian hac
 
 #### Acceptance Criteria
 
-1. WHEN a funded event is cancelled, THE Platform SHALL initiate an automatic refund of the entire escrow balance to the organizer's verified wallet address
+1. WHEN a funded event is cancelled, THE Platform SHALL initiate an automatic refund of the entire escrow balance to the wallet that signed the original funding transaction (per Requirement 4.8)
 2. THE Platform SHALL verify the refund transaction on-chain before marking the cancellation as complete
 3. THE Platform SHALL record the refund transaction hash in the transactions table with type 'refund'
 4. IF the automated refund fails (network error, insufficient fees), THEN THE Platform SHALL mark the event as 'Cancellation Pending' and retry up to 3 times with exponential backoff
@@ -196,6 +207,7 @@ This document specifies the requirements for converting the Stellar Guardian hac
 3. THE Platform SHALL split the current god endpoint (GET /api/events/:id) into focused sub-resource endpoints: `/events/:id` (core), `/events/:id/members`, `/events/:id/submissions`, `/events/:id/evaluations`, `/events/:id/teams`, `/events/:id/transactions`, `/events/:id/winners`, `/events/:id/sponsors`, `/events/:id/milestones`
 4. WHEN a client requests an event detail, THE Platform SHALL return only core event data, host info, user's membership/role, and trust checklist — sub-resources require separate requests
 5. THE Platform SHALL support filtering and sorting query parameters on list endpoints using validated Zod schemas
+6. THE Platform SHALL enforce per-sub-resource authorization for every split endpoint (members, submissions, evaluations, teams, transactions, winners, sponsors, milestones) according to the Permission_Matrix defined in Requirement 27
 
 ### Requirement 13: Idempotency for Financial Operations
 
@@ -234,9 +246,9 @@ This document specifies the requirements for converting the Stellar Guardian hac
 1. THE Platform SHALL support submission states: Draft and Submitted
 2. WHEN a participant saves a submission with draft status, THE Platform SHALL persist the submission without making it visible to judges or the organizer
 3. WHILE a submission is in Draft state, THE Platform SHALL allow unlimited edits by the submitter or their team members
-4. WHEN a participant marks a submission as Submitted, THE Platform SHALL make it visible for evaluation and lock it from further edits unless the event is still in 'In Progress' state
-5. THE Platform SHALL allow a participant to revert a Submitted entry back to Draft while the event remains in 'In Progress' state
-6. IF the event transitions out of 'In Progress' state, THEN THE Platform SHALL automatically finalize all Draft submissions as Submitted
+4. WHEN a participant marks a submission as Submitted, THE Platform SHALL make it visible for evaluation and lock it from further edits unless the event is still in 'Submission Open' state (per Requirement 23)
+5. THE Platform SHALL allow a participant to revert a Submitted entry back to Draft while the event remains in 'Submission Open' state (per Requirement 23)
+6. IF the event transitions out of 'Submission Open' state to 'Submission Closed' (per Requirement 23), THEN THE Platform SHALL automatically finalize all Draft submissions as Submitted
 
 ### Requirement 16: Notification and Communication System
 
@@ -249,6 +261,7 @@ This document specifies the requirements for converting the Stellar Guardian hac
 3. THE Platform SHALL support user notification preferences allowing users to opt out of email notifications per category while retaining in-app notifications
 4. WHEN a notification is created, THE Platform SHALL deliver it in real-time to connected clients using Supabase real-time subscriptions
 5. THE Platform SHALL paginate notification history and support marking notifications as read individually or in bulk
+6. THE Platform SHALL batch non-urgent notifications (e.g., routine team activity, milestone reminders) into a digest delivered at most once per hour per user, while urgent categories (disputes, disbursement, security alerts) SHALL always deliver immediately
 
 ### Requirement 17: Repository Hygiene and Code Quality
 
@@ -287,6 +300,7 @@ This document specifies the requirements for converting the Stellar Guardian hac
 3. IF the submitted version does not match the stored version, THEN THE Platform SHALL return a 409 Conflict response indicating the resource has been modified since the client's last read
 4. THE Platform SHALL increment the version number on every successful update
 5. THE Platform SHALL return the current version in all read responses so clients can track it for subsequent updates
+6. THE Platform SHALL apply optimistic concurrency control to winner-assignment and disbursement-trigger operations, rejecting concurrent conflicting requests with a 409 Conflict response
 
 ### Requirement 20: Observability and Health Checks
 
@@ -324,11 +338,13 @@ This document specifies the requirements for converting the Stellar Guardian hac
 4. THE Platform SHALL ensure all text meets a minimum contrast ratio of 4.5:1 against its background
 5. THE Platform SHALL provide loading, empty, and error states for all data-fetching components with appropriate ARIA announcements
 
-### Requirement 23: Complete Event Lifecycle State Machine
+### Requirement 23: Canonical Event Lifecycle State Machine (authoritative)
 
 **User Story:** As a platform operator, I want a granular event lifecycle covering every phase from draft through archival, so that each stage has defined permissions, validations, allowed actions, and rollback behavior — ensuring no ambiguous or untracked states exist.
 
 #### Acceptance Criteria
+
+> **Note:** This requirement is the single authoritative definition of the event lifecycle state machine for the entire Platform. Its state list and transition map supersede the state list previously present in Requirement 6. All other requirements that reference event states (Requirements 6, 7, 8, 9, and 26) MUST cite the state names defined here.
 
 1. THE State_Machine SHALL define the following ordered lifecycle states: Draft, Published, Registration Open, Registration Closed, Team Formation, Submission Open, Submission Closed, Judging, Review (Objection Window), Winners Finalized, Organizer Funds Escrow, Escrow Locked, Prize Distribution, Completed, Cancelled, and Archived
 2. WHEN a state transition is requested, THE State_Machine SHALL validate that the transition is permitted from the current state according to the canonical transition map before modifying any database record
@@ -374,6 +390,7 @@ This document specifies the requirements for converting the Stellar Guardian hac
 8. WHEN a blockchain transaction fails (network timeout, insufficient balance, sequence number conflict), THE Platform SHALL display a descriptive error to the user, log the failure with transaction context, and provide a retry action without requiring the user to re-enter transaction details
 9. THE Platform SHALL verify wallet signatures using the Stellar SDK Keypair.verify method and reject any signature that does not match the claimed public key
 10. THE Platform SHALL prevent any financial operation (fund, disburse, refund) from executing if the initiating user's wallet is not in Verified status
+11. THE Platform SHALL display an approximate fiat-equivalent value alongside XLM amounts wherever prize totals are shown, sourced from a configurable price oracle, clearly labeled as approximate and non-binding
 
 ### Requirement 26: Escrow and Funding Lifecycle
 
@@ -383,7 +400,7 @@ This document specifies the requirements for converting the Stellar Guardian hac
 
 1. THE Escrow_Lifecycle SHALL define the following states: Pending Funding, Partially Funded, Fully Funded, Locked, Pending Release, Released, Refunded, Failed, and Cancelled
 2. WHEN an organizer initiates funding, THE Escrow_Lifecycle SHALL transition from Pending Funding to Partially Funded upon receiving the first confirmed on-chain deposit, and to Fully Funded when the total deposited amount meets or exceeds the configured prize pool target
-3. THE Escrow_Lifecycle SHALL define transition permissions: only the event Organizer or Workspace_Owner can trigger funding; only the Platform transitions to Locked (automated upon event reaching Escrow Locked state); only the Platform triggers Pending Release and Released (automated after successful dispute window); only the Organizer or Platform Admin can trigger Cancelled
+3. THE Escrow_Lifecycle SHALL define transition permissions: only the event Organizer or Workspace_Owner can trigger funding; only the Platform transitions to Locked (automated upon event reaching Escrow Locked state); only the Platform triggers Pending Release and Released (automated after the Review (Objection Window) has elapsed without unresolved disputes); only the Organizer or Platform Admin can trigger Cancelled — the signing wallet SHALL always be the acting user's Verified wallet per Requirement 4.8, and refunds return to the actual funding wallet
 4. WHEN the escrow transitions to Locked state, THE Platform SHALL verify the on-chain balance matches the expected funded amount and record the verification timestamp and block height
 5. THE Platform SHALL represent escrow state in both the smart contract (on-chain) and the database (off-chain), with a reconciliation check that compares on-chain balance against the database record at every state transition
 6. THE Platform SHALL record an Audit_Record for every escrow state transition containing: actor, timestamp, wallet address (if blockchain-related), transaction hash (if on-chain), previous state, new state, and on-chain balance at time of transition
@@ -511,3 +528,79 @@ This document specifies the requirements for converting the Stellar Guardian hac
 15. THE Platform SHALL handle multi-device scenarios by storing wallet association at the account level (not browser session level) — if a user logs in from a new device, THE Platform SHALL prompt them to reconnect their wallet via the same challenge-response flow while displaying their verified wallet address as a reference
 16. THE Platform SHALL implement a wallet health check on application load that verifies: the extension is installed, the extension is accessible (not locked), the connected account matches the stored verified address, and the active network matches the platform configuration — displaying actionable guidance for any detected mismatch
 
+### Requirement 34: Legal Acceptance and Custodial Risk Disclosure
+
+**User Story:** As a platform operator, I want users to explicitly accept terms and understand custodial risk plus network/compliance posture, so that the platform meets legal obligations for handling real prize money.
+
+#### Acceptance Criteria
+
+1. THE Platform SHALL require explicit Terms of Service and Prize-Fund Custody Disclosure acceptance before any user can create or fund an event, recording the acceptance timestamp and document version in an Audit_Record
+2. THE Platform SHALL display a jurisdiction/eligibility disclaimer during signup, configurable by Platform Admin
+3. THE Platform SHALL explicitly document, in-product, whether the current deployment operates on testnet-only, mainnet, or both, and SHALL prevent mainnet financial operations until this policy is explicitly enabled per environment via configuration
+4. THE Platform SHALL define its AML/KYC posture per Network_Mode: testnet operations SHALL NOT require KYC; mainnet operations at or above a configurable transaction threshold SHALL require identity verification via a pluggable KYC provider interface (extension point per Requirement 32, not a hard MVP requirement)
+5. WHEN the Terms of Service or Custody Disclosure documents are updated, THE Platform SHALL require re-acceptance from all users before their next financial action
+
+### Requirement 35: Data Retention, Account Deactivation, and Deletion
+
+**User Story:** As a user, I want to deactivate or delete my account and have my personal data handled correctly, so that my privacy rights are respected while the platform preserves legally-required financial records.
+
+#### Acceptance Criteria
+
+1. THE Platform SHALL allow a user to request account deactivation, which disables login and hides their profile from other users while preserving all financial and audit records
+2. THE Platform SHALL distinguish deletable personal data (name, email, non-financial profile fields) from immutable compliance data (Audit_Records, transaction records, wallet addresses tied to disbursements), which SHALL be retained per Requirement 31.7 regardless of deletion requests
+3. WHEN a user requests data deletion, THE Platform SHALL anonymize deletable fields within 30 days while retaining a pseudonymous reference sufficient to preserve audit-record integrity
+4. THE Platform SHALL prevent account deletion while the user has active financial obligations (unfunded events they organize, undisbursed winnings, or pending refunds), notifying the user of the blocking condition
+5. THE Platform SHALL provide a user-facing data export (GDPR-style access request) returning all deletable personal data in a machine-readable format
+
+### Requirement 36: Public Content Moderation and Abuse Prevention
+
+**User Story:** As a platform operator, I want uploaded content scanned and public content moderated, so that the platform is protected from malware, spam, and abusive material.
+
+#### Acceptance Criteria
+
+1. THE Platform SHALL scan uploaded banner images and submission attachments for malware before storage, rejecting any file that fails the scan and notifying the uploader
+2. THE Platform SHALL provide a reporting mechanism for public event content (description, banner, sponsor logos) allowing any authenticated user to flag content for Platform Admin review
+3. THE Platform SHALL rate-limit event creation per user and per Workspace (default: 10 events per 24 hours) to mitigate spam and fake event creation
+4. THE Platform SHALL validate uploaded file MIME types by content inspection (magic-byte detection), not filename extension alone
+5. WHEN content is flagged, THE Platform SHALL create an Audit_Record and surface the report in the Platform Admin Dashboard for review with actions to dismiss, warn, or unpublish the content
+
+### Requirement 37: Public Event Discovery and Search
+
+**User Story:** As a visitor, I want to search and filter public events, so that I can find hackathons relevant to my interests.
+
+#### Acceptance Criteria
+
+1. THE Platform SHALL provide full-text search across public event title, description, and tags
+2. THE Platform SHALL support filtering public events by category, format, tag, and funding-verification status
+3. THE Platform SHALL support sorting by registration deadline, prize pool size, and recency
+4. THE Platform SHALL paginate public event discovery results per Requirement 12.1
+5. THE Platform SHALL only surface events in Published or later non-terminal public states in discovery results, never Draft or Cancelled events
+
+### Requirement 38: Environment Management and Operational Resilience
+
+**User Story:** As a platform operator, I want managed secrets, automated CI checks, and defined disaster recovery targets, so that the platform is operationally reliable and secure across environments.
+
+#### Acceptance Criteria
+
+1. THE Platform SHALL manage all environment-specific secrets through a secrets manager (not committed config files), with rotation supported without downtime
+2. THE Platform SHALL define automated CI checks (type-check, lint, test, migration dry-run) gating merges to the main branch
+3. THE Platform SHALL define a Recovery Point Objective (RPO) of 15 minutes and Recovery Time Objective (RTO) of 4 hours for the Supabase Postgres datastore, verified via periodic restore drills
+4. THE Platform SHALL maintain separate, isolated environments (development, staging, production) with no shared secrets or datastores between them
+5. THE Platform SHALL never commit secrets or environment-specific config files to version control, and SHALL remove any previously committed secrets (firebase-applet-config.json and similar) as part of the migration
+
+### Requirement 39: Dispute Lifecycle and Resolution
+
+**User Story:** As an organizer and platform operator, I want a defined dispute resolution workflow, so that objections raised during the Review (Objection Window) are handled fairly and transparently before any prize disbursement occurs.
+
+#### Acceptance Criteria
+
+1. THE Platform SHALL define the following Dispute lifecycle states: Open, Under Review, Upheld, Dismissed, and Withdrawn — where Upheld, Dismissed, and Withdrawn are terminal resolved states
+2. WHEN a dispute is filed by an accepted participant during the Review (Objection Window) (per Requirement 7.3), THE Platform SHALL create the Dispute in the Open state
+3. THE Platform SHALL allow only the participant who filed a Dispute to transition it to the Withdrawn state
+4. THE Platform SHALL allow only the Organizer or Platform Admin to transition a Dispute from Open to Under Review, and from Open or Under Review to Upheld or Dismissed
+5. WHEN any Dispute state transition occurs, THE Platform SHALL record the actor, timestamp, and reason in an Audit_Record (per Requirement 31)
+6. THE Platform SHALL consider a Dispute resolved only when it is in the Upheld, Dismissed, or Withdrawn terminal state
+7. WHILE any Dispute for an event is in the Open or Under Review state, THE State_Machine SHALL NOT transition the event to Prize Distribution and THE Platform SHALL block disbursement (per Requirements 7.7 and 8.3)
+8. WHEN a Dispute is transitioned to Upheld, THE Platform SHALL notify the Organizer and require winner and prize re-evaluation before the event can proceed toward Prize Distribution
+9. WHEN all Disputes for an event have reached a terminal resolved state and the Review (Objection Window) has elapsed, THE State_Machine SHALL allow transition to Completed and Prize Distribution (per Requirement 23)
+10. IF an actor attempts a Dispute state transition not permitted for the acting user's role (per Requirement 39.3 and 39.4), THEN THE Platform SHALL return a 403 Forbidden response with a descriptive error code and record the denied attempt (per Requirement 27.11)
