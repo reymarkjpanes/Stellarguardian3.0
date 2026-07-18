@@ -127,8 +127,8 @@ function isValidTransition(from: string, to: string): boolean {
 
 // ─── Database ──────────────────────────────────────────────────────────────────
 // The shared database instance is imported from server/db/client.ts at the top.
-// Schema initialization, PRAGMA configuration, and Firestore synchronization
-// are all handled there. No other file should instantiate or configure SQLite.
+// Schema initialization and PRAGMA configuration are all handled there.
+// No other file should instantiate or configure SQLite.
 
 // Auth Middleware
 const authenticateToken = (req: any, res: any, next: any) => {

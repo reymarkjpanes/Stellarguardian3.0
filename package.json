@@ -13,7 +13,8 @@
     "db:rollback": "tsx server/db/migrator.ts down",
     "test": "vitest run",
     "test:watch": "vitest",
-    "test:coverage": "vitest run --coverage"
+    "test:coverage": "vitest run --coverage",
+    "prepare": "husky"
   },
   "dependencies": {
     "@google/genai": "^2.4.0",
@@ -28,7 +29,6 @@
     "dotenv": "^17.2.3",
     "express": "^4.21.2",
     "express-rate-limit": "^8.6.0",
-    "firebase": "^12.16.0",
     "helmet": "^8.3.0",
     "jsonwebtoken": "^9.0.3",
     "kysely": "^0.29.3",
@@ -39,7 +39,6 @@
     "react-router-dom": "^7.18.1",
     "resend": "^6.17.2",
     "sonner": "^2.0.7",
-    "stellar-sdk": "^13.3.0",
     "tailwind-merge": "^3.6.0",
     "vite": "^6.2.3",
     "zod": "^4.4.3"
@@ -57,6 +56,8 @@
     "@vitest/coverage-v8": "^4.1.10",
     "autoprefixer": "^10.4.21",
     "esbuild": "^0.25.0",
+    "husky": "^9.1.7",
+    "lint-staged": "^17.1.0",
     "supertest": "^7.2.2",
     "tailwindcss": "^4.1.14",
     "tsx": "^4.23.1",

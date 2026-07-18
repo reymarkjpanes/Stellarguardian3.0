@@ -11,17 +11,6 @@
  * 1. Single connection instance (shared across all modules)
  * 2. PRAGMA configuration (WAL, foreign_keys, busy_timeout)
  * 3. Schema initialization (CREATE TABLE IF NOT EXISTS for all tables)
- * 4. Firestore write-through synchronization (via interceptor)
- * 5. Firestore restore on startup (via loadStateFromFirestore)
- *
- * Architecture:
- * ─────────────
- * BEFORE: server.ts created db#1 (with Firestore sync) and server/db/client.ts
- *         created db#2 (without Firestore sync). Modular routes used db#2,
- *         meaning auth writes were NEVER synced to Firestore.
- *
- * AFTER:  This file is the single source of truth. The Firestore sync interceptor
- *         is attached here, so ALL writes from ALL modules trigger sync.
  *
  * Usage:
  * ──────
@@ -31,7 +20,6 @@
  */
 import Database from 'better-sqlite3';
 import path from 'path';
-import { attachWriteInterceptor, loadStateFromFirestore } from './sync';
 
 // ─── Connection ───────────────────────────────────────────────────────────────
 
@@ -265,20 +253,6 @@ try { db.exec("ALTER TABLE users ADD COLUMN updatedAt TEXT NOT NULL DEFAULT '202
 try { db.exec("ALTER TABLE users ADD COLUMN emailVerified INTEGER NOT NULL DEFAULT 0"); } catch {}
 try { db.exec("ALTER TABLE users ADD COLUMN isActive INTEGER NOT NULL DEFAULT 1"); } catch {}
 try { db.exec("ALTER TABLE winners ADD COLUMN payoutTxRef TEXT"); } catch {}
-
-// ─── Firestore Sync Interceptor ───────────────────────────────────────────────
-// Attach the write-through interceptor so ALL writes trigger Firestore backup.
-// This must be called AFTER schema initialization (so the interceptor doesn't
-// fire on CREATE TABLE statements during startup).
-
-attachWriteInterceptor(db);
-
-// ─── Firestore Restore ────────────────────────────────────────────────────────
-// Kick off async restore. This runs in the background — the server starts
-// immediately with whatever is in the local SQLite file and overwrites with
-// Firestore data if a backup exists.
-
-loadStateFromFirestore(db);
 
 // ─── Export ───────────────────────────────────────────────────────────────────
 

@@ -4,7 +4,6 @@ import { Users, Send, UserCheck, UserX, Trash2, Edit, RefreshCw } from 'lucide-r
 import { Event } from '../../types';
 import { fetchApi } from '../../lib/api';
 import { toast } from 'sonner';
-import { EmailTemplates } from './EmailTemplates';
 import { EscrowManager } from './EscrowManager';
 
 interface AdminTabProps {
@@ -204,16 +203,6 @@ export function AdminTab({ event, user, onUpdate, onNavigate }: AdminTabProps) {
           <Users className="w-5 h-5 text-slate-500" />
           Invite People
         </h2>
-
-        <EmailTemplates 
-          userId={user?.id || 'anonymous'}
-          eventTitle={event.title}
-          inviteRole={inviteRole}
-          onApplyTemplate={(subj, body) => {
-            setInviteSubject(subj);
-            setInviteMessage(body);
-          }}
-        />
 
         <form onSubmit={(e) => e.preventDefault()} className="space-y-4">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
