@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { Bell } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from '../context/AuthContext';
+import { getAuthToken } from '../lib/api';
 
 interface Notification {
   id: number;
@@ -31,7 +32,7 @@ const typeIcon: Record<string, string> = {
  * Polls unread count every 30 seconds.
  */
 export function NotificationBell() {
-  const { token } = useAuth() as any;
+  const { user } = useAuth();
   const [unreadCount, setUnreadCount] = useState(0);
   const [isOpen, setIsOpen] = useState(false);
   const [recent, setRecent] = useState<Notification[]>([]);
@@ -51,11 +52,14 @@ export function NotificationBell() {
 
   // Poll unread count
   useEffect(() => {
-    if (!token) return;
+    const currentToken = getAuthToken();
+    if (!currentToken) return;
     const fetchCount = async () => {
       try {
+        const t = getAuthToken();
+        if (!t) return;
         const res = await fetch('/api/notifications/unread-count', {
-          headers: { Authorization: `Bearer ${token}` },
+          headers: { Authorization: `Bearer ${t}` },
         });
         const data = await res.json();
         setUnreadCount(data.data?.count ?? 0);
@@ -64,17 +68,18 @@ export function NotificationBell() {
     fetchCount();
     const interval = setInterval(fetchCount, 30_000);
     return () => clearInterval(interval);
-  }, [token]);
+  }, [user]);
 
   // Fetch recent when dropdown opens
   const handleOpen = async () => {
-    if (!token) return;
+    const currentToken = getAuthToken();
+    if (!currentToken) return;
     setIsOpen((prev) => !prev);
     if (!isOpen) {
       setIsLoading(true);
       try {
         const res = await fetch('/api/notifications?limit=5', {
-          headers: { Authorization: `Bearer ${token}` },
+          headers: { Authorization: `Bearer ${currentToken}` },
         });
         const data = await res.json();
         setRecent(data.items ?? []);
@@ -87,13 +92,14 @@ export function NotificationBell() {
   const markRead = async (id: number) => {
     setRecent((prev) => prev.map((n) => (n.id === id ? { ...n, isRead: 1 } : n)));
     setUnreadCount((prev) => Math.max(0, prev - 1));
+    const t = getAuthToken();
     await fetch(`/api/notifications/${id}/read`, {
       method: 'POST',
-      headers: { Authorization: `Bearer ${token}` },
+      headers: { Authorization: `Bearer ${t}` },
     });
   };
 
-  if (!token) return null;
+  if (!user) return null;
 
   return (
     <div ref={ref} className="relative">

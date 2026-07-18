@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { Bell, Check, CheckCheck, Inbox } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from '../context/AuthContext';
+import { getAuthToken } from '../lib/api';
 
 interface Notification {
   id: number;
@@ -19,13 +20,14 @@ interface Notification {
  * Route: /notifications (protected)
  */
 export default function Notifications() {
-  const { token } = useAuth() as any;
+  useAuth(); // Ensure authenticated context
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [total, setTotal] = useState(0);
 
   const fetchNotifications = async () => {
     try {
+      const token = getAuthToken();
       const res = await fetch('/api/notifications?limit=50', {
         headers: { Authorization: `Bearer ${token}` },
       });
@@ -45,6 +47,7 @@ export default function Notifications() {
     setNotifications((prev) =>
       prev.map((n) => (n.id === id ? { ...n, isRead: 1 } : n)),
     );
+    const token = getAuthToken();
     await fetch(`/api/notifications/${id}/read`, {
       method: 'POST',
       headers: { Authorization: `Bearer ${token}` },
@@ -53,6 +56,7 @@ export default function Notifications() {
 
   const markAllRead = async () => {
     setNotifications((prev) => prev.map((n) => ({ ...n, isRead: 1 })));
+    const token = getAuthToken();
     await fetch('/api/notifications/read-all', {
       method: 'POST',
       headers: { Authorization: `Bearer ${token}` },

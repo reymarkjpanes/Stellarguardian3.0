@@ -1,21 +1,39 @@
 import 'dotenv/config';
 import express from "express";
 import path from "path";
-import Database from "better-sqlite3";
-import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import cors from "cors";
 import helmet from "helmet";
 import rateLimit from "express-rate-limit";
 import crypto from "crypto";
-import { z } from "zod";
 import { createServer as createViteServer } from "vite";
+
+// ─── Shared Database (single connection for the entire application) ────────────
+import db from './server/db/client';
 
 // ─── New Modular Routes (Phase 1 Architecture) ────────────────────────────────
 import { authRouter } from './server/routes/auth';
 import { notificationsRouter } from './server/routes/notifications';
 import { stellarRouter } from './server/routes/stellar';
 import { errorHandler } from './server/middleware/errorHandler';
+import { validate } from './server/middleware/validate';
+
+// ─── Validation Schemas ───────────────────────────────────────────────────────
+import {
+  CreateEventSchema,
+  UpdateEventSchema,
+  StateTransitionSchema,
+  RsvpSchema,
+  MembershipStatusSchema,
+  CreateMilestoneSchema,
+  CreateSponsorSchema,
+  SetWinnersSchema,
+  CreateTeamSchema,
+  CreateSubmissionSchema,
+  UpdateSubmissionSchema,
+  ScoreSubmissionSchema,
+  SendInviteSchema,
+} from './server/schemas';
 
 // ─── Structured Logger ────────────────────────────────────────────────────────
 const log = {
@@ -107,216 +125,10 @@ function isValidTransition(from: string, to: string): boolean {
   return (VALID_TRANSITIONS[from] || []).includes(to);
 }
 
-// Initialize SQLite Database
-const db = new Database("database.sqlite");
-db.pragma("journal_mode = WAL");
-
-// Setup Firestore synchronization
-import { loadStateFromFirestore, saveStateToFirestoreDebounced } from "./src/lib/serverFirebase";
-
-const originalPrepare = db.prepare.bind(db);
-db.prepare = function(sql: string) {
-  const statement = originalPrepare(sql);
-  const originalRun = statement.run.bind(statement);
-  statement.run = function(...args: any[]) {
-    const result = originalRun(...args);
-    const normalizedSql = sql.trim().toUpperCase();
-    if (
-      normalizedSql.startsWith("INSERT") ||
-      normalizedSql.startsWith("UPDATE") ||
-      normalizedSql.startsWith("DELETE") ||
-      normalizedSql.startsWith("REPLACE") ||
-      normalizedSql.startsWith("CREATE TABLE") ||
-      normalizedSql.startsWith("DROP") ||
-      normalizedSql.startsWith("ALTER")
-    ) {
-      saveStateToFirestoreDebounced(db);
-    }
-    return result;
-  };
-  return statement;
-};
-
-
-// Setup Schema
-db.exec(`
-  CREATE TABLE IF NOT EXISTS users (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    name TEXT NOT NULL,
-    email TEXT UNIQUE NOT NULL,
-    password TEXT NOT NULL,
-    walletAddress TEXT,
-    isAdmin INTEGER DEFAULT 0
-  );
-
-  CREATE TABLE IF NOT EXISTS events (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    hostUserId INTEGER NOT NULL,
-    title TEXT NOT NULL,
-    description TEXT NOT NULL,
-    category TEXT NOT NULL,
-    format TEXT NOT NULL,
-    visibility TEXT NOT NULL,
-    registrationDeadline TEXT NOT NULL,
-    startDate TEXT NOT NULL,
-    endDate TEXT NOT NULL,
-    prizeTotal REAL NOT NULL,
-    prizeBreakdown TEXT NOT NULL,
-    state TEXT NOT NULL DEFAULT 'Draft',
-    fundingTxRef TEXT,
-    tags TEXT,
-    FOREIGN KEY(hostUserId) REFERENCES users(id)
-  );
-
-  CREATE TABLE IF NOT EXISTS event_memberships (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    eventId INTEGER NOT NULL,
-    userId INTEGER NOT NULL,
-    role TEXT NOT NULL,
-    status TEXT NOT NULL,
-    FOREIGN KEY(eventId) REFERENCES events(id),
-    FOREIGN KEY(userId) REFERENCES users(id),
-    UNIQUE(eventId, userId, role)
-  );
-
-  CREATE TABLE IF NOT EXISTS invitations (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    kind TEXT NOT NULL,
-    eventId INTEGER NOT NULL,
-    email TEXT NOT NULL,
-    token TEXT UNIQUE NOT NULL,
-    status TEXT NOT NULL DEFAULT 'pending',
-    invitedByUserId INTEGER NOT NULL,
-    expiresAt TEXT NOT NULL,
-    FOREIGN KEY(eventId) REFERENCES events(id),
-    FOREIGN KEY(invitedByUserId) REFERENCES users(id)
-  );
-
-  CREATE TABLE IF NOT EXISTS dev_emails (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    to_email TEXT NOT NULL,
-    subject TEXT NOT NULL,
-    body TEXT NOT NULL,
-    invite_link TEXT NOT NULL,
-    sent_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
-  );
-
-  CREATE TABLE IF NOT EXISTS transactions (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    eventId INTEGER NOT NULL,
-    type TEXT NOT NULL,
-    amountXLM REAL NOT NULL,
-    fromWallet TEXT NOT NULL,
-    toWallet TEXT,
-    txRef TEXT NOT NULL,
-    timestamp TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY(eventId) REFERENCES events(id)
-  );
-`);
-
-// Safe Migration for existing databases
-try { db.exec("ALTER TABLE events ADD COLUMN tags TEXT DEFAULT ''"); } catch (e) {}
-try { db.exec("ALTER TABLE events ADD COLUMN rulesPublished INTEGER DEFAULT 0"); } catch (e) {}
-try { db.exec("ALTER TABLE events ADD COLUMN timelineConfirmed INTEGER DEFAULT 0"); } catch (e) {}
-
-try { db.exec("ALTER TABLE events ADD COLUMN capacity INTEGER"); } catch (e) {}
-try { db.exec("ALTER TABLE events ADD COLUMN teamSizeMax INTEGER DEFAULT 4"); } catch (e) {}
-try { db.exec("ALTER TABLE events ADD COLUMN bannerUrl TEXT"); } catch (e) {}
-try { db.exec("ALTER TABLE events ADD COLUMN contactEmail TEXT"); } catch (e) {}
-
-db.exec(`
-  CREATE TABLE IF NOT EXISTS teams (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    eventId INTEGER NOT NULL,
-    name TEXT NOT NULL,
-    createdAt TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY(eventId) REFERENCES events(id)
-  );
-  
-  CREATE TABLE IF NOT EXISTS team_members (
-    teamId INTEGER NOT NULL,
-    userId INTEGER NOT NULL,
-    FOREIGN KEY(teamId) REFERENCES teams(id),
-    FOREIGN KEY(userId) REFERENCES users(id),
-    PRIMARY KEY (teamId, userId)
-  );
-
-  CREATE TABLE IF NOT EXISTS sponsors (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    eventId INTEGER NOT NULL,
-    name TEXT NOT NULL,
-    logo TEXT,
-    tier TEXT,
-    FOREIGN KEY(eventId) REFERENCES events(id)
-  );
-
-  CREATE TABLE IF NOT EXISTS milestones (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    eventId INTEGER NOT NULL,
-    title TEXT NOT NULL,
-    date TEXT NOT NULL,
-    description TEXT,
-    FOREIGN KEY(eventId) REFERENCES events(id)
-  );
-
-  CREATE TABLE IF NOT EXISTS submissions (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    eventId INTEGER NOT NULL,
-    teamId INTEGER,
-    userId INTEGER NOT NULL,
-    title TEXT NOT NULL,
-    description TEXT NOT NULL,
-    url TEXT,
-    createdAt TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    updatedAt TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY(eventId) REFERENCES events(id),
-    FOREIGN KEY(teamId) REFERENCES teams(id),
-    FOREIGN KEY(userId) REFERENCES users(id)
-  );
-
-  CREATE TABLE IF NOT EXISTS evaluations (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    submissionId INTEGER NOT NULL,
-    judgeId INTEGER NOT NULL,
-    score INTEGER NOT NULL,
-    feedback TEXT,
-    createdAt TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY(submissionId) REFERENCES submissions(id),
-    FOREIGN KEY(judgeId) REFERENCES users(id),
-    UNIQUE(submissionId, judgeId)
-  );
-  
-  CREATE TABLE IF NOT EXISTS announcements (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    eventId INTEGER NOT NULL,
-    title TEXT NOT NULL,
-    body TEXT NOT NULL,
-    createdAt TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY(eventId) REFERENCES events(id)
-  );
-
-  CREATE TABLE IF NOT EXISTS winners (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    eventId INTEGER NOT NULL,
-    submissionId INTEGER NOT NULL,
-    rank INTEGER NOT NULL,
-    prizeAmount REAL,
-    FOREIGN KEY(eventId) REFERENCES events(id),
-    FOREIGN KEY(submissionId) REFERENCES submissions(id)
-  );
-  
-  CREATE TABLE IF NOT EXISTS rsvps (
-    eventId INTEGER NOT NULL,
-    userId INTEGER NOT NULL,
-    status TEXT NOT NULL,
-    PRIMARY KEY (eventId, userId),
-    FOREIGN KEY(eventId) REFERENCES events(id),
-    FOREIGN KEY(userId) REFERENCES users(id)
-  );
-`);
-
-// Restore state from Cloud Firestore if available
-loadStateFromFirestore(db);
+// ─── Database ──────────────────────────────────────────────────────────────────
+// The shared database instance is imported from server/db/client.ts at the top.
+// Schema initialization, PRAGMA configuration, and Firestore synchronization
+// are all handled there. No other file should instantiate or configure SQLite.
 
 // Auth Middleware
 const authenticateToken = (req: any, res: any, next: any) => {
@@ -333,82 +145,18 @@ const authenticateToken = (req: any, res: any, next: any) => {
 
 // --- API ROUTES ---
 
-// ─── Zod Schemas ──────────────────────────────────────────────────────────────
-const SignupSchema = z.object({
-  name: z.string().min(2).max(100).trim(),
-  email: z.string().email().max(255).trim().toLowerCase(),
-  password: z.string().min(8).max(128),
-});
-
-const LoginSchema = z.object({
-  email: z.string().email().trim().toLowerCase(),
-  password: z.string().min(1),
-});
-
-const ScoreSchema = z.object({
-  score: z.number().int().min(0).max(100),
-  feedback: z.string().max(2000).optional(),
-});
-
-const InviteSchema = z.object({
-  eventId: z.number().int().positive(),
-  emails: z.array(z.string().email()).min(1).max(50),
-  role: z.enum(['Participant', 'Judge', 'Mentor']),
-  message: z.string().max(1000).optional(),
-});
+// ─── Zod Schemas (moved to server/schemas/) ──────────────────────────────────
+// All validation schemas are now in server/schemas/index.ts.
+// The validate() middleware applies them as route-level middleware.
 
 // ─── Auth Routes ──────────────────────────────────────────────────────────────
-app.post("/api/auth/signup", (req, res) => {
-  const result = SignupSchema.safeParse(req.body);
-  if (!result.success) {
-    return res.status(422).json({ error: { code: 'VALIDATION_ERROR', message: 'Invalid input', details: result.error.flatten() } });
-  }
-  const { name, email, password } = result.data;
-  const hashedPassword = bcrypt.hashSync(password, 12);
-  try {
-    const stmt = db.prepare("INSERT INTO users (name, email, password) VALUES (?, ?, ?)");
-    const info = stmt.run(name, email, hashedPassword);
-    const token = jwt.sign({ id: info.lastInsertRowid, email, name }, JWT_SECRET, { expiresIn: "15m" });
-    log.info('User registered', { userId: info.lastInsertRowid, email });
-    res.status(201).json({ token, user: { id: info.lastInsertRowid, name, email, walletAddress: null, isAdmin: 0 } });
-  } catch (err: any) {
-    res.status(409).json({ error: { code: 'EMAIL_TAKEN', message: 'An account with this email already exists.' } });
-  }
-});
-
-app.post("/api/auth/login", (req, res) => {
-  const result = LoginSchema.safeParse(req.body);
-  if (!result.success) {
-    return res.status(422).json({ error: { code: 'VALIDATION_ERROR', message: 'Invalid credentials format' } });
-  }
-  const { email, password } = result.data;
-  const user: any = db.prepare("SELECT * FROM users WHERE email = ?").get(email);
-  
-  if (!user || !bcrypt.compareSync(password, user.password)) {
-    log.warn('Failed login attempt', { email });
-    return res.status(401).json({ error: { code: 'INVALID_CREDENTIALS', message: 'Invalid email or password.' } });
-  }
-
-  const token = jwt.sign({ id: user.id, email: user.email, name: user.name }, JWT_SECRET, { expiresIn: "15m" });
-  const { password: _, ...userWithoutPassword } = user;
-  log.info('User logged in', { userId: user.id });
-  res.json({ token, user: userWithoutPassword });
-});
-
-app.get("/api/auth/me", authenticateToken, (req: any, res) => {
-  const user = db.prepare("SELECT id, name, email, walletAddress, isAdmin FROM users WHERE id = ?").get(req.user.id);
-  if (!user) return res.status(404).json({ error: "User not found" });
-  res.json({ user });
-});
-
-app.post("/api/wallet/connect", authenticateToken, (req: any, res) => {
-  const { walletAddress } = req.body;
-  db.prepare("UPDATE users SET walletAddress = ? WHERE id = ?").run(walletAddress, req.user.id);
-  res.json({ success: true, walletAddress });
-});
+// All auth routes are now handled by the modular authRouter (server/routes/auth.ts).
+// The inline signup/login/me routes have been removed to eliminate the split-brain
+// auth contract. The authRouter provides refresh tokens, password reset, and a
+// consistent { data: { ... } } response envelope.
 
 // Events
-app.post("/api/events", authenticateToken, (req: any, res) => {
+app.post("/api/events", authenticateToken, validate(CreateEventSchema), (req: any, res) => {
   const { 
     title, description, category, format, visibility, 
     registrationDeadline, startDate, endDate, 
@@ -622,11 +370,8 @@ app.get("/api/events/:id", (req: any, res) => {
 });
 
 
-app.post("/api/events/:id/rsvp", authenticateToken, (req: any, res) => {
+app.post("/api/events/:id/rsvp", authenticateToken, validate(RsvpSchema), (req: any, res) => {
   const { status } = req.body;
-  if (!['Going', 'Maybe', 'Not Going'].includes(status)) {
-    return res.status(400).json({ error: "Invalid RSVP status" });
-  }
   
   db.prepare("INSERT INTO rsvps (eventId, userId, status) VALUES (?, ?, ?) ON CONFLICT(eventId, userId) DO UPDATE SET status = excluded.status").run(req.params.id, req.user.id, status);
   res.json({ success: true, status });
@@ -645,7 +390,7 @@ app.post("/api/events/:id/apply", authenticateToken, (req: any, res) => {
   }
 });
 
-app.put("/api/events/:id", authenticateToken, (req: any, res) => {
+app.put("/api/events/:id", authenticateToken, validate(UpdateEventSchema), (req: any, res) => {
   const { title, description, category, format, visibility, registrationDeadline, startDate, endDate, prizeTotal, prizeBreakdown, tags, rulesPublished, timelineConfirmed, capacity, teamSizeMax, bannerUrl, contactEmail } = req.body;
   const event: any = db.prepare("SELECT * FROM events WHERE id = ?").get(req.params.id);
   if (!event) return res.status(404).json({ error: "Event not found" });
@@ -761,11 +506,8 @@ app.post("/api/events/:id/publish", authenticateToken, (req: any, res) => {
   res.json({ success: true, state: 'Published' });
 });
 
-app.post("/api/events/:id/state", authenticateToken, (req: any, res) => {
+app.post("/api/events/:id/state", authenticateToken, validate(StateTransitionSchema), (req: any, res) => {
   const { newState } = req.body;
-  if (!newState || typeof newState !== 'string') {
-    return res.status(422).json({ error: { code: 'VALIDATION_ERROR', message: 'newState is required' } });
-  }
   const event: any = db.prepare("SELECT hostUserId, state FROM events WHERE id = ?").get(req.params.id);
   if (!event) return res.status(404).json({ error: { code: 'NOT_FOUND', message: 'Event not found' } });
   if (event.hostUserId !== req.user.id) return res.status(403).json({ error: { code: 'FORBIDDEN', message: 'Only the host can change event state' } });
@@ -805,15 +547,11 @@ app.post("/api/events/:id/payout", authenticateToken, (req: any, res) => {
 });
 
 // Membership and Invite Administration for Hosts
-app.post("/api/events/:id/memberships/:membershipId/status", authenticateToken, (req: any, res) => {
-  const { status } = req.body; // 'accepted' or 'rejected'
+app.post("/api/events/:id/memberships/:membershipId/status", authenticateToken, validate(MembershipStatusSchema), (req: any, res) => {
+  const { status } = req.body;
   const event: any = db.prepare("SELECT hostUserId FROM events WHERE id = ?").get(req.params.id);
   if (!event) return res.status(404).json({ error: "Event not found" });
   if (event.hostUserId !== req.user.id) return res.status(403).json({ error: "Only host can manage memberships" });
-
-  if (status !== 'accepted' && status !== 'rejected' && status !== 'pending') {
-    return res.status(400).json({ error: "Invalid status value" });
-  }
 
   db.prepare("UPDATE event_memberships SET status = ? WHERE id = ? AND eventId = ?")
     .run(status, req.params.membershipId, req.params.id);
@@ -844,12 +582,8 @@ app.delete("/api/events/:id/invites/:inviteId", authenticateToken, (req: any, re
 });
 
 // ─── Invites ──────────────────────────────────────────────────────────────────
-app.post("/api/invites", authenticateToken, (req: any, res) => {
-  const result = InviteSchema.safeParse(req.body);
-  if (!result.success) {
-    return res.status(422).json({ error: { code: 'VALIDATION_ERROR', message: 'Invalid invite data', details: result.error.flatten() } });
-  }
-  const { eventId, emails, role, message } = result.data;
+app.post("/api/invites", authenticateToken, validate(SendInviteSchema), (req: any, res) => {
+  const { eventId, emails, role, message } = req.body;
 
   const event: any = db.prepare("SELECT title, hostUserId FROM events WHERE id = ?").get(eventId);
   if (!event) return res.status(404).json({ error: { code: 'NOT_FOUND', message: 'Event not found' } });
@@ -924,7 +658,7 @@ app.get("/api/dev/emails", authenticateToken, (req: any, res) => {
 });
 
 // Milestones
-app.post("/api/events/:id/milestones", authenticateToken, (req: any, res) => {
+app.post("/api/events/:id/milestones", authenticateToken, validate(CreateMilestoneSchema), (req: any, res) => {
   const { title, date, description } = req.body;
   const eventId = req.params.id;
 
@@ -946,7 +680,7 @@ app.delete("/api/events/:id/milestones/:milestoneId", authenticateToken, (req: a
 });
 
 // Sponsors
-app.post("/api/events/:id/sponsors", authenticateToken, (req: any, res) => {
+app.post("/api/events/:id/sponsors", authenticateToken, validate(CreateSponsorSchema), (req: any, res) => {
   const { name, logo, tier } = req.body;
   const eventId = req.params.id;
 
@@ -972,7 +706,7 @@ app.delete("/api/events/:id/sponsors/:sponsorId", authenticateToken, (req: any, 
 });
 
 // Teams
-app.post("/api/events/:id/teams", authenticateToken, (req: any, res) => {
+app.post("/api/events/:id/teams", authenticateToken, validate(CreateTeamSchema), (req: any, res) => {
   const { name } = req.body;
   const eventId = req.params.id;
   
@@ -991,7 +725,7 @@ app.post("/api/events/:id/teams", authenticateToken, (req: any, res) => {
 });
 
 // Submissions
-app.post("/api/events/:id/submissions", authenticateToken, (req: any, res) => {
+app.post("/api/events/:id/submissions", authenticateToken, validate(CreateSubmissionSchema), (req: any, res) => {
   const { title, description, url, teamId } = req.body;
   const eventId = req.params.id;
 
@@ -1013,7 +747,7 @@ app.post("/api/events/:id/submissions", authenticateToken, (req: any, res) => {
   res.json({ success: true, submissionId: info.lastInsertRowid });
 });
 
-app.put("/api/events/:id/submissions/:submissionId", authenticateToken, (req: any, res) => {
+app.put("/api/events/:id/submissions/:submissionId", authenticateToken, validate(UpdateSubmissionSchema), (req: any, res) => {
   const { title, description, url } = req.body;
   const { id: eventId, submissionId } = req.params;
 
@@ -1037,12 +771,8 @@ app.put("/api/events/:id/submissions/:submissionId", authenticateToken, (req: an
 });
 
 // ─── Evaluations ──────────────────────────────────────────────────────────────
-app.post("/api/events/:id/submissions/:submissionId/score", authenticateToken, (req: any, res) => {
-  const result = ScoreSchema.safeParse(req.body);
-  if (!result.success) {
-    return res.status(422).json({ error: { code: 'VALIDATION_ERROR', message: 'Score must be an integer between 0 and 100', details: result.error.flatten() } });
-  }
-  const { score, feedback } = result.data;
+app.post("/api/events/:id/submissions/:submissionId/score", authenticateToken, validate(ScoreSubmissionSchema), (req: any, res) => {
+  const { score, feedback } = req.body;
   const { id: eventId, submissionId } = req.params;
 
   const event: any = db.prepare("SELECT state FROM events WHERE id = ?").get(eventId);
@@ -1065,8 +795,8 @@ app.post("/api/events/:id/submissions/:submissionId/score", authenticateToken, (
 });
 
 // Winners
-app.post("/api/events/:id/winners", authenticateToken, (req: any, res) => {
-  const { winners } = req.body; // Array of { submissionId, rank, prizeAmount }
+app.post("/api/events/:id/winners", authenticateToken, validate(SetWinnersSchema), (req: any, res) => {
+  const { winners } = req.body;
   const eventId = req.params.id;
 
   const event: any = db.prepare("SELECT hostUserId, state FROM events WHERE id = ?").get(eventId);

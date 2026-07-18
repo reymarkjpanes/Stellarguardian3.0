@@ -24,7 +24,9 @@ export default function Login() {
         method: 'POST',
         body: JSON.stringify({ email, password })
       });
-      login(data.token, data.user);
+      // Modular authRouter returns { data: { accessToken, refreshToken, user } }
+      const { accessToken, refreshToken, user: authUser } = data.data;
+      login(accessToken, refreshToken, authUser);
       
       const from = (location.state as any)?.from?.pathname || '/dashboard';
       navigate(from, { replace: true });
@@ -67,7 +69,13 @@ export default function Login() {
         </Button>
       </form>
       
-      <p className="mt-6 text-center text-sm text-slate-600">
+      <div className="mt-4 text-center">
+        <Link to="/forgot-password" className="text-sm text-slate-500 hover:text-indigo-600 transition-colors">
+          Forgot your password?
+        </Link>
+      </div>
+      
+      <p className="mt-4 text-center text-sm text-slate-600">
         Don't have an account? <Link to="/signup" className="font-medium text-indigo-600 hover:underline">Sign up</Link>
       </p>
     </div>

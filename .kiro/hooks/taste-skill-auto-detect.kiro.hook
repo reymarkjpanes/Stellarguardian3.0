@@ -1,0 +1,13 @@
+{
+  "enabled": true,
+  "name": "Taste Skill Auto Detect",
+  "description": "Automatically detects if the user's prompt involves frontend UI, design, components, styling, or visual output and reminds the agent to apply taste-skill anti-slop rules, pre-flight checks, and Context7 documentation lookups without the user needing to explicitly invoke them.",
+  "version": "1",
+  "when": {
+    "type": "promptSubmit"
+  },
+  "then": {
+    "type": "askAgent",
+    "prompt": "MANDATORY AUTO-DETECTION: Evaluate this prompt against the taste-skill detection matrix. If the prompt involves ANY frontend UI, React components, design, styling, layout, colors, typography, landing pages, visual output, or component modification: (1) State your Design Read before generating code. (2) Apply the anti-slop rules from design-taste-frontend SKILL.md. (3) Run the pre-flight check before delivering. (4) Use Context7 to verify library APIs. If the prompt is purely backend/infrastructure with no UI, skip taste-skill but still use Context7 for documentation. Never generate generic AI-default frontend. Every output must have intentional design decisions."
+  }
+}

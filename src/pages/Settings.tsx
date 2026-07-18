@@ -18,7 +18,7 @@ export default function Settings() {
       // We are mocking it here for the first pass.
       const simulatedAddress = walletAddress || "G" + Math.random().toString(36).substr(2, 54).toUpperCase();
       
-      await fetchApi('/wallet/connect', {
+      await fetchApi('/auth/wallet/connect', {
         method: 'POST',
         body: JSON.stringify({ walletAddress: simulatedAddress })
       });
@@ -34,7 +34,7 @@ export default function Settings() {
   const handleDisconnect = async () => {
     setIsSaving(true);
     try {
-      await fetchApi('/wallet/connect', {
+      await fetchApi('/auth/wallet/connect', {
         method: 'POST',
         body: JSON.stringify({ walletAddress: null })
       });

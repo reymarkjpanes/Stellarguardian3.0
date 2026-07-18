@@ -35,23 +35,8 @@ interface NotifyPayload {
 
 /**
  * Create an in-app notification and optionally send an email.
- * Ensures the notifications table exists (migration-safe).
  */
 export async function notify(payload: NotifyPayload): Promise<void> {
-  // Create notifications table if it doesn't exist (migration-safe during Phase 2 transition)
-  db.exec(`
-    CREATE TABLE IF NOT EXISTS notifications (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      userId INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-      type TEXT NOT NULL,
-      title TEXT NOT NULL,
-      message TEXT NOT NULL,
-      link TEXT,
-      isRead INTEGER NOT NULL DEFAULT 0,
-      createdAt TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
-    )
-  `);
-
   // Write in-app notification to DB
   db.prepare(
     'INSERT INTO notifications (userId, type, title, message, link) VALUES (?, ?, ?, ?, ?)',

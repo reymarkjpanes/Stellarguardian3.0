@@ -12,12 +12,28 @@ type User = {
 interface AuthContextType {
   user: User | null;
   isLoading: boolean;
-  login: (token: string, user: User) => void;
+  /**
+   * Persist tokens and set user state after a successful login/signup.
+   * Accepts both tokens so the refresh flow works correctly.
+   * Design: accessToken is short-lived (15m), refreshToken is long-lived (30d).
+   * Future: this will also accept provider-specific metadata (SEP-10, OAuth, etc.).
+   */
+  login: (accessToken: string, refreshToken: string, user: User) => void;
   logout: () => void;
   refreshUser: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
+
+// ─── Token storage keys ───────────────────────────────────────────────────────
+// Access token: short-lived, used for API calls (Bearer header).
+// Refresh token: long-lived, stored separately, sent only to /auth/refresh.
+const ACCESS_TOKEN_KEY = "token";
+const REFRESH_TOKEN_KEY = "refreshToken";
+
+export function getStoredRefreshToken(): string | null {
+  return localStorage.getItem(REFRESH_TOKEN_KEY);
+}
 
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [user, setUser] = useState<User | null>(null);
@@ -25,13 +41,15 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   const refreshUser = async () => {
     try {
-      const token = localStorage.getItem("token");
+      const token = localStorage.getItem(ACCESS_TOKEN_KEY);
       if (token) {
         const data = await fetchApi("/auth/me");
-        setUser(data.user);
+        // The modular authRouter returns { data: { user } }
+        setUser(data.data.user);
       }
     } catch (e) {
-      localStorage.removeItem("token");
+      localStorage.removeItem(ACCESS_TOKEN_KEY);
+      localStorage.removeItem(REFRESH_TOKEN_KEY);
       setUser(null);
     } finally {
       setIsLoading(false);
@@ -42,18 +60,24 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     refreshUser();
   }, []);
 
-  const login = (token: string, user: User) => {
-    localStorage.setItem("token", token);
+  const login = (accessToken: string, refreshToken: string, user: User) => {
+    localStorage.setItem(ACCESS_TOKEN_KEY, accessToken);
+    localStorage.setItem(REFRESH_TOKEN_KEY, refreshToken);
     setUser(user);
   };
 
   const logout = async () => {
     try {
-      await fetchApi("/auth/logout", { method: "POST" });
+      const refreshToken = localStorage.getItem(REFRESH_TOKEN_KEY);
+      await fetchApi("/auth/logout", {
+        method: "POST",
+        body: JSON.stringify({ refreshToken }),
+      });
     } catch (e) {
       // Ignore errors on logout, just proceed with local cleanup
     } finally {
-      localStorage.removeItem("token");
+      localStorage.removeItem(ACCESS_TOKEN_KEY);
+      localStorage.removeItem(REFRESH_TOKEN_KEY);
       setUser(null);
     }
   };

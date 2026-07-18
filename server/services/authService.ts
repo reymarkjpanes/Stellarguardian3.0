@@ -42,18 +42,6 @@ export function storeRefreshToken(userId: number, token: string): void {
   const expiresAt = new Date();
   expiresAt.setDate(expiresAt.getDate() + REFRESH_TOKEN_TTL_DAYS);
 
-  // Create refresh_tokens table if it doesn't exist (migration-safe)
-  db.exec(`
-    CREATE TABLE IF NOT EXISTS refresh_tokens (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      userId INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-      token TEXT NOT NULL UNIQUE,
-      expiresAt TEXT NOT NULL,
-      revokedAt TEXT,
-      createdAt TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
-    )
-  `);
-
   db.prepare(
     'INSERT INTO refresh_tokens (userId, token, expiresAt) VALUES (?, ?, ?)',
   ).run(userId, token, expiresAt.toISOString());
@@ -87,17 +75,6 @@ export function revokeAllUserRefreshTokens(userId: number): void {
 // ─── Password Reset ───────────────────────────────────────────────────────────
 
 export function storePasswordResetToken(userId: number, token: string): void {
-  db.exec(`
-    CREATE TABLE IF NOT EXISTS password_reset_tokens (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      userId INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-      token TEXT NOT NULL UNIQUE,
-      expiresAt TEXT NOT NULL,
-      usedAt TEXT,
-      createdAt TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
-    )
-  `);
-
   // Revoke any existing pending reset tokens for this user
   db.prepare(
     "UPDATE password_reset_tokens SET usedAt = datetime('now') WHERE userId = ? AND usedAt IS NULL",

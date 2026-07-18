@@ -1,0 +1,13 @@
+{
+  "enabled": true,
+  "name": "Context7 Auto Lookup",
+  "description": "Reminds the agent to use Context7 MCP for documentation lookup on every prompt that involves code, APIs, or libraries.",
+  "version": "1",
+  "when": {
+    "type": "promptSubmit"
+  },
+  "then": {
+    "type": "askAgent",
+    "prompt": "IMPORTANT: Before writing or modifying any code, you MUST call the Context7 MCP server tools (resolve-library-id then get-library-docs) to look up the latest documentation for any libraries being used. This applies to React, Express, Vite, Tailwind, better-sqlite3, Firebase, Stellar SDK, Zod, Framer Motion, jsonwebtoken, Vitest, Kysely, and Resend. Do NOT skip this step. If Context7 MCP is not available, note it explicitly but proceed with best-effort."
+  }
+}

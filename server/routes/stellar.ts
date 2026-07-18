@@ -5,6 +5,7 @@
  */
 import { Router } from 'express';
 import { authenticate } from '../middleware/auth';
+import { asyncHandler } from '../middleware/asyncHandler';
 import { ApiError } from '../middleware/errorHandler';
 import db from '../db/client';
 import {
@@ -21,7 +22,7 @@ export const stellarRouter = Router();
  * Creates a real Stellar Testnet escrow account and funds it.
  * Requires: authenticated host, wallet connected.
  */
-stellarRouter.post('/fund-event', authenticate, async (req, res) => {
+stellarRouter.post('/fund-event', authenticate, asyncHandler(async (req, res) => {
   const { eventId } = req.body;
   if (!eventId) throw new ApiError(400, 'eventId is required.', 'MISSING_FIELD');
 
@@ -76,26 +77,26 @@ stellarRouter.post('/fund-event', authenticate, async (req, res) => {
     }
     throw err;
   }
-});
+}));
 
 /**
  * GET /api/stellar/verify-tx/:txHash
  * Verify that a transaction hash exists on the Stellar network.
  */
-stellarRouter.get('/verify-tx/:txHash', async (req, res) => {
+stellarRouter.get('/verify-tx/:txHash', asyncHandler(async (req, res) => {
   const { txHash } = req.params;
   if (!txHash || !/^[a-f0-9]{64}$/i.test(txHash)) {
     throw new ApiError(400, 'Invalid transaction hash format.', 'INVALID_TX_HASH');
   }
   const exists = await verifyTransaction(txHash);
   res.json({ data: { txHash, verified: exists } });
-});
+}));
 
 /**
  * GET /api/stellar/escrow/:eventId
  * Get escrow account balance and transaction history for an event.
  */
-stellarRouter.get('/escrow/:eventId', authenticate, async (req, res) => {
+stellarRouter.get('/escrow/:eventId', authenticate, asyncHandler(async (req, res) => {
   const event = db
     .prepare('SELECT hostUserId, escrowPublicKey, prizeTotal FROM events WHERE id = ?')
     .get(req.params.eventId) as any;
@@ -121,14 +122,14 @@ stellarRouter.get('/escrow/:eventId', authenticate, async (req, res) => {
       transactions,
     },
   });
-});
+}));
 
 /**
  * POST /api/stellar/payout
  * Disburse prize from escrow to winner's wallet.
  * Host only. Event must be in Completed state.
  */
-stellarRouter.post('/payout', authenticate, async (req, res) => {
+stellarRouter.post('/payout', authenticate, asyncHandler(async (req, res) => {
   const { eventId, winnerId } = req.body;
   if (!eventId || !winnerId) {
     throw new ApiError(400, 'eventId and winnerId are required.', 'MISSING_FIELDS');
@@ -184,4 +185,4 @@ stellarRouter.post('/payout', authenticate, async (req, res) => {
   })();
 
   res.json({ data: { txHash, explorerUrl, winnerId: winner.id, amount } });
-});
+}));

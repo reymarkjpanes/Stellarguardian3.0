@@ -7,7 +7,9 @@ import { Router } from 'express';
 import { z } from 'zod';
 import db from '../db/client';
 import { authenticate } from '../middleware/auth';
+import { asyncHandler } from '../middleware/asyncHandler';
 import { ApiError } from '../middleware/errorHandler';
+import { ConnectWalletSchema } from '../schemas/wallet';
 import {
   generateAccessToken,
   generateRefreshToken,
@@ -104,7 +106,7 @@ authRouter.post('/login', (req, res, next) => {
   res.json({ data: { accessToken, refreshToken, user: userWithoutPassword } });
 });
 
-/** POST /api/auth/refresh — Exchange refresh token for new access token */
+/** POST /api/auth/refresh — Exchange refresh token for new access + rotated refresh token */
 authRouter.post('/refresh', (req, res) => {
   const { refreshToken } = req.body;
   if (!refreshToken || typeof refreshToken !== 'string') {
@@ -124,8 +126,13 @@ authRouter.post('/refresh', (req, res) => {
     throw new ApiError(403, 'Account not found or deactivated.', 'ACCOUNT_INVALID');
   }
 
+  // Rotate: revoke the old refresh token and issue a new one
+  revokeRefreshToken(refreshToken);
+  const newRefreshToken = generateRefreshToken();
+  storeRefreshToken(user.id, newRefreshToken);
+
   const accessToken = generateAccessToken({ id: user.id, email: user.email, name: user.name });
-  res.json({ data: { accessToken } });
+  res.json({ data: { accessToken, refreshToken: newRefreshToken } });
 });
 
 /** POST /api/auth/logout — Revoke refresh token */
@@ -141,7 +148,7 @@ authRouter.post('/logout', authenticate, (req, res) => {
 });
 
 /** POST /api/auth/forgot-password */
-authRouter.post('/forgot-password', async (req, res) => {
+authRouter.post('/forgot-password', asyncHandler(async (req, res) => {
   const result = ForgotSchema.safeParse(req.body);
   if (!result.success) throw result.error;
 
@@ -165,10 +172,10 @@ authRouter.post('/forgot-password', async (req, res) => {
   }
 
   res.json({ data: { message: 'If an account with that email exists, a password reset link has been sent.' } });
-});
+}));
 
 /** POST /api/auth/reset-password */
-authRouter.post('/reset-password', async (req, res) => {
+authRouter.post('/reset-password', asyncHandler(async (req, res) => {
   const result = ResetSchema.safeParse(req.body);
   if (!result.success) throw result.error;
 
@@ -184,7 +191,7 @@ authRouter.post('/reset-password', async (req, res) => {
   revokeAllUserRefreshTokens(record.userId); // Force re-login after password change
 
   res.json({ data: { message: 'Password updated successfully. Please log in with your new password.' } });
-});
+}));
 
 /** GET /api/auth/me */
 authRouter.get('/me', authenticate, (req, res) => {
@@ -194,4 +201,17 @@ authRouter.get('/me', authenticate, (req, res) => {
 
   if (!user) throw new ApiError(404, 'User not found.', 'NOT_FOUND');
   res.json({ data: { user } });
+});
+
+/** POST /api/auth/wallet/connect — Connect or disconnect a Stellar wallet */
+authRouter.post('/wallet/connect', authenticate, (req, res) => {
+  const result = ConnectWalletSchema.safeParse(req.body);
+  if (!result.success) throw result.error;
+
+  const { walletAddress } = result.data;
+  db.prepare('UPDATE users SET walletAddress = ? WHERE id = ?').run(
+    walletAddress ?? null,
+    req.user!.id,
+  );
+  res.json({ data: { success: true, walletAddress: walletAddress ?? null } });
 });

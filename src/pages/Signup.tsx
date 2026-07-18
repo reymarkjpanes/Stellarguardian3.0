@@ -25,7 +25,9 @@ export default function Signup() {
         method: 'POST',
         body: JSON.stringify({ name, email, password })
       });
-      login(data.token, data.user);
+      // Modular authRouter returns { data: { accessToken, refreshToken, user } }
+      const { accessToken, refreshToken, user: authUser } = data.data;
+      login(accessToken, refreshToken, authUser);
       
       const from = (location.state as any)?.from?.pathname || '/dashboard';
       navigate(from, { replace: true });
