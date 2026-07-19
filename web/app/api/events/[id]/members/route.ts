@@ -1,12 +1,14 @@
 /**
  * Event members sub-resource (Req 12.3, 12.4).
  *
- * GET /api/events/[id]/members — cursor-paginated list
+ * GET   /api/events/[id]/members — cursor-paginated list
+ * PATCH /api/events/[id]/members — approve/reject a member application
  */
+import { z } from "zod";
 import { NextRequest } from "next/server";
 import { createServerClient } from "@/lib/supabase/server";
 import { handleApiError } from "@/lib/errors";
-import { paginatedResponse } from "@/lib/errors/responses";
+import { okResponse, paginatedResponse } from "@/lib/errors/responses";
 
 export async function GET(
   request: NextRequest,
@@ -44,6 +46,95 @@ export async function GET(
     const nextCursor = hasMore ? members[members.length - 1]?.user_id : null;
 
     return paginatedResponse(members, { cursor: nextCursor, hasMore, total: count ?? 0 });
+  } catch (error) {
+    return handleApiError(error);
+  }
+}
+
+const MemberActionSchema = z.object({
+  user_id: z.string().uuid("Invalid user ID"),
+  action: z.enum(["approve", "reject"]),
+});
+
+/**
+ * PATCH /api/events/[id]/members — Approve or reject a member application.
+ * Only organizers can approve/reject members.
+ */
+export async function PATCH(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> },
+) {
+  try {
+    const { id: eventId } = await params;
+    const supabase = await createServerClient();
+    const { data: { user } } = await supabase.auth.getUser();
+
+    if (!user) {
+      return Response.json(
+        { error: { code: "UNAUTHENTICATED", message: "Authentication required." } },
+        { status: 401 },
+      );
+    }
+
+    // Verify caller is organizer
+    const { data: callerMembership } = await supabase
+      .from("event_members")
+      .select("role")
+      .eq("event_id", eventId)
+      .eq("user_id", user.id)
+      .eq("role", "Organizer")
+      .maybeSingle();
+
+    if (!callerMembership) {
+      return Response.json(
+        { error: { code: "FORBIDDEN", message: "Only organizers can approve/reject members." } },
+        { status: 403 },
+      );
+    }
+
+    const body = await request.json();
+    const parsed = MemberActionSchema.safeParse(body);
+
+    if (!parsed.success) {
+      return Response.json(
+        {
+          error: {
+            code: "VALIDATION_FAILED",
+            message: "Invalid request body.",
+            details: { fieldErrors: z.flattenError(parsed.error).fieldErrors },
+          },
+        },
+        { status: 422 },
+      );
+    }
+
+    const { user_id: targetUserId, action } = parsed.data;
+    const newStatus = action === "approve" ? "accepted" : "rejected";
+
+    const { data: updated, error: updateError } = await supabase
+      .from("event_members")
+      .update({ status: newStatus })
+      .eq("event_id", eventId)
+      .eq("user_id", targetUserId)
+      .eq("status", "pending")
+      .select()
+      .maybeSingle();
+
+    if (updateError) {
+      return Response.json(
+        { error: { code: "INTERNAL_SERVER_ERROR", message: updateError.message } },
+        { status: 500 },
+      );
+    }
+
+    if (!updated) {
+      return Response.json(
+        { error: { code: "NOT_FOUND", message: "No pending membership found for this user." } },
+        { status: 404 },
+      );
+    }
+
+    return okResponse(updated);
   } catch (error) {
     return handleApiError(error);
   }

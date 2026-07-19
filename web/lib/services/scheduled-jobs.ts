@@ -125,3 +125,63 @@ export async function cleanupIdempotencyRecords(): Promise<number> {
 
   return data?.length ?? 0;
 }
+
+/**
+ * Auto-transition events past their review objection window.
+ * Moves ReviewObjectionWindow → WinnersFinalized when the review_window_hours has elapsed
+ * AND there are no unresolved disputes.
+ */
+export async function enforceReviewWindowExpiry(): Promise<number> {
+  const supabase = createServiceClient();
+
+  const { data: events } = await supabase
+    .from("events")
+    .select("id, review_window_hours, updated_at, version")
+    .eq("state", "ReviewObjectionWindow");
+
+  if (!events || events.length === 0) return 0;
+
+  let transitioned = 0;
+  const now = new Date();
+
+  for (const event of events) {
+    const enteredAt = new Date(event.updated_at);
+    const windowMs = (event.review_window_hours ?? 72) * 60 * 60 * 1000;
+
+    // Check if window has elapsed
+    if (now.getTime() - enteredAt.getTime() < windowMs) continue;
+
+    // Check for unresolved disputes
+    const { count: openDisputes } = await supabase
+      .from("disputes")
+      .select("*", { count: "exact", head: true })
+      .eq("event_id", event.id)
+      .in("state", ["Open", "UnderReview"]);
+
+    if ((openDisputes ?? 0) > 0) {
+      logger.info("Skipping review window expiry — unresolved disputes", {
+        eventId: event.id,
+        openDisputes,
+      });
+      continue;
+    }
+
+    // Transition to WinnersFinalized
+    const { error } = await supabase
+      .from("events")
+      .update({
+        state: "WinnersFinalized",
+        version: event.version + 1,
+        updated_at: now.toISOString(),
+      })
+      .eq("id", event.id)
+      .eq("version", event.version);
+
+    if (!error) transitioned++;
+  }
+
+  if (transitioned > 0) {
+    logger.info("Auto-finalized events past review window", { count: transitioned });
+  }
+  return transitioned;
+}

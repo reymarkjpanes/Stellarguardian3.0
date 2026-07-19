@@ -52,26 +52,36 @@ export default function EventJudgingPage() {
     // Get submissions
     const { data: subs } = await supabase
       .from("submissions")
-      .select("id, submitter_id, team_id, content, status")
+      .select("id, submitter_id, team_id, status, current_version")
       .eq("event_id", eventId)
       .eq("status", "Submitted");
 
     if (subs && subs.length > 0) {
       const submitterIds = subs.map((s) => s.submitter_id);
       const teamIds = subs.filter((s) => s.team_id).map((s) => s.team_id!);
+      const subIds = subs.map((s) => s.id);
 
-      const [{ data: users }, { data: teams }] = await Promise.all([
+      const [{ data: users }, { data: teams }, { data: versions }] = await Promise.all([
         supabase.from("users").select("id, display_name").in("id", submitterIds),
         teamIds.length > 0
           ? supabase.from("teams").select("id, name").in("id", teamIds)
           : Promise.resolve({ data: [] }),
+        supabase.from("submission_versions").select("submission_id, content").in("submission_id", subIds).order("version_no", { ascending: false }),
       ]);
 
       const usersMap = new Map((users ?? []).map((u) => [u.id, u.display_name]));
       const teamsMap = new Map((teams ?? []).map((t) => [t.id, t.name]));
+      // Get latest version content per submission
+      const contentMap = new Map<string, Record<string, unknown>>();
+      for (const v of versions ?? []) {
+        if (!contentMap.has(v.submission_id)) {
+          contentMap.set(v.submission_id, v.content as Record<string, unknown>);
+        }
+      }
 
       setSubmissions(subs.map((s) => ({
         ...s,
+        content: contentMap.get(s.id) ?? {},
         team_name: s.team_id ? teamsMap.get(s.team_id) ?? "" : "",
         submitter_name: usersMap.get(s.submitter_id) ?? "Unknown",
       })));

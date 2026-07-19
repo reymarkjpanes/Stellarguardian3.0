@@ -36,110 +36,104 @@ export default function EventSubmissionsPage() {
   }, [eventId]);
 
   async function loadData() {
-    const supabase = createBrowserClient();
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return;
+    try {
+      const supabase = createBrowserClient();
+      const { data: { user }, error: authError } = await supabase.auth.getUser();
+      if (authError || !user) {
+        setLoading(false);
+        return;
+      }
 
-    const { data: event } = await supabase
-      .from("events")
-      .select("state")
-      .eq("id", eventId)
-      .single();
-    setEventState(event?.state ?? "");
+      const { data: event } = await supabase
+        .from("events")
+        .select("state")
+        .eq("id", eventId)
+        .single();
+      setEventState(event?.state ?? "");
 
-    const { data: membership } = await supabase
-      .from("event_members")
-      .select("role")
-      .eq("event_id", eventId)
-      .eq("user_id", user.id)
-      .maybeSingle();
-    setUserRole(membership?.role ?? null);
+      const { data: membership } = await supabase
+        .from("event_members")
+        .select("role")
+        .eq("event_id", eventId)
+        .eq("user_id", user.id)
+        .maybeSingle();
+      setUserRole(membership?.role ?? null);
 
-    // Get submissions
-    const { data: subs } = await supabase
-      .from("submissions")
-      .select("id, team_id, submitter_id, status, current_version, updated_at")
-      .eq("event_id", eventId)
-      .order("updated_at", { ascending: false });
+      // Get submissions
+      const { data: subs } = await supabase
+        .from("submissions")
+        .select("id, team_id, submitter_id, status, current_version, updated_at")
+        .eq("event_id", eventId)
+        .order("updated_at", { ascending: false });
 
-    if (subs && subs.length > 0) {
-      // Enrich with team names and submitter names
-      const teamIds = [...new Set(subs.filter((s) => s.team_id).map((s) => s.team_id!))];
-      const submitterIds = [...new Set(subs.map((s) => s.submitter_id))];
+      if (subs && subs.length > 0) {
+        // Enrich with team names and submitter names
+        const teamIds = [...new Set(subs.filter((s) => s.team_id).map((s) => s.team_id!))];
+        const submitterIds = [...new Set(subs.map((s) => s.submitter_id))];
 
-      const [{ data: teams }, { data: users }] = await Promise.all([
-        teamIds.length > 0
-          ? supabase.from("teams").select("id, name").in("id", teamIds)
-          : Promise.resolve({ data: [] }),
-        supabase.from("users").select("id, display_name").in("id", submitterIds),
-      ]);
+        const [{ data: teams }, { data: users }] = await Promise.all([
+          teamIds.length > 0
+            ? supabase.from("teams").select("id, name").in("id", teamIds)
+            : Promise.resolve({ data: [] }),
+          supabase.from("users").select("id, display_name").in("id", submitterIds),
+        ]);
 
-      const teamsMap = new Map((teams ?? []).map((t) => [t.id, t.name]));
-      const usersMap = new Map((users ?? []).map((u) => [u.id, u.display_name]));
+        const teamsMap = new Map((teams ?? []).map((t) => [t.id, t.name]));
+        const usersMap = new Map((users ?? []).map((u) => [u.id, u.display_name]));
 
-      setSubmissions(subs.map((s) => ({
-        ...s,
-        team_name: s.team_id ? teamsMap.get(s.team_id) ?? "Unknown Team" : undefined,
-        submitter_name: usersMap.get(s.submitter_id) ?? "Unknown",
-      })));
+        setSubmissions(subs.map((s) => ({
+          ...s,
+          team_name: s.team_id ? teamsMap.get(s.team_id) ?? "Unknown Team" : undefined,
+          submitter_name: usersMap.get(s.submitter_id) ?? "Unknown",
+        })));
+      }
+    } catch (err) {
+      console.error("Failed to load submissions data:", err);
+    } finally {
+      setLoading(false);
     }
-
-    setLoading(false);
   }
 
-  async function handleSubmit(e: React.FormEvent) {
+  async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     setSubmitting(true);
     setError(null);
 
-    const supabase = createBrowserClient();
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return;
+    try {
+      const res = await fetch(`/api/events/${eventId}/submissions`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          title,
+          description,
+          project_url: projectUrl || undefined,
+        }),
+      });
 
-    // Check if user has a team
-    const { data: teamMembership } = await supabase
-      .from("team_members")
-      .select("team_id")
-      .eq("user_id", user.id)
-      .maybeSingle();
+      if (!res.ok) {
+        let message = "Failed to submit.";
+        try {
+          const body = await res.json();
+          message = body?.error?.message ?? message;
+        } catch {
+          // Response body was empty or not JSON
+          message = `Server error (${res.status})`;
+        }
+        setError(message);
+        setSubmitting(false);
+        return;
+      }
 
-    // Find if team belongs to this event
-    let teamId: string | null = null;
-    if (teamMembership) {
-      const { data: team } = await supabase
-        .from("teams")
-        .select("id")
-        .eq("id", teamMembership.team_id)
-        .eq("event_id", eventId)
-        .maybeSingle();
-      teamId = team?.id ?? null;
-    }
-
-    const { data: submission, error: subErr } = await supabase
-      .from("submissions")
-      .insert({
-        event_id: eventId,
-        team_id: teamId,
-        submitter_id: user.id,
-        status: "Submitted",
-        current_version: 1,
-        content: { title, description, projectUrl },
-      })
-      .select()
-      .single();
-
-    if (subErr) {
-      setError(subErr.message);
+      setTitle("");
+      setDescription("");
+      setProjectUrl("");
+      setShowForm(false);
       setSubmitting(false);
-      return;
+      loadData();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Network error. Please try again.");
+      setSubmitting(false);
     }
-
-    setTitle("");
-    setDescription("");
-    setProjectUrl("");
-    setShowForm(false);
-    setSubmitting(false);
-    loadData();
   }
 
   const canSubmit = userRole === "Participant" && eventState === "SubmissionOpen";

@@ -3,7 +3,7 @@
 /**
  * App navigation bar — sticky header with desktop/mobile nav and theme toggle.
  */
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { createBrowserClient } from "@/lib/supabase/client";
 import { ThemeToggle } from "@/components/theme/theme-toggle";
 import { NotificationBell } from "@/components/layout/notification-bell";
@@ -16,6 +16,20 @@ interface AppNavProps {
 export function AppNav({ user, wallet }: AppNavProps) {
   const [mobileOpen, setMobileOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
+  const dropdownRef = useRef<HTMLDivElement>(null);
+
+  // M17: Close dropdown on Escape key
+  useEffect(() => {
+    function handleKeyDown(e: KeyboardEvent) {
+      if (e.key === "Escape" && profileOpen) {
+        setProfileOpen(false);
+      }
+    }
+    if (profileOpen) {
+      document.addEventListener("keydown", handleKeyDown);
+      return () => document.removeEventListener("keydown", handleKeyDown);
+    }
+  }, [profileOpen]);
 
   async function handleSignOut() {
     const supabase = createBrowserClient();
@@ -82,11 +96,13 @@ export function AppNav({ user, wallet }: AppNavProps) {
                 <ThemeToggle />
 
                 {/* Profile dropdown */}
-                <div className="relative ml-1">
+                <div className="relative ml-1" ref={dropdownRef}>
                   <button
                     onClick={() => setProfileOpen(!profileOpen)}
                     className="h-8 w-8 rounded-full bg-[var(--bg-muted)] flex items-center justify-center text-sm font-semibold text-[var(--text)] hover:ring-2 hover:ring-[var(--border)] transition-all"
                     aria-label="User menu"
+                    aria-expanded={profileOpen}
+                    aria-haspopup="true"
                   >
                     {user.name.charAt(0).toUpperCase()}
                   </button>
@@ -133,7 +149,12 @@ export function AppNav({ user, wallet }: AppNavProps) {
           {/* Mobile menu button */}
           <div className="flex items-center md:hidden gap-2">
             <ThemeToggle />
-            <button onClick={() => setMobileOpen(!mobileOpen)} className="p-2 rounded-md text-[var(--text-muted)] hover:text-[var(--text)] hover:bg-[var(--bg-muted)]">
+            <button
+              onClick={() => setMobileOpen(!mobileOpen)}
+              className="p-2 rounded-md text-[var(--text-muted)] hover:text-[var(--text)] hover:bg-[var(--bg-muted)]"
+              aria-label={mobileOpen ? "Close menu" : "Open menu"}
+              aria-expanded={mobileOpen}
+            >
               {mobileOpen ? "✕" : "☰"}
             </button>
           </div>

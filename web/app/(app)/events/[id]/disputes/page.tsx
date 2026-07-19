@@ -30,9 +30,10 @@ export default function EventDisputesPage() {
   useEffect(() => { loadData(); }, [eventId]);
 
   async function loadData() {
+    try {
     const supabase = createBrowserClient();
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return;
+    const { data: { user }, error: authError } = await supabase.auth.getUser();
+    if (authError || !user) return;
 
     const [{ data: event }, { data: membership }] = await Promise.all([
       supabase.from("events").select("state").eq("id", eventId).single(),
@@ -61,7 +62,11 @@ export default function EventDisputesPage() {
       })));
     }
 
-    setLoading(false);
+    } catch (err) {
+      console.error("Failed to load disputes:", err);
+    } finally {
+      setLoading(false);
+    }
   }
 
   async function handleFileDispute(e: React.FormEvent) {
@@ -84,6 +89,25 @@ export default function EventDisputesPage() {
 
     setReason("");
     setShowForm(false);
+    setSubmitting(false);
+    loadData();
+  }
+
+  async function handleResolveDispute(disputeId: string, resolution: "Upheld" | "Dismissed") {
+    setSubmitting(true);
+    setError(null);
+
+    const res = await fetch(`/api/disputes/${disputeId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ state: resolution }),
+    });
+
+    if (!res.ok) {
+      const { error: err } = await res.json();
+      setError(err?.message ?? "Failed to resolve dispute.");
+    }
+
     setSubmitting(false);
     loadData();
   }
@@ -164,9 +188,30 @@ export default function EventDisputesPage() {
                 </span>
               </div>
               <p className="text-sm text-[var(--text-secondary)]">{d.reason}</p>
-              <p className="text-xs text-[var(--text-muted)] mt-2">
-                Filed {new Date(d.created_at).toLocaleDateString()}
-              </p>
+              <div className="flex items-center justify-between mt-3">
+                <p className="text-xs text-[var(--text-muted)]">
+                  Filed {new Date(d.created_at).toLocaleDateString()}
+                </p>
+                {/* Resolution buttons for organizers on open disputes */}
+                {userRole === "Organizer" && (d.state === "Open" || d.state === "UnderReview") && (
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => handleResolveDispute(d.id, "Upheld")}
+                      disabled={submitting}
+                      className="rounded-md border border-[var(--error)] px-2.5 py-1 text-xs font-medium text-[var(--error)] hover:bg-[var(--error-bg)] transition-colors disabled:opacity-50"
+                    >
+                      Uphold
+                    </button>
+                    <button
+                      onClick={() => handleResolveDispute(d.id, "Dismissed")}
+                      disabled={submitting}
+                      className="rounded-md border border-green-600 px-2.5 py-1 text-xs font-medium text-green-600 hover:bg-green-50 dark:hover:bg-green-900/20 transition-colors disabled:opacity-50"
+                    >
+                      Dismiss
+                    </button>
+                  </div>
+                )}
+              </div>
             </div>
           ))}
         </div>

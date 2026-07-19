@@ -23,6 +23,7 @@ export default function EventTeamsPage() {
   const [creating, setCreating] = useState(false);
   const [teamName, setTeamName] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const [userId, setUserId] = useState<string | null>(null);
 
   useEffect(() => {
     loadData();
@@ -49,6 +50,7 @@ export default function EventTeamsPage() {
       .eq("user_id", user.id)
       .maybeSingle();
     setUserRole(membership?.role ?? null);
+    setUserId(user.id);
 
     // Get teams
     const { data: teamsData } = await supabase
@@ -87,35 +89,48 @@ export default function EventTeamsPage() {
     setLoading(false);
   }
 
-  async function handleCreateTeam(e: React.FormEvent) {
+  async function handleCreateTeam(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     setCreating(true);
     setError(null);
 
-    const supabase = createBrowserClient();
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return;
+    const res = await fetch(`/api/events/${eventId}/teams`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name: teamName }),
+    });
 
-    const { data: team, error: teamErr } = await supabase
-      .from("teams")
-      .insert({ event_id: eventId, name: teamName, captain_id: user.id })
-      .select()
-      .single();
-
-    if (teamErr) {
-      setError(teamErr.message);
+    if (!res.ok) {
+      const { error: apiError } = await res.json();
+      setError(apiError?.message ?? "Failed to create team.");
       setCreating(false);
       return;
     }
 
-    // Add captain as team member
-    await supabase
-      .from("team_members")
-      .insert({ team_id: team.id, user_id: user.id });
-
     setTeamName("");
     setCreating(false);
     loadData();
+  }
+
+  async function handleJoinRequest(teamId: string) {
+    setCreating(true);
+    setError(null);
+
+    const res = await fetch(`/api/events/${eventId}/teams/${teamId}/join`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ message: "" }),
+    });
+
+    if (!res.ok) {
+      const { error: apiError } = await res.json();
+      setError(apiError?.message ?? "Failed to send join request.");
+    } else {
+      setError(null);
+      // Show success feedback
+      alert("Join request sent! The team captain will review it.");
+    }
+    setCreating(false);
   }
 
   const canCreateTeam = userRole === "Participant" && eventState === "TeamFormation";
@@ -193,6 +208,16 @@ export default function EventTeamsPage() {
                   </div>
                 ))}
               </div>
+              {/* Join button — only in TeamFormation for participants not already in a team */}
+              {canCreateTeam && !team.members.some((m) => m.user_id === userId) && (
+                <button
+                  onClick={() => handleJoinRequest(team.id)}
+                  disabled={creating}
+                  className="mt-3 w-full rounded-md border border-[var(--accent)] px-3 py-1.5 text-xs font-medium text-[var(--accent)] hover:bg-[var(--accent-muted)] transition-colors disabled:opacity-50"
+                >
+                  Request to Join
+                </button>
+              )}
             </div>
           ))}
         </div>

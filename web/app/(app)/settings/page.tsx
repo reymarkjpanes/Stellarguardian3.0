@@ -85,18 +85,9 @@ export default function SettingsPage() {
       <h1 className="text-2xl font-semibold tracking-tight text-[var(--text)]">Settings</h1>
 
       {/* Profile */}
-      <section className="card p-5 space-y-3">
+      <section className="card p-5 space-y-4">
         <h2 className="font-medium text-[var(--text)]">Profile</h2>
-        <div className="grid grid-cols-2 gap-4 text-sm">
-          <div>
-            <p className="text-[var(--text-muted)]">Name</p>
-            <p className="font-medium text-[var(--text)]">{user.name}</p>
-          </div>
-          <div>
-            <p className="text-[var(--text-muted)]">Email</p>
-            <p className="font-medium text-[var(--text)]">{user.email}</p>
-          </div>
-        </div>
+        <ProfileEditForm userId={user.id} initialName={user.name} email={user.email} onUpdate={(name) => setUser({ ...user, name })} />
       </section>
 
       {/* Connected Wallets */}
@@ -226,5 +217,116 @@ export default function SettingsPage() {
         </button>
       </section>
     </div>
+  );
+}
+
+/**
+ * Profile edit form — allows updating display name via PATCH /api/users/me.
+ */
+function ProfileEditForm({
+  userId,
+  initialName,
+  email,
+  onUpdate,
+}: {
+  userId: string;
+  initialName: string;
+  email: string;
+  onUpdate: (name: string) => void;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [name, setName] = useState(initialName);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState(false);
+
+  async function handleSave(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    setSaving(true);
+    setError(null);
+    setSuccess(false);
+
+    const res = await fetch("/api/users/me", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ display_name: name }),
+    });
+
+    if (!res.ok) {
+      const { error: apiErr } = await res.json();
+      setError(apiErr?.message ?? "Failed to update profile.");
+    } else {
+      setSuccess(true);
+      onUpdate(name);
+      setEditing(false);
+      setTimeout(() => setSuccess(false), 3000);
+    }
+    setSaving(false);
+  }
+
+  if (!editing) {
+    return (
+      <div className="space-y-3">
+        <div className="grid grid-cols-2 gap-4 text-sm">
+          <div>
+            <p className="text-[var(--text-muted)]">Display name</p>
+            <p className="font-medium text-[var(--text)]">{initialName || "Not set"}</p>
+          </div>
+          <div>
+            <p className="text-[var(--text-muted)]">Email</p>
+            <p className="font-medium text-[var(--text)]">{email}</p>
+          </div>
+        </div>
+        {success && <p className="text-xs text-[var(--success)]">Profile updated.</p>}
+        <button
+          onClick={() => setEditing(true)}
+          className="text-sm font-medium text-[var(--accent)] hover:underline"
+        >
+          Edit profile
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <form onSubmit={handleSave} className="space-y-4">
+      <div>
+        <label htmlFor="display-name" className="block text-sm font-medium text-[var(--text-secondary)] mb-1">
+          Display name
+        </label>
+        <input
+          id="display-name"
+          type="text"
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          required
+          minLength={2}
+          maxLength={50}
+          className="w-full rounded-md border border-[var(--border)] bg-[var(--input-bg)] px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--accent)]"
+        />
+      </div>
+      <div>
+        <label className="block text-sm font-medium text-[var(--text-secondary)] mb-1">Email</label>
+        <p className="text-sm text-[var(--text-muted)]">{email}</p>
+        <p className="text-xs text-[var(--text-muted)] mt-1">Email cannot be changed here.</p>
+      </div>
+      {error && <p className="text-sm text-[var(--error)]">{error}</p>}
+      <div className="flex gap-3">
+        <button
+          type="submit"
+          disabled={saving}
+          className="btn-primary px-4 py-2 text-sm font-medium rounded-md disabled:opacity-50"
+        >
+          {saving ? "Saving…" : "Save"}
+        </button>
+        <button
+          type="button"
+          onClick={() => { setEditing(false); setName(initialName); }}
+          className="text-sm text-[var(--text-muted)] hover:text-[var(--text)]"
+        >
+          Cancel
+        </button>
+      </div>
+    </form>
   );
 }

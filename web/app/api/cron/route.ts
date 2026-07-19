@@ -9,6 +9,7 @@ import {
   enforceDeadlines,
   enforceRetention,
   cleanupIdempotencyRecords,
+  enforceReviewWindowExpiry,
 } from "@/lib/services/scheduled-jobs";
 import { logger } from "@/lib/logger";
 
@@ -33,6 +34,7 @@ export async function GET(request: NextRequest) {
     enforceDeadlines(),
     enforceRetention(),
     cleanupIdempotencyRecords(),
+    enforceReviewWindowExpiry(),
   ]);
 
   const summary = {
@@ -40,6 +42,7 @@ export async function GET(request: NextRequest) {
     deadlines_enforced: results[1].status === "fulfilled" ? results[1].value : 0,
     events_archived: results[2].status === "fulfilled" ? results[2].value : 0,
     idempotency_cleaned: results[3].status === "fulfilled" ? results[3].value : 0,
+    review_windows_expired: results[4].status === "fulfilled" ? results[4].value : 0,
     errors: results.filter((r) => r.status === "rejected").length,
   };
 

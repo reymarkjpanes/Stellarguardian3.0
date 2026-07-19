@@ -34,7 +34,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
         user={user ? { id: user.id, name: displayName, email } : null}
         wallet={wallet}
       />
-      <main className="flex-1 w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <main id="main-content" className="flex-1 w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {children}
       </main>
       <footer className="border-t border-[var(--border)] mt-auto">
@@ -45,7 +45,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
           <div className="flex items-center gap-6">
             <a href="/terms" className="text-sm text-[var(--text-muted)] hover:text-[var(--text)] transition-colors">Terms</a>
             <a href="/privacy" className="text-sm text-[var(--text-muted)] hover:text-[var(--text)] transition-colors">Privacy</a>
-            <a href="/discover" className="text-sm text-[var(--text-muted)] hover:text-[var(--text)] transition-colors">Docs</a>
+            <a href="/discover" className="text-sm text-[var(--text-muted)] hover:text-[var(--text)] transition-colors">Events</a>
           </div>
         </div>
       </footer>
