@@ -23,7 +23,7 @@
         "--caps",
         "vision,pdf"
       ],
-      "disabled": false,
+      "disabled": true,
       "autoApprove": [
         "browser_navigate",
         "browser_snapshot",
@@ -68,7 +68,7 @@
       "env": {
         "GITHUB_PERSONAL_ACCESS_TOKEN": "${GITHUB_PERSONAL_ACCESS_TOKEN}"
       },
-      "disabled": false,
+      "disabled": true,
       "autoApprove": [
         "get_file_contents",
         "search_repositories",
