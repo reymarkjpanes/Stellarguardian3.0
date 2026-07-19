@@ -14,11 +14,15 @@ import { redirect } from "next/navigation";
 import { createServerClient } from "@/lib/supabase/server";
 
 export default async function HomePage() {
-  const supabase = await createServerClient();
-  const { data: { user } } = await supabase.auth.getUser();
-
-  if (user) {
-    redirect("/dashboard");
+  // Silently check auth — if Supabase is unavailable, fall through to landing page
+  try {
+    const supabase = await createServerClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (user) {
+      redirect("/dashboard");
+    }
+  } catch {
+    // Supabase unavailable or misconfigured — show landing page anyway
   }
 
   return (

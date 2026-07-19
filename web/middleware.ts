@@ -15,6 +15,7 @@ import { updateSession } from "@/lib/supabase/middleware";
 
 /** Routes that do not require authentication. */
 const PUBLIC_PATHS = new Set([
+  "/",
   "/login",
   "/signup",
   "/discover",
