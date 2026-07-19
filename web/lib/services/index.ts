@@ -1,7 +1,7 @@
 /**
  * Services barrel export (server-only).
  */
-export * from "./permission";
+
 export * from "./audit";
 export * from "./notification";
 export * from "./idempotency";

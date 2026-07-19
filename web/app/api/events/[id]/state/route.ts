@@ -4,7 +4,8 @@
  */
 import { NextResponse, type NextRequest } from "next/server";
 import { createServerClient } from "@/lib/supabase/server";
-import { canTransition, type TransitionContext } from "@/lib/state-machine";
+import { EventWorkflowEngine } from "@/lib/engines/workflow/event-workflow";
+import type { EventRuleContext } from "@/lib/engines/business-rules/event-rules";
 import type { EventState } from "@/types";
 import { z } from "zod";
 
@@ -89,7 +90,7 @@ export async function PATCH(
     .eq("event_id", id)
     .maybeSingle();
 
-  const ctx: TransitionContext = {
+  const ctx: EventRuleContext = {
     judgeCount: judgeCount ?? 0,
     registrationDeadline: event.registration_deadline ?? undefined,
     teamSizeMin: event.team_size_min ?? undefined,
@@ -100,10 +101,11 @@ export async function PATCH(
     unresolvedDisputes: unresolvedDisputes ?? 0,
     registrationCount: registrationCount ?? 0,
     submissionCount: submissionCount ?? 0,
-    actorRole: (membership?.role as "Organizer" | "Judge") ?? "Organizer",
+    kycRequirementsSatisfied: true, // TODO: check workspace policies
+    minimumParticipantsMet: true, // TODO: compute dynamically
   };
 
-  const result = canTransition(event.state as EventState, targetState, ctx);
+  const result = EventWorkflowEngine.canTransition(event.state as EventState, targetState, ctx);
 
   if (!result.ok) {
     return NextResponse.json(
@@ -115,7 +117,7 @@ export async function PATCH(
             currentState: event.state,
             requestedState: targetState,
             validOutbound: result.validOutbound,
-            unmetPreconditions: result.unmetPreconditions,
+            unmetPreconditions: result.errors,
           },
         },
       },

@@ -15,8 +15,7 @@ interface Winner {
   recipient_id: string;
   team_id: string | null;
   prize_amount: number;
-  placement: number | null;
-  status: string;
+  disbursement_status: string;
   recipient_name?: string;
   team_name?: string;
 }
@@ -332,36 +331,29 @@ export default function EventWinnersPage() {
         winners.length > 0 && (
           <div className="space-y-3">
             {winners.map((w, idx) => (
-              <div key={w.id} className="card p-4 flex items-center gap-4">
-                <div
-                  className={`h-10 w-10 rounded-full flex items-center justify-center text-lg font-bold ${
-                    idx === 0
-                      ? "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300"
-                      : idx === 1
-                        ? "bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-300"
-                        : idx === 2
-                          ? "bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-300"
-                          : "bg-[var(--bg-muted)] text-[var(--text-secondary)]"
-                  }`}
-                >
-                  {w.placement ?? idx + 1}
-                </div>
-                <div className="flex-1">
-                  <p className="font-medium text-[var(--text)]">
-                    {w.team_name ?? w.recipient_name}
-                  </p>
-                  {w.team_name && (
-                    <p className="text-xs text-[var(--text-muted)]">{w.recipient_name}</p>
-                  )}
+              <div
+                key={w.id}
+                className="card p-4 flex items-center justify-between hover:bg-[var(--bg-muted)]/30 transition-colors"
+              >
+                <div className="flex items-center gap-4">
+                  <div className="w-8 h-8 rounded-full bg-[var(--primary)]/10 text-[var(--primary)] flex items-center justify-center font-bold text-sm shrink-0">
+                    {idx + 1}
+                  </div>
+                  <div>
+                    <p className="font-medium text-[var(--text)]">
+                      {w.team_name ?? w.recipient_name}
+                    </p>
+                    {w.team_name && (
+                      <p className="text-xs text-[var(--text-muted)]">
+                        Individual: {w.recipient_name}
+                      </p>
+                    )}
+                  </div>
                 </div>
                 <div className="text-right">
-                  <p className="text-lg font-semibold text-[var(--accent)]">{w.prize_amount} XLM</p>
-                  <p
-                    className={`text-xs ${
-                      w.status === "disbursed" ? "text-green-600" : "text-[var(--text-muted)]"
-                    }`}
-                  >
-                    {w.status}
+                  <p className="font-medium text-[var(--primary)]">{w.prize_amount} XLM</p>
+                  <p className="text-xs text-[var(--text-muted)] capitalize">
+                    {w.disbursement_status}
                   </p>
                 </div>
               </div>

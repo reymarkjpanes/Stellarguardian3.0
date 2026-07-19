@@ -92,26 +92,19 @@ function buildCspHeader(nonce: string): string {
   return directives.join("; ");
 }
 
-/**
- * In-memory rate limiter with LRU eviction.
- *
- * TODO: Replace with Upstash Redis (@upstash/ratelimit) for production.
- * This is acceptable for single-instance deployments but will NOT work
- * across multiple serverless instances or after cold starts.
- *
- * LRU eviction prevents unbounded memory growth (capped at 10k entries).
- */
+import { Ratelimit } from "@upstash/ratelimit";
+import { Redis } from "@upstash/redis";
+
+// Graceful fallback: In-memory rate limiter with LRU eviction for local dev without Redis.
 const MAX_RATE_LIMIT_ENTRIES = 10_000;
 const rateLimitStore = new Map<string, { count: number; resetAt: number }>();
 
 function evictStaleEntries(): void {
   if (rateLimitStore.size <= MAX_RATE_LIMIT_ENTRIES) return;
   const now = Date.now();
-  // First pass: remove expired entries
   for (const [key, entry] of rateLimitStore) {
     if (now > entry.resetAt) rateLimitStore.delete(key);
   }
-  // If still over limit, remove oldest entries
   if (rateLimitStore.size > MAX_RATE_LIMIT_ENTRIES) {
     const excess = rateLimitStore.size - MAX_RATE_LIMIT_ENTRIES;
     const keys = rateLimitStore.keys();
@@ -122,44 +115,81 @@ function evictStaleEntries(): void {
   }
 }
 
-function checkRateLimit(
+function checkRateLimitMemory(
   key: string,
   limit: number,
   windowMs: number,
-): { allowed: boolean; remaining: number } {
+): { allowed: boolean; remaining: number; reset: number } {
   const now = Date.now();
   const entry = rateLimitStore.get(key);
 
   if (!entry || now > entry.resetAt) {
     evictStaleEntries();
     rateLimitStore.set(key, { count: 1, resetAt: now + windowMs });
-    return { allowed: true, remaining: limit - 1 };
+    return { allowed: true, remaining: limit - 1, reset: now + windowMs };
   }
 
   entry.count++;
   if (entry.count > limit) {
-    return { allowed: false, remaining: 0 };
+    return { allowed: false, remaining: 0, reset: entry.resetAt };
   }
-  return { allowed: true, remaining: limit - entry.count };
+  return { allowed: true, remaining: limit - entry.count, reset: entry.resetAt };
 }
 
-function getRateLimitConfig(pathname: string): { limit: number; windowMs: number } {
-  const FIFTEEN_MIN = 15 * 60 * 1000;
-  const TWENTY_FOUR_H = 24 * 60 * 60 * 1000;
+// Initialize Upstash Redis if env vars are present
+const redis = process.env.UPSTASH_REDIS_REST_URL && process.env.UPSTASH_REDIS_REST_TOKEN
+  ? new Redis({
+      url: process.env.UPSTASH_REDIS_REST_URL,
+      token: process.env.UPSTASH_REDIS_REST_TOKEN,
+    })
+  : null;
 
-  // Strict limit for auth endpoints (brute force protection)
+// Define rate limiters for different tiers
+const limiters = redis ? {
+  auth: new Ratelimit({ redis, limiter: Ratelimit.slidingWindow(10, "15 m") }),
+  financial: new Ratelimit({ redis, limiter: Ratelimit.slidingWindow(5, "15 m") }),
+  events: new Ratelimit({ redis, limiter: Ratelimit.slidingWindow(10, "1 d") }),
+  default: new Ratelimit({ redis, limiter: Ratelimit.slidingWindow(200, "15 m") }),
+} : null;
+
+async function checkRateLimit(
+  pathname: string,
+  ip: string
+): Promise<{ allowed: boolean; remaining: number; reset: number }> {
+  // Determine tier
+  let tier: "auth" | "financial" | "events" | "default" = "default";
+  let memLimit = 200;
+  let memWindowMs = 15 * 60 * 1000;
+
   if (pathname.startsWith("/api/auth") || pathname === "/login" || pathname === "/signup") {
-    return { limit: 10, windowMs: FIFTEEN_MIN };
+    tier = "auth";
+    memLimit = 10;
+    memWindowMs = 15 * 60 * 1000;
+  } else if (pathname.match(/\/(fund|disburse|refund)$/)) {
+    tier = "financial";
+    memLimit = 5;
+    memWindowMs = 15 * 60 * 1000;
+  } else if (pathname === "/api/events") {
+    tier = "events";
+    memLimit = 10;
+    memWindowMs = 24 * 60 * 60 * 1000;
   }
-  // Financial endpoints get a tighter limit
-  if (pathname.match(/\/(fund|disburse|refund)$/)) {
-    return { limit: 5, windowMs: FIFTEEN_MIN };
+
+  const key = `ratelimit:${tier}:${ip}`;
+
+  // Use Redis if available
+  if (limiters) {
+    try {
+      const { success, remaining, reset } = await limiters[tier].limit(key);
+      return { allowed: success, remaining, reset };
+    } catch (error) {
+      console.error("Upstash Redis error, falling back to memory:", error);
+      // Fall through to memory fallback on error
+    }
   }
-  // Event creation limit
-  if (pathname === "/api/events") {
-    return { limit: 10, windowMs: TWENTY_FOUR_H };
-  }
-  return { limit: 200, windowMs: FIFTEEN_MIN };
+
+  // Fallback to in-memory
+  return checkRateLimitMemory(key, memLimit, memWindowMs);
 }
 
 export async function middleware(request: NextRequest) {
@@ -169,9 +199,7 @@ export async function middleware(request: NextRequest) {
 
   // --- Rate Limiting (Req 14.2) ---
   const ip = request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? "unknown";
-  const { limit, windowMs } = getRateLimitConfig(pathname);
-  const rateLimitKey = `${ip}:${pathname.split("/").slice(0, 4).join("/")}`;
-  const { allowed, remaining } = checkRateLimit(rateLimitKey, limit, windowMs);
+  const { allowed, remaining, reset } = await checkRateLimit(pathname, ip);
 
   if (!allowed) {
     const rateLimitResponse = NextResponse.json(
@@ -179,7 +207,8 @@ export async function middleware(request: NextRequest) {
       { status: 429 },
     );
     rateLimitResponse.headers.set("X-Request-Id", requestId);
-    rateLimitResponse.headers.set("Retry-After", String(Math.ceil(windowMs / 1000)));
+    const retryAfter = Math.ceil((reset - Date.now()) / 1000);
+    rateLimitResponse.headers.set("Retry-After", String(retryAfter > 0 ? retryAfter : 60));
     return rateLimitResponse;
   }
 

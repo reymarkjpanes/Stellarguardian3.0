@@ -6,6 +6,14 @@
 import { useEffect, useState } from "react";
 import { createBrowserClient } from "@/lib/supabase/client";
 
+interface NotificationRaw {
+  id: string;
+  category: string;
+  payload: { title?: string; body?: string; action_url?: string };
+  read_at: string | null;
+  created_at: string;
+}
+
 interface Notification {
   id: string;
   category: string;
@@ -21,54 +29,98 @@ export default function NotificationsPage() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const supabase = createBrowserClient();
-    let channel: ReturnType<typeof supabase.channel> | null = null;
+    let channel: ReturnType<ReturnType<typeof createBrowserClient>["channel"]> | null = null;
 
     async function load() {
+      try {
+        const res = await fetch("/api/notifications");
+        if (res.ok) {
+          const { data } = await res.json();
+          const formatted = (data as NotificationRaw[]).map((n) => ({
+            id: n.id,
+            category: n.category,
+            title: n.payload?.title || "Notification",
+            body: n.payload?.body || "",
+            read: n.read_at !== null,
+            action_url: n.payload?.action_url || null,
+            created_at: n.created_at,
+          }));
+          setNotifications(formatted);
+        }
+      } catch (err) {
+        console.error("Failed to load notifications:", err);
+      } finally {
+        setLoading(false);
+      }
+
+      // Setup realtime via Supabase client
+      const supabase = createBrowserClient();
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
 
-      const { data } = await supabase
-        .from("notifications")
-        .select("*")
-        .eq("user_id", user.id)
-        .order("created_at", { ascending: false })
-        .limit(50);
-
-      setNotifications(data ?? []);
-      setLoading(false);
-
-      // Subscribe to realtime notifications (Req 28.2 — ≤5s delivery)
       channel = supabase
         .channel("notifications-realtime")
         .on(
           "postgres_changes",
           { event: "INSERT", schema: "public", table: "notifications", filter: `user_id=eq.${user.id}` },
           (payload) => {
-            setNotifications((prev) => [payload.new as Notification, ...prev]);
+            const n = payload.new as NotificationRaw;
+            const formatted: Notification = {
+              id: n.id,
+              category: n.category,
+              title: n.payload?.title || "Notification",
+              body: n.payload?.body || "",
+              read: n.read_at !== null,
+              action_url: n.payload?.action_url || null,
+              created_at: n.created_at,
+            };
+            setNotifications((prev) => [formatted, ...prev]);
           },
         )
         .subscribe();
     }
+    
     load();
 
     return () => {
-      if (channel) supabase.removeChannel(channel);
+      if (channel) {
+        const supabase = createBrowserClient();
+        supabase.removeChannel(channel);
+      }
     };
   }, []);
 
   async function markRead(id: string) {
-    const supabase = createBrowserClient();
-    await supabase.from("notifications").update({ read: true }).eq("id", id);
-    setNotifications((prev) => prev.map((n) => n.id === id ? { ...n, read: true } : n));
+    try {
+      const res = await fetch("/api/notifications", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ notification_ids: [id] }),
+      });
+      if (res.ok) {
+        setNotifications((prev) => prev.map((n) => n.id === id ? { ...n, read: true } : n));
+      }
+    } catch (err) {
+      console.error("Failed to mark notification as read", err);
+    }
   }
 
   async function markAllRead() {
-    const supabase = createBrowserClient();
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return;
-    await supabase.from("notifications").update({ read: true }).eq("user_id", user.id).eq("read", false);
-    setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
+    const unreadIds = notifications.filter(n => !n.read).map(n => n.id);
+    if (unreadIds.length === 0) return;
+
+    try {
+      const res = await fetch("/api/notifications", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ notification_ids: unreadIds }),
+      });
+      if (res.ok) {
+        setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
+      }
+    } catch (err) {
+      console.error("Failed to mark all notifications as read", err);
+    }
   }
 
   const unreadCount = notifications.filter((n) => !n.read).length;

@@ -444,7 +444,7 @@ create policy "winners_select" on public.winners
 -- ============================================================================
 create policy "disputes_select" on public.disputes
   for select using (
-    filed_by = (select auth.uid())
+    filer_id = (select auth.uid())
     or exists (
       select 1 from public.events e
       where e.id = event_id and (
@@ -458,7 +458,7 @@ create policy "disputes_select" on public.disputes
   );
 
 create policy "disputes_insert" on public.disputes
-  for insert with check (filed_by = (select auth.uid()));
+  for insert with check (filer_id = (select auth.uid()));
 
 -- ============================================================================
 -- dispute_evidence
@@ -468,7 +468,7 @@ create policy "dispute_evidence_select" on public.dispute_evidence
     exists (
       select 1 from public.disputes d
       where d.id = dispute_id and (
-        d.filed_by = (select auth.uid())
+        d.filer_id = (select auth.uid())
         or exists (
           select 1 from public.events e
           where e.id = d.event_id and e.organizer_id = (select auth.uid())
@@ -480,24 +480,14 @@ create policy "dispute_evidence_select" on public.dispute_evidence
 -- ============================================================================
 -- idempotency_keys (service client only for writes; reads for debugging)
 -- ============================================================================
-create policy "idempotency_keys_select_own" on public.idempotency_keys
-  for select using (user_id = (select auth.uid()));
+-- No public policies required; service role only.
 
 -- ============================================================================
 -- audit_records — APPEND-ONLY enforcement (Req 31.3, 31.8)
 -- No UPDATE or DELETE grants via RLS; trigger blocks modifications.
 -- ============================================================================
 create policy "audit_records_select" on public.audit_records
-  for select using (
-    actor_id = (select auth.uid())
-    or exists (
-      select 1 from public.workspace_members wm
-      join public.events e on e.workspace_id = wm.workspace_id
-      where e.id = audit_records.event_id
-        and wm.user_id = (select auth.uid())
-        and wm.role in ('Owner', 'Admin')
-    )
-  );
+  for select using (actor_id = (select auth.uid()));
 
 -- Append-only trigger: block UPDATE and DELETE on audit_records
 create or replace function public.audit_records_immutable()
@@ -665,7 +655,8 @@ create policy "invitations_select" on public.invitations
     or inviter_id = (select auth.uid())
     or exists (
       select 1 from public.workspace_members wm
-      where wm.workspace_id = invitations.workspace_id
+      where wm.workspace_id = invitations.scope_id
+        and invitations.scope = 'workspace'
         and wm.user_id = (select auth.uid())
         and wm.role in ('Owner', 'Admin')
     )
@@ -681,7 +672,8 @@ create policy "invitations_delete" on public.invitations
     inviter_id = (select auth.uid())
     or exists (
       select 1 from public.workspace_members wm
-      where wm.workspace_id = invitations.workspace_id
+      where wm.workspace_id = invitations.scope_id
+        and invitations.scope = 'workspace'
         and wm.user_id = (select auth.uid())
         and wm.role in ('Owner', 'Admin')
     )

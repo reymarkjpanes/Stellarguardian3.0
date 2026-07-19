@@ -65,7 +65,6 @@ export async function decryptSecret(ciphertext: string): Promise<string> {
 
 async function kmsEncrypt(plaintext: string): Promise<string> {
   try {
-    // @ts-expect-error — optional dependency, only installed in production
     const mod = await import("@aws-sdk/client-kms");
     const client = new mod.KMSClient({ region: process.env.AWS_REGION ?? "us-east-1" });
     const command = new mod.EncryptCommand({
@@ -83,7 +82,6 @@ async function kmsEncrypt(plaintext: string): Promise<string> {
 
 async function kmsDecrypt(ciphertextBase64: string): Promise<string> {
   try {
-    // @ts-expect-error — optional dependency, only installed in production
     const mod = await import("@aws-sdk/client-kms");
     const client = new mod.KMSClient({ region: process.env.AWS_REGION ?? "us-east-1" });
     const command = new mod.DecryptCommand({

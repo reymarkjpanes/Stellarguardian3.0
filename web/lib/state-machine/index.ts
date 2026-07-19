@@ -4,15 +4,7 @@
  * handlers/services and client-side UI can import from a single path:
  * `import { canTransition, canEscrowTransition, canDisputeTransition } from "@/lib/state-machine"`.
  */
-export {
-  canTransition,
-  validOutboundStates,
-  isTerminal,
-  TERMINAL_STATES,
-  ROLLBACK_TRANSITIONS,
-  type TransitionResult,
-  type TransitionContext,
-} from "./event";
+
 
 export {
   canEscrowTransition,

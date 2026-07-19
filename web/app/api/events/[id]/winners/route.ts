@@ -14,7 +14,6 @@ const AssignWinnerSchema = z.object({
   recipient_id: z.string().uuid("Invalid recipient ID"),
   team_id: z.string().uuid("Invalid team ID").nullable().optional(),
   prize_amount: z.number().positive("Prize amount must be positive"),
-  placement: z.number().int().min(1).optional(),
 });
 
 const AssignWinnersSchema = z.object({
@@ -128,13 +127,12 @@ export async function POST(
     }
 
     // Insert winners
-    const winnersToInsert = parsed.data.winners.map((w, idx) => ({
+    const winnersToInsert = parsed.data.winners.map((w) => ({
       event_id: eventId,
       recipient_id: w.recipient_id,
       team_id: w.team_id ?? null,
       prize_amount: w.prize_amount,
-      placement: w.placement ?? idx + 1,
-      status: "pending",
+      disbursement_status: "pending",
     }));
 
     const { data: inserted, error: insertError } = await supabase

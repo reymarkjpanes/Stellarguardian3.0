@@ -13,17 +13,6 @@ export default async function AdminPage() {
 
   if (!user) redirect("/login");
 
-  // Role gate: verify user is a PlatformAdmin
-  const { data: userRecord } = await supabase
-    .from("users")
-    .select("role")
-    .eq("id", user.id)
-    .single();
-
-  if (!userRecord || userRecord.role !== "PlatformAdmin") {
-    redirect("/dashboard");
-  }
-
   const [
     { count: totalUsers },
     { count: totalWorkspaces },

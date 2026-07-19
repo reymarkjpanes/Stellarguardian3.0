@@ -81,13 +81,13 @@ export async function GET(
       case "winners": {
         const { data: winners } = await supabase
           .from("winners")
-          .select("id, recipient_id, team_id, prize_amount, placement, status, disbursement_tx_hash")
+          .select("id, recipient_id, team_id, prize_amount, disbursement_status, disbursement_tx_hash")
           .eq("event_id", eventId)
-          .order("placement", { ascending: true });
+          .order("prize_amount", { ascending: false });
 
-        csv = "winner_id,recipient_id,team_id,placement,prize_amount,status,tx_hash\n";
+        csv = "winner_id,recipient_id,team_id,prize_amount,disbursement_status,tx_hash\n";
         for (const w of winners ?? []) {
-          csv += `${w.id},${w.recipient_id},${w.team_id ?? ""},${w.placement ?? ""},${w.prize_amount},${w.status},${w.disbursement_tx_hash ?? ""}\n`;
+          csv += `${w.id},${w.recipient_id},${w.team_id ?? ""},${w.prize_amount},${w.disbursement_status},${w.disbursement_tx_hash ?? ""}\n`;
         }
         filename = `winners-${eventId.slice(0, 8)}.csv`;
         break;

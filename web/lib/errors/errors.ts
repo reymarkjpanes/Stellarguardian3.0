@@ -116,3 +116,16 @@ export class ServiceUnavailableError extends AppError {
     super(message, details);
   }
 }
+
+/** 422 - A business rule was violated during domain logic execution. */
+export class BusinessRuleError extends AppError {
+  readonly code = "BUSINESS_RULE_VIOLATION";
+  readonly httpStatus = 422;
+
+  constructor(
+    message = "A business rule was violated.",
+    details?: Record<string, unknown>,
+  ) {
+    super(message, details);
+  }
+}

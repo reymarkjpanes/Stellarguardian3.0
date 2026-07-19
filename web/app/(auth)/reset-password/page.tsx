@@ -33,11 +33,27 @@ export default function ResetPasswordPage() {
     }
 
     setLoading(true);
-    const supabase = createBrowserClient();
-    const { error: updateError } = await supabase.auth.updateUser({ password });
+    try {
+      const res = await fetch("/api/auth/reset-password", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ password }),
+      });
 
-    if (updateError) {
-      setError(updateError.message);
+      if (!res.ok) {
+        let errorMessage = "Failed to update password.";
+        try {
+          const errorData = await res.json();
+          errorMessage = errorData.error?.message || errorMessage;
+        } catch {
+          // keep default error
+        }
+        setError(errorMessage);
+        setLoading(false);
+        return;
+      }
+    } catch (err) {
+      setError(`An unexpected error occurred: ${err instanceof Error ? err.message : "Unknown error"}`);
       setLoading(false);
       return;
     }

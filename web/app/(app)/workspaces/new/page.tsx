@@ -34,37 +34,30 @@ export default function CreateWorkspacePage() {
     setLoading(true);
 
     try {
-      const supabase = createBrowserClient();
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) { setError("Not authenticated."); return; }
-
-      // Create workspace — RLS allows any authenticated user to insert
-      const { data: workspace, error: wsError } = await supabase
-        .from("workspaces")
-        .insert({ slug, name, description: description || null })
-        .select("id")
-        .single();
-
-      if (wsError) {
-        if (wsError.code === "23505") {
-          setError("A workspace with this slug already exists. Choose a different name.");
-        } else {
-          setError(`Failed to create workspace: ${wsError.message} (code: ${wsError.code})`);
-        }
-        return;
-      }
-
-      // Add creator as Owner — this may fail due to RLS if the policy
-      // requires being an existing member. Use an API route instead.
-      const { error: memberError } = await supabase.from("workspace_members").insert({
-        workspace_id: workspace.id,
-        user_id: user.id,
-        role: "Owner",
+      const res = await fetch("/api/workspaces", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          name,
+          slug,
+          description: description || undefined,
+        }),
       });
 
-      if (memberError) {
-        // If RLS blocked the membership insert, try deleting the workspace and report
-        setError(`Workspace created but membership failed: ${memberError.message}. Please contact support.`);
+      if (!res.ok) {
+        let errorMessage = "Failed to create workspace.";
+        try {
+          const errorData = await res.json();
+          errorMessage = errorData.error?.message || errorMessage;
+          if (errorData.error?.code === "CONFLICT") {
+            errorMessage = "A workspace with this slug already exists. Choose a different name.";
+          }
+        } catch {
+          // Keep default error
+        }
+        setError(errorMessage);
         return;
       }
 
