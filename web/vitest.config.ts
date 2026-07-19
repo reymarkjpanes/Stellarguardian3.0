@@ -8,6 +8,10 @@ export default defineConfig({
   plugins: [react()],
   resolve: {
     tsconfigPaths: true,
+    alias: {
+      // Mock server-only in test environment so server modules can be imported
+      "server-only": new URL("./lib/test-utils/server-only-mock.ts", import.meta.url).pathname,
+    },
   },
   test: {
     environment: "node",

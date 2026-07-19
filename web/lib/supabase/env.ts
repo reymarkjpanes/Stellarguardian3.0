@@ -2,32 +2,33 @@
  * Supabase environment variable access (Req 2.1, 14.4).
  *
  * Centralizes reading and validating the Supabase-related environment
- * variables so every client factory fails fast with a clear error message
- * instead of passing `undefined` into `@supabase/ssr` / `@supabase/supabase-js`.
- * Secrets are read from `process.env` only — never hard-coded, never
- * bundled into client code (the service-role key is read exclusively from
- * `service.ts`, which is marked server-only).
+ * variables. Public (NEXT_PUBLIC_*) vars are inlined by Next.js at build
+ * time and are safe for browser access. The service-role key is only
+ * available server-side.
  */
 
-function readEnv(name: string): string {
-  const value = process.env[name];
+/** Public Supabase project URL. Safe to expose to the browser. */
+export function getSupabaseUrl(): string {
+  const value = process.env.NEXT_PUBLIC_SUPABASE_URL;
   if (!value) {
     throw new Error(
-      `Missing required environment variable "${name}". ` +
-        "Copy .env.example to .env.local and provide real Supabase project values.",
+      'Missing required environment variable "NEXT_PUBLIC_SUPABASE_URL". ' +
+        "Add it to .env.local with your Supabase project URL.",
     );
   }
   return value;
 }
 
-/** Public Supabase project URL. Safe to expose to the browser. */
-export function getSupabaseUrl(): string {
-  return readEnv("NEXT_PUBLIC_SUPABASE_URL");
-}
-
 /** Public (anon/publishable) key. Safe to expose to the browser; RLS applies. */
 export function getSupabaseAnonKey(): string {
-  return readEnv("NEXT_PUBLIC_SUPABASE_ANON_KEY");
+  const value = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+  if (!value) {
+    throw new Error(
+      'Missing required environment variable "NEXT_PUBLIC_SUPABASE_ANON_KEY". ' +
+        "Add it to .env.local with your Supabase anon key.",
+    );
+  }
+  return value;
 }
 
 /**
@@ -36,5 +37,12 @@ export function getSupabaseAnonKey(): string {
  * intended caller.
  */
 export function getSupabaseServiceRoleKey(): string {
-  return readEnv("SUPABASE_SERVICE_ROLE_KEY");
+  const value = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (!value) {
+    throw new Error(
+      'Missing required environment variable "SUPABASE_SERVICE_ROLE_KEY". ' +
+        "Add it to .env.local with your Supabase service role key.",
+    );
+  }
+  return value;
 }

@@ -54,14 +54,23 @@ create index idx_events_state on public.events (state);
 create index idx_events_registration_deadline on public.events (registration_deadline);
 
 -- GIN full-text index on title || description || tags (Req 37.1).
--- tags is text[]; array_to_string flattens it into the tsvector input.
-create index idx_events_fulltext on public.events
-  using gin (
-    to_tsvector(
-      'english',
-      coalesce(title, '') || ' ' || coalesce(description, '') || ' ' || coalesce(array_to_string(tags, ' '), '')
-    )
-  );
+-- to_tsvector is STABLE (not IMMUTABLE) so we use a trigger-maintained column.
+alter table public.events add column if not exists fts tsvector;
+
+create index idx_events_fulltext on public.events using gin (fts);
+
+create or replace function public.events_fts_update()
+returns trigger
+language plpgsql as $$
+begin
+  new.fts := to_tsvector('english', coalesce(new.title, '') || ' ' || coalesce(new.description, '') || ' ' || coalesce(array_to_string(new.tags, ' '), ''));
+  return new;
+end;
+$$;
+
+create trigger trg_events_fts
+  before insert or update of title, description, tags on public.events
+  for each row execute function public.events_fts_update();
 
 comment on table public.events is
   'Canonical event lifecycle (16 states, Req 23.1); GIN full-text index supports discovery search (Req 37.1).';
