@@ -3,10 +3,10 @@ import { getStellarClient } from "@/lib/stellar/client";
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { public_key: string } }
+  { params }: { params: Promise<{ public_key: string }> },
 ) {
   try {
-    const publicKey = params.public_key;
+    const { public_key: publicKey } = await params;
     if (!publicKey) {
       return NextResponse.json({ error: "Missing public_key parameter" }, { status: 400 });
     }
@@ -19,7 +19,7 @@ export async function GET(
     console.error("Failed to fetch wallet balance:", error);
     return NextResponse.json(
       { error: "Failed to fetch wallet balance", balance: "0" },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }

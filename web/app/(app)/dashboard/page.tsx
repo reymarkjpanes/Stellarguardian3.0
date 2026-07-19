@@ -6,6 +6,8 @@
  */
 import { redirect } from "next/navigation";
 import { createServerClient } from "@/lib/supabase/server";
+import { OrganizerActionCenter } from "@/components/dashboard/organizer-action-center";
+import { EventListFilter } from "@/components/dashboard/event-list-filter";
 
 interface EventMembership {
   event_id: string;
@@ -53,7 +55,7 @@ export default async function DashboardPage() {
   // Fetch event details for memberships
   const eventIds = (rawEventMemberships ?? []).map((m) => m.event_id);
   const { data: eventsData } = eventIds.length > 0
-    ? await supabase.from("events").select("id, title, state").in("id", eventIds)
+    ? await supabase.from("events").select("id, title, state, prize_pool_target, review_window_hours").in("id", eventIds)
     : { data: [] };
 
   const eventsMap = new Map((eventsData ?? []).map((e) => [e.id, e]));
@@ -66,6 +68,79 @@ export default async function DashboardPage() {
       status: m.status,
       event_title: event?.title ?? "Unknown",
       event_state: event?.state ?? "Unknown",
+    };
+  });
+
+  // Fetch rich data for organizer events — needed for OrganizerActionCenter
+  const organizerEventIds = (rawEventMemberships ?? [])
+    .filter((m) => m.role === "Organizer")
+    .map((m) => m.event_id);
+
+  // Parallel fetch of all enrichment data for organizer events
+  const [
+    { data: pendingMembers },
+    { data: judgeMembers },
+    { data: userWallet },
+    { data: escrowAccounts },
+    { data: submissionsData },
+    { data: evaluationsData },
+  ] = await Promise.all([
+    organizerEventIds.length > 0
+      ? supabase.from("event_members").select("event_id").in("event_id", organizerEventIds).eq("status", "pending")
+      : Promise.resolve({ data: [] }),
+    organizerEventIds.length > 0
+      ? supabase.from("event_members").select("event_id").in("event_id", organizerEventIds).eq("role", "Judge")
+      : Promise.resolve({ data: [] }),
+    supabase.from("wallets").select("id").eq("user_id", user.id).eq("verification_status", "Verified").limit(1).maybeSingle(),
+    organizerEventIds.length > 0
+      ? supabase.from("escrow_accounts").select("event_id, state").in("event_id", organizerEventIds)
+      : Promise.resolve({ data: [] }),
+    organizerEventIds.length > 0
+      ? supabase.from("submissions").select("event_id").in("event_id", organizerEventIds)
+      : Promise.resolve({ data: [] }),
+    organizerEventIds.length > 0
+      ? supabase.from("evaluations").select("submission_id, submissions!inner(event_id)").in("submissions.event_id", organizerEventIds)
+      : Promise.resolve({ data: [] }),
+  ]);
+
+  // Build per-event counts
+  const pendingByEvent = new Map<string, number>();
+  for (const m of pendingMembers ?? []) {
+    pendingByEvent.set(m.event_id, (pendingByEvent.get(m.event_id) ?? 0) + 1);
+  }
+  const judgesByEvent = new Map<string, number>();
+  for (const m of judgeMembers ?? []) {
+    judgesByEvent.set(m.event_id, (judgesByEvent.get(m.event_id) ?? 0) + 1);
+  }
+  const escrowByEvent = new Map<string, string>();
+  for (const e of escrowAccounts ?? []) {
+    escrowByEvent.set(e.event_id, e.state);
+  }
+  const submissionsByEvent = new Map<string, number>();
+  for (const s of submissionsData ?? []) {
+    submissionsByEvent.set(s.event_id, (submissionsByEvent.get(s.event_id) ?? 0) + 1);
+  }
+  // evaluationsData: join result, need to count by event_id from submissions
+  const evalsByEvent = new Map<string, number>();
+  for (const ev of evaluationsData ?? []) {
+    const eventId = (ev.submissions as unknown as { event_id: string } | null)?.event_id;
+    if (eventId) evalsByEvent.set(eventId, (evalsByEvent.get(eventId) ?? 0) + 1);
+  }
+
+  // Build event summaries for OrganizerActionCenter
+  const organizerEventSummaries = organizerEventIds.map((eid) => {
+    const eventRecord = eventsMap.get(eid);
+    return {
+      id: eid,
+      title: eventRecord?.title ?? "Unknown",
+      state: eventRecord?.state ?? "Unknown",
+      pendingMemberCount: pendingByEvent.get(eid) ?? 0,
+      judgeCount: judgesByEvent.get(eid) ?? 0,
+      hasWallet: !!userWallet,
+      escrowState: escrowByEvent.get(eid) ?? null,
+      prizePoolTarget: Number(eventRecord?.prize_pool_target ?? 0) || null,
+      submissionCount: submissionsByEvent.get(eid) ?? 0,
+      evaluationCount: evalsByEvent.get(eid) ?? 0,
     };
   });
 
@@ -125,6 +200,11 @@ export default async function DashboardPage() {
           />
         </div>
 
+        {/* Organizer Action Center — only shown when there are actionable tasks */}
+        {isOrganizer && organizerEventSummaries.length > 0 && (
+          <OrganizerActionCenter events={organizerEventSummaries} />
+        )}
+
         <section>
           <h2 className="text-lg font-medium mb-3">Quick Actions</h2>
           <div className="flex flex-wrap gap-3">
@@ -137,27 +217,15 @@ export default async function DashboardPage() {
         {events.length > 0 && (
           <section>
             <h2 className="text-lg font-medium mb-3">Your Events</h2>
-            <div className="space-y-2">
-              {events.slice(0, 10).map((event) => (
-                <a
-                  key={`${event.event_id}-${event.role}`}
-                  href={`/events/${event.event_id}`}
-                  className="block rounded-lg card p-4 hover:border-[var(--accent)] transition-colors"
-                >
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="font-medium">{event.event_title}</p>
-                      <p className="text-xs text-[var(--text-muted)] mt-0.5">
-                        {event.role} · {event.event_state}
-                      </p>
-                    </div>
-                    <span className="rounded-full badge-default px-2.5 py-0.5 text-xs font-medium">
-                      {event.role}
-                    </span>
-                  </div>
-                </a>
-              ))}
-            </div>
+            <EventListFilter
+              events={events.map((e) => ({
+                event_id: e.event_id,
+                role: e.role,
+                status: e.status,
+                event_title: e.event_title,
+                event_state: e.event_state,
+              }))}
+            />
           </section>
         )}
 

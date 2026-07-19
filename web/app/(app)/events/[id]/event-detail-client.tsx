@@ -9,6 +9,9 @@
  * No direct browser-client Supabase writes.
  */
 import { useState } from "react";
+import { EventLifecycleStepper } from "@/components/events/event-lifecycle-stepper";
+import type { EventState } from "@/components/events/event-lifecycle-stepper";
+import { EventTrustSignals } from "@/components/events/event-trust-signals";
 
 interface EventDetailClientProps {
   event: Record<string, unknown>;
@@ -17,12 +20,16 @@ interface EventDetailClientProps {
   isOrganizer: boolean;
   myMembership: { user_id: string; role: string; status: string } | null;
   userId: string | null;
+  // Enrichment data for new components
+  judgeCount: number;
+  hasVerifiedOrganizer: boolean;
+  reviewWindowHours: number;
 }
 
 const TABS = ["overview", "teams", "submissions", "judging"] as const;
 const ORGANIZER_TABS = ["overview", "members", "teams", "submissions", "judging", "settings"] as const;
 
-export function EventDetailClient({ event, members, teams, isOrganizer, myMembership, userId }: EventDetailClientProps) {
+export function EventDetailClient({ event, members, teams, isOrganizer, myMembership, userId, judgeCount, hasVerifiedOrganizer, reviewWindowHours }: EventDetailClientProps) {
   const [activeTab, setActiveTab] = useState("overview");
   const [actionLoading, setActionLoading] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
@@ -136,6 +143,10 @@ export function EventDetailClient({ event, members, teams, isOrganizer, myMember
         {activeTab === "overview" && (
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             <div className="lg:col-span-2 space-y-4">
+              {/* Lifecycle progress — organizers get the full stepper */}
+              {isOrganizer && (
+                <EventLifecycleStepper currentState={event.state as EventState} />
+              )}
               <div className="rounded-lg border border-[var(--card-border)] p-5">
                 <h2 className="font-medium mb-2">Description</h2>
                 <p className="text-sm text-[var(--text-secondary)] whitespace-pre-wrap">{event.description as string}</p>
@@ -148,7 +159,7 @@ export function EventDetailClient({ event, members, teams, isOrganizer, myMember
               </div>
             </div>
             <div className="space-y-4">
-              {/* Sidebar - participant actions */}
+              {/* Participant join action */}
               {!isOrganizer && (
                 <div className="rounded-lg border border-[var(--card-border)] p-5 text-center">
                   <h3 className="font-medium mb-3">Participate</h3>
@@ -167,6 +178,23 @@ export function EventDetailClient({ event, members, teams, isOrganizer, myMember
                   )}
                 </div>
               )}
+
+              {/* Lifecycle compact view for non-organizers */}
+              {!isOrganizer && (
+                <EventLifecycleStepper currentState={event.state as EventState} compact />
+              )}
+
+              {/* Trust signals — participants see this to decide whether to join */}
+              <EventTrustSignals
+                eventId={event.id as string}
+                eventState={event.state as string}
+                prizePoolTarget={event.prize_pool_target as number | null}
+                judgeCount={judgeCount}
+                hasVerifiedOrganizer={hasVerifiedOrganizer}
+                reviewWindowHours={reviewWindowHours}
+                networkMode={(event.network_mode as "testnet" | "mainnet") ?? "testnet"}
+              />
+
               <InfoCard label="Members" value={String(members.length)} />
               <InfoCard label="Teams" value={String(teams.length)} />
             </div>
