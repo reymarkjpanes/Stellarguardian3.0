@@ -50,27 +50,36 @@ export default function EventWinnersPage() {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => { loadData(); }, [eventId]);
+  useEffect(() => {
+    loadData();
+  }, [eventId]);
 
   async function loadData() {
     const supabase = createBrowserClient();
-    const { data: { user } } = await supabase.auth.getUser();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
     if (!user) return;
 
     const [{ data: event }, { data: membership }] = await Promise.all([
       supabase.from("events").select("state").eq("id", eventId).single(),
-      supabase.from("event_members").select("role").eq("event_id", eventId).eq("user_id", user.id).maybeSingle(),
+      supabase
+        .from("event_members")
+        .select("role")
+        .eq("event_id", eventId)
+        .eq("user_id", user.id)
+        .maybeSingle(),
     ]);
 
     setEventState(event?.state ?? "");
     setIsOrganizer(membership?.role === "Organizer");
 
-    // Load existing winners
+    // Load existing winners - order by prize_amount desc (placement may not exist yet)
     const { data: winnersData } = await supabase
       .from("winners")
       .select("*")
       .eq("event_id", eventId)
-      .order("placement", { ascending: true });
+      .order("prize_amount", { ascending: false });
 
     if (winnersData && winnersData.length > 0) {
       const recipientIds = winnersData.map((w) => w.recipient_id);
@@ -86,11 +95,13 @@ export default function EventWinnersPage() {
       const usersMap = new Map((users ?? []).map((u) => [u.id, u.display_name]));
       const teamsMap = new Map((teams ?? []).map((t) => [t.id, t.name]));
 
-      setWinners(winnersData.map((w) => ({
-        ...w,
-        recipient_name: usersMap.get(w.recipient_id) ?? "Unknown",
-        team_name: w.team_id ? teamsMap.get(w.team_id) ?? null : null,
-      })));
+      setWinners(
+        winnersData.map((w) => ({
+          ...w,
+          recipient_name: usersMap.get(w.recipient_id) ?? "Unknown",
+          team_name: w.team_id ? (teamsMap.get(w.team_id) ?? null) : null,
+        })),
+      );
     }
 
     // Load submissions for selection (organizers)
@@ -115,11 +126,13 @@ export default function EventWinnersPage() {
         const usersMap2 = new Map((subUsers ?? []).map((u) => [u.id, u.display_name]));
         const teamsMap2 = new Map((subTeams ?? []).map((t) => [t.id, t.name]));
 
-        setSubmissions(subs.map((s) => ({
-          ...s,
-          submitter_name: usersMap2.get(s.submitter_id) ?? "Unknown",
-          team_name: s.team_id ? teamsMap2.get(s.team_id) ?? null : null,
-        })));
+        setSubmissions(
+          subs.map((s) => ({
+            ...s,
+            submitter_name: usersMap2.get(s.submitter_id) ?? "Unknown",
+            team_name: s.team_id ? (teamsMap2.get(s.team_id) ?? null) : null,
+          })),
+        );
       }
     }
 
@@ -127,12 +140,15 @@ export default function EventWinnersPage() {
   }
 
   function addWinnerDraft(sub: Submission) {
-    setDrafts([...drafts, {
-      recipient_id: sub.submitter_id,
-      team_id: sub.team_id,
-      prize_amount: "",
-      label: sub.team_name ?? sub.submitter_name,
-    }]);
+    setDrafts([
+      ...drafts,
+      {
+        recipient_id: sub.submitter_id,
+        team_id: sub.team_id,
+        prize_amount: "",
+        label: sub.team_name ?? sub.submitter_name,
+      },
+    ]);
   }
 
   function removeDraft(index: number) {
@@ -180,7 +196,9 @@ export default function EventWinnersPage() {
     loadData();
   }
 
-  const canAssignWinners = isOrganizer && winners.length === 0 &&
+  const canAssignWinners =
+    isOrganizer &&
+    winners.length === 0 &&
     ["Judging", "ReviewObjectionWindow", "WinnersFinalized"].includes(eventState);
 
   if (loading) {
@@ -202,7 +220,10 @@ export default function EventWinnersPage() {
       </div>
 
       {error && (
-        <div className="rounded-md border border-[var(--error)] bg-[var(--error-bg)] px-4 py-3" role="alert">
+        <div
+          className="rounded-md border border-[var(--error)] bg-[var(--error-bg)] px-4 py-3"
+          role="alert"
+        >
           <p className="text-sm text-[var(--error)]">{error}</p>
         </div>
       )}
@@ -212,7 +233,8 @@ export default function EventWinnersPage() {
         <div className="card p-6 space-y-4">
           <h3 className="font-medium text-[var(--text)]">Select Winners</h3>
           <p className="text-xs text-[var(--text-muted)]">
-            Choose submissions to award prizes. Each winner receives the specified XLM amount from the escrow.
+            Choose submissions to award prizes. Each winner receives the specified XLM amount from
+            the escrow.
           </p>
 
           {/* Available submissions to select from */}
@@ -239,11 +261,16 @@ export default function EventWinnersPage() {
           {drafts.length > 0 && (
             <div className="space-y-2">
               {drafts.map((draft, idx) => (
-                <div key={idx} className="flex items-center gap-3 rounded-md border border-[var(--border)] p-3">
+                <div
+                  key={idx}
+                  className="flex items-center gap-3 rounded-md border border-[var(--border)] p-3"
+                >
                   <div className="h-7 w-7 rounded-full bg-[var(--accent)] text-white flex items-center justify-center text-xs font-bold">
                     {idx + 1}
                   </div>
-                  <span className="flex-1 text-sm font-medium text-[var(--text)]">{draft.label}</span>
+                  <span className="flex-1 text-sm font-medium text-[var(--text)]">
+                    {draft.label}
+                  </span>
                   <div className="flex items-center gap-2">
                     <input
                       type="number"
@@ -267,11 +294,17 @@ export default function EventWinnersPage() {
 
               <div className="flex items-center justify-between pt-2">
                 <p className="text-sm text-[var(--text-secondary)]">
-                  Total: <strong>{drafts.reduce((sum, d) => sum + (Number(d.prize_amount) || 0), 0)} XLM</strong>
+                  Total:{" "}
+                  <strong>
+                    {drafts.reduce((sum, d) => sum + (Number(d.prize_amount) || 0), 0)} XLM
+                  </strong>
                 </p>
                 <div className="flex gap-3">
                   <button
-                    onClick={() => { setShowForm(false); setDrafts([]); }}
+                    onClick={() => {
+                      setShowForm(false);
+                      setDrafts([]);
+                    }}
                     className="text-sm text-[var(--text-muted)] hover:text-[var(--text)]"
                   >
                     Cancel
@@ -293,43 +326,48 @@ export default function EventWinnersPage() {
       {/* Existing winners display */}
       {winners.length === 0 && !showForm ? (
         <div className="card p-8 text-center">
-          <p className="text-sm text-[var(--text-muted)]">
-            Winners have not been announced yet.
-          </p>
+          <p className="text-sm text-[var(--text-muted)]">Winners have not been announced yet.</p>
         </div>
-      ) : winners.length > 0 && (
-        <div className="space-y-3">
-          {winners.map((w, idx) => (
-            <div key={w.id} className="card p-4 flex items-center gap-4">
-              <div className={`h-10 w-10 rounded-full flex items-center justify-center text-lg font-bold ${
-                idx === 0 ? "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300"
-                : idx === 1 ? "bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-300"
-                : idx === 2 ? "bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-300"
-                : "bg-[var(--bg-muted)] text-[var(--text-secondary)]"
-              }`}>
-                {w.placement ?? idx + 1}
+      ) : (
+        winners.length > 0 && (
+          <div className="space-y-3">
+            {winners.map((w, idx) => (
+              <div key={w.id} className="card p-4 flex items-center gap-4">
+                <div
+                  className={`h-10 w-10 rounded-full flex items-center justify-center text-lg font-bold ${
+                    idx === 0
+                      ? "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300"
+                      : idx === 1
+                        ? "bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-300"
+                        : idx === 2
+                          ? "bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-300"
+                          : "bg-[var(--bg-muted)] text-[var(--text-secondary)]"
+                  }`}
+                >
+                  {w.placement ?? idx + 1}
+                </div>
+                <div className="flex-1">
+                  <p className="font-medium text-[var(--text)]">
+                    {w.team_name ?? w.recipient_name}
+                  </p>
+                  {w.team_name && (
+                    <p className="text-xs text-[var(--text-muted)]">{w.recipient_name}</p>
+                  )}
+                </div>
+                <div className="text-right">
+                  <p className="text-lg font-semibold text-[var(--accent)]">{w.prize_amount} XLM</p>
+                  <p
+                    className={`text-xs ${
+                      w.status === "disbursed" ? "text-green-600" : "text-[var(--text-muted)]"
+                    }`}
+                  >
+                    {w.status}
+                  </p>
+                </div>
               </div>
-              <div className="flex-1">
-                <p className="font-medium text-[var(--text)]">
-                  {w.team_name ?? w.recipient_name}
-                </p>
-                {w.team_name && (
-                  <p className="text-xs text-[var(--text-muted)]">{w.recipient_name}</p>
-                )}
-              </div>
-              <div className="text-right">
-                <p className="text-lg font-semibold text-[var(--accent)]">
-                  {w.prize_amount} XLM
-                </p>
-                <p className={`text-xs ${
-                  w.status === "disbursed" ? "text-green-600" : "text-[var(--text-muted)]"
-                }`}>
-                  {w.status}
-                </p>
-              </div>
-            </div>
-          ))}
-        </div>
+            ))}
+          </div>
+        )
       )}
     </div>
   );

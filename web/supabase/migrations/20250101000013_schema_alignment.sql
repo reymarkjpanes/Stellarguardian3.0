@@ -1,4 +1,4 @@
--- Migration: schema_alignment
+    -- Migration: schema_alignment
 -- Aligns table schemas with the service-layer code.
 -- This fixes column name mismatches between the original schema design
 -- and the implemented service layer.

@@ -30,63 +30,74 @@ export default function EventTeamsPage() {
   }, [eventId]);
 
   async function loadData() {
-    const supabase = createBrowserClient();
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return;
+    try {
+      const supabase = createBrowserClient();
+      const {
+        data: { user },
+        error: authError,
+      } = await supabase.auth.getUser();
+      if (authError || !user) {
+        setLoading(false);
+        return;
+      }
+      setUserId(user.id);
 
-    // Get event state
-    const { data: event } = await supabase
-      .from("events")
-      .select("state")
-      .eq("id", eventId)
-      .single();
-    setEventState(event?.state ?? "");
+      // Get event state
+      const { data: event } = await supabase
+        .from("events")
+        .select("state")
+        .eq("id", eventId)
+        .single();
+      setEventState(event?.state ?? "");
 
-    // Get user role
-    const { data: membership } = await supabase
-      .from("event_members")
-      .select("role")
-      .eq("event_id", eventId)
-      .eq("user_id", user.id)
-      .maybeSingle();
-    setUserRole(membership?.role ?? null);
-    setUserId(user.id);
+      // Get user role
+      const { data: membership } = await supabase
+        .from("event_members")
+        .select("role")
+        .eq("event_id", eventId)
+        .eq("user_id", user.id)
+        .maybeSingle();
+      setUserRole(membership?.role ?? null);
 
-    // Get teams
-    const { data: teamsData } = await supabase
-      .from("teams")
-      .select("id, name, captain_id")
-      .eq("event_id", eventId);
+      // Get teams
+      const { data: teamsData } = await supabase
+        .from("teams")
+        .select("id, name, captain_id")
+        .eq("event_id", eventId);
 
-    if (teamsData && teamsData.length > 0) {
-      // Get team members
-      const teamIds = teamsData.map((t) => t.id);
-      const { data: membersData } = await supabase
-        .from("team_members")
-        .select("team_id, user_id")
-        .in("team_id", teamIds);
+      if (teamsData && teamsData.length > 0) {
+        // Get team members
+        const teamIds = teamsData.map((t) => t.id);
+        const { data: membersData } = await supabase
+          .from("team_members")
+          .select("team_id, user_id")
+          .in("team_id", teamIds);
 
-      const userIds = [...new Set((membersData ?? []).map((m) => m.user_id))];
-      const { data: users } = userIds.length > 0
-        ? await supabase.from("users").select("id, display_name").in("id", userIds)
-        : { data: [] };
+        const userIds = [...new Set((membersData ?? []).map((m) => m.user_id))];
+        const { data: users } =
+          userIds.length > 0
+            ? await supabase.from("users").select("id, display_name").in("id", userIds)
+            : { data: [] };
 
-      const usersMap = new Map((users ?? []).map((u) => [u.id, u]));
+        const usersMap = new Map((users ?? []).map((u) => [u.id, u]));
 
-      const enrichedTeams = teamsData.map((t) => ({
-        ...t,
-        members: (membersData ?? [])
-          .filter((m) => m.team_id === t.id)
-          .map((m) => ({
-            user_id: m.user_id,
-            display_name: usersMap.get(m.user_id)?.display_name ?? "Unknown",
-          })),
-      }));
+        const enrichedTeams = teamsData.map((t) => ({
+          ...t,
+          members: (membersData ?? [])
+            .filter((m) => m.team_id === t.id)
+            .map((m) => ({
+              user_id: m.user_id,
+              display_name: usersMap.get(m.user_id)?.display_name ?? "Unknown",
+            })),
+        }));
 
-      setTeams(enrichedTeams);
+        setTeams(enrichedTeams);
+      }
+    } catch (err) {
+      console.error("Failed to load teams:", err);
+    } finally {
+      setLoading(false);
     }
-
-    setLoading(false);
   }
 
   async function handleCreateTeam(e: React.FormEvent<HTMLFormElement>) {
