@@ -6,12 +6,14 @@
 import { useState } from "react";
 import { createBrowserClient } from "@/lib/supabase/client";
 import { ThemeToggle } from "@/components/theme/theme-toggle";
+import { NotificationBell } from "@/components/layout/notification-bell";
 
 interface AppNavProps {
   user: { id: string; name: string; email: string } | null;
+  wallet?: { publicKey: string; network: string; verified: boolean } | null;
 }
 
-export function AppNav({ user }: AppNavProps) {
+export function AppNav({ user, wallet }: AppNavProps) {
   const [mobileOpen, setMobileOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
 
@@ -51,9 +53,32 @@ export function AppNav({ user }: AppNavProps) {
                 <a href="/events/new" className="btn-primary text-sm font-medium px-4 py-1.5 rounded-md transition-colors">
                   Create Event
                 </a>
-                <a href="/notifications" className="text-sm text-[var(--text-muted)] hover:text-[var(--text)] transition-colors" title="Notifications">
-                  🔔
-                </a>
+                <NotificationBell userId={user.id} />
+
+                {/* Wallet badge in header */}
+                {wallet && (
+                  <a
+                    href="/settings"
+                    className="hidden lg:flex items-center gap-2 rounded-md border border-[var(--border)] px-2.5 py-1.5 hover:bg-[var(--bg-muted)] transition-colors"
+                    title={`Wallet: ${wallet.publicKey}`}
+                  >
+                    <span className={`h-2 w-2 rounded-full ${wallet.verified ? "bg-green-400" : "bg-amber-400"}`} />
+                    <span className="text-xs font-mono text-[var(--text-secondary)]">
+                      {wallet.publicKey.slice(0, 4)}…{wallet.publicKey.slice(-4)}
+                    </span>
+                    <span className="text-[10px] text-[var(--text-muted)]">{wallet.network}</span>
+                  </a>
+                )}
+                {!wallet && user && (
+                  <a
+                    href="/settings"
+                    className="hidden lg:flex items-center gap-1.5 rounded-md border border-dashed border-[var(--border)] px-2.5 py-1.5 text-xs text-[var(--text-muted)] hover:text-[var(--text)] hover:border-[var(--accent)] transition-colors"
+                  >
+                    <span>🔗</span>
+                    <span>Connect Wallet</span>
+                  </a>
+                )}
+
                 <ThemeToggle />
 
                 {/* Profile dropdown */}

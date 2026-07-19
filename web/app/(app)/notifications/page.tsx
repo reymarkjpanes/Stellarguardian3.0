@@ -21,8 +21,10 @@ export default function NotificationsPage() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    const supabase = createBrowserClient();
+    let channel: ReturnType<typeof supabase.channel> | null = null;
+
     async function load() {
-      const supabase = createBrowserClient();
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
 
@@ -35,8 +37,24 @@ export default function NotificationsPage() {
 
       setNotifications(data ?? []);
       setLoading(false);
+
+      // Subscribe to realtime notifications (Req 28.2 — ≤5s delivery)
+      channel = supabase
+        .channel("notifications-realtime")
+        .on(
+          "postgres_changes",
+          { event: "INSERT", schema: "public", table: "notifications", filter: `user_id=eq.${user.id}` },
+          (payload) => {
+            setNotifications((prev) => [payload.new as Notification, ...prev]);
+          },
+        )
+        .subscribe();
     }
     load();
+
+    return () => {
+      if (channel) supabase.removeChannel(channel);
+    };
   }, []);
 
   async function markRead(id: string) {

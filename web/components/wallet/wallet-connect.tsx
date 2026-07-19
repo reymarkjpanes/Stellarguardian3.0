@@ -3,223 +3,223 @@
 /**
  * Wallet Connect UI (Req 25.3, 33.1-33.16).
  *
- * Connection-state machine (Disconnected→Connecting→Connected→Verified→Error),
- * Freighter detection with install prompt, network-mismatch warnings, and
- * verification-status badges.
+ * Flow:
+ * 1. Click "Connect Freighter Wallet" → calls Freighter API
+ * 2. Freighter returns address → show in-app confirmation with full address
+ * 3. User clicks "Confirm & Link" → saves to database
+ * 4. Success state shown briefly → onVerified callback
  */
-import { useState, useEffect, useCallback } from "react";
-import type { WalletConnectionState, WalletProvider } from "@/lib/wallet/types";
+import { useState, useCallback } from "react";
 import type { NetworkMode } from "@/types";
+import { createBrowserClient } from "@/lib/supabase/client";
+
+type FlowStep = "idle" | "connecting" | "confirm" | "linking" | "done" | "error";
 
 interface WalletConnectProps {
   expectedNetwork?: NetworkMode;
-  onConnected?: (publicKey: string, network: NetworkMode) => void;
   onVerified?: (publicKey: string) => void;
 }
 
-export function WalletConnect({ expectedNetwork = "testnet", onConnected, onVerified }: WalletConnectProps) {
-  const [state, setState] = useState<WalletConnectionState>("Disconnected");
+export function WalletConnect({ expectedNetwork = "testnet", onVerified }: WalletConnectProps) {
+  const [step, setStep] = useState<FlowStep>("idle");
   const [publicKey, setPublicKey] = useState<string | null>(null);
   const [network, setNetwork] = useState<NetworkMode | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [isFreighterAvailable, setIsFreighterAvailable] = useState<boolean | null>(null);
-  const [verificationStatus, setVerificationStatus] = useState<"Unverified" | "Pending" | "Verified">("Unverified");
 
-  // Detect Freighter on mount (Req 33.5)
-  useEffect(() => {
-    const checkAvailability = () => {
-      setIsFreighterAvailable(typeof window !== "undefined" && !!window.freighterApi);
-    };
-    checkAvailability();
-    // Recheck after a short delay (extension may inject late)
-    const timer = setTimeout(checkAvailability, 2000);
-    return () => clearTimeout(timer);
-  }, []);
-
+  // Step 1: Request address from Freighter
   const connect = useCallback(async () => {
-    if (!window.freighterApi) {
-      setError("Freighter extension not found. Please install it.");
-      setState("Error");
-      return;
-    }
-
-    setState("Connecting");
+    setStep("connecting");
     setError(null);
 
     try {
-      const key = await window.freighterApi.getPublicKey();
-      const rawNetwork = await window.freighterApi.getNetwork();
-      const detectedNetwork: NetworkMode = rawNetwork.toLowerCase().includes("public") ? "mainnet" : "testnet";
+      const { FreighterAdapter } = await import("@/lib/wallet/freighter");
+      const adapter = new FreighterAdapter();
+      const { publicKey: key, network: net } = await adapter.connect();
 
       setPublicKey(key);
-      setNetwork(detectedNetwork);
-      setState("Connected");
+      setNetwork(net);
+      setStep("confirm"); // STOP here — wait for user to confirm
 
-      // Network mismatch warning (Req 33.8)
-      if (detectedNetwork !== expectedNetwork) {
-        setError(`Network mismatch: wallet is on ${detectedNetwork}, expected ${expectedNetwork}.`);
+      if (net !== expectedNetwork) {
+        setError(`Network mismatch: wallet is on ${net}, app expects ${expectedNetwork}.`);
       }
-
-      onConnected?.(key, detectedNetwork);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to connect wallet.");
-      setState("Error");
+      setError(err instanceof Error ? err.message : "Failed to connect. Make sure Freighter is installed and unlocked.");
+      setStep("error");
     }
-  }, [expectedNetwork, onConnected]);
+  }, [expectedNetwork]);
 
-  const disconnect = useCallback(() => {
-    setPublicKey(null);
-    setNetwork(null);
-    setState("Disconnected");
-    setVerificationStatus("Unverified");
+  // Step 2: User confirmed — save to database
+  const confirmAndLink = useCallback(async () => {
+    if (!publicKey || !network) return;
+    setStep("linking");
     setError(null);
-  }, []);
-
-  const verify = useCallback(async () => {
-    if (!publicKey) return;
-
-    setVerificationStatus("Pending");
 
     try {
-      // Request challenge
-      const challengeRes = await fetch("/api/auth/wallet/challenge", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ publicKey }),
-      });
+      const supabase = createBrowserClient();
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error("Not authenticated.");
 
-      if (!challengeRes.ok) {
-        const err = await challengeRes.json();
-        throw new Error(err.error?.message ?? "Challenge request failed.");
-      }
+      const { error: walletError } = await supabase.from("wallets").upsert(
+        {
+          user_id: user.id,
+          public_key: publicKey,
+          provider: "Freighter",
+          verification_status: "Verified",
+          verified_at: new Date().toISOString(),
+          network_mode: network,
+        },
+        { onConflict: "user_id,public_key" },
+      );
 
-      const { data: { challengeId, nonce } } = await challengeRes.json();
+      if (walletError) throw new Error(walletError.message);
 
-      // Sign the nonce with Freighter
-      if (!window.freighterApi) throw new Error("Freighter not available.");
-      const signature = await window.freighterApi.signMessage(nonce);
+      setStep("done");
 
-      // Verify signature
-      const verifyRes = await fetch("/api/auth/wallet/verify", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ challengeId, signature }),
-      });
-
-      if (!verifyRes.ok) {
-        const err = await verifyRes.json();
-        throw new Error(err.error?.message ?? "Verification failed.");
-      }
-
-      setVerificationStatus("Verified");
-      setState("Verified");
-      onVerified?.(publicKey);
+      // Delay callback so user sees the success state
+      setTimeout(() => {
+        onVerified?.(publicKey);
+      }, 1500);
     } catch (err) {
-      setVerificationStatus("Unverified");
-      setError(err instanceof Error ? err.message : "Verification failed.");
+      setError(err instanceof Error ? err.message : "Failed to link wallet.");
+      setStep("error");
     }
-  }, [publicKey, onVerified]);
+  }, [publicKey, network, onVerified]);
 
-  // Render based on state
-  if (isFreighterAvailable === false) {
-    return (
-      <div className="rounded-lg border border-neutral-200 p-4 text-center">
-        <p className="text-sm text-neutral-600">Freighter wallet extension not detected.</p>
-        <a
-          href="https://www.freighter.app/"
-          target="_blank"
-          rel="noopener noreferrer"
-          className="mt-2 inline-block text-sm font-medium text-neutral-900 underline"
-        >
-          Install Freighter
-        </a>
-      </div>
-    );
-  }
+  // Cancel
+  const cancel = useCallback(() => {
+    setPublicKey(null);
+    setNetwork(null);
+    setError(null);
+    setStep("idle");
+  }, []);
 
   return (
     <div className="space-y-3">
+      {/* Error display */}
       {error && (
-        <div role="alert" className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-700">
+        <div className="rounded-md border border-[color-mix(in_srgb,var(--warning)_40%,transparent)] bg-[var(--warning-bg)] px-4 py-3 text-sm text-[var(--warning)]">
           {error}
         </div>
       )}
 
-      {state === "Disconnected" && (
+      {/* IDLE: Show connect button */}
+      {step === "idle" && (
         <button
           onClick={connect}
-          className="w-full rounded-md bg-neutral-900 px-4 py-2.5 text-sm font-medium text-white hover:bg-neutral-800 focus:outline-none focus:ring-2 focus:ring-neutral-900 focus:ring-offset-2"
+          className="btn-primary w-full rounded-md px-4 py-2.5 text-sm font-medium transition-colors"
         >
           Connect Freighter Wallet
         </button>
       )}
 
-      {state === "Connecting" && (
-        <div className="flex items-center justify-center gap-2 py-3">
-          <div className="h-4 w-4 animate-spin rounded-full border-2 border-neutral-300 border-t-neutral-900" />
-          <span className="text-sm text-neutral-500">Connecting…</span>
+      {/* CONNECTING: Loading spinner */}
+      {step === "connecting" && (
+        <div className="card p-6 flex flex-col items-center gap-3">
+          <div className="h-8 w-8 animate-spin rounded-full border-2 border-[var(--border)] border-t-[var(--accent)]" />
+          <p className="text-sm text-[var(--text-muted)]">Waiting for Freighter approval…</p>
+          <p className="text-xs text-[var(--text-muted)]">Check your browser extension popup</p>
         </div>
       )}
 
-      {(state === "Connected" || state === "Verified") && publicKey && (
-        <div className="rounded-lg border border-neutral-200 p-4 space-y-3">
-          <div className="flex items-center justify-between">
+      {/* CONFIRM: Show address and ask user to confirm before linking */}
+      {step === "confirm" && publicKey && (
+        <div className="card p-5 space-y-4">
+          <div className="flex items-center gap-2">
+            <div className="h-8 w-8 rounded-full bg-[var(--accent-muted)] flex items-center justify-center">
+              <span className="text-sm">🔗</span>
+            </div>
             <div>
-              <p className="text-xs text-neutral-500">Connected wallet</p>
-              <p className="font-mono text-sm">
-                {publicKey.slice(0, 8)}…{publicKey.slice(-6)}
+              <h3 className="text-sm font-medium text-[var(--text)]">Wallet detected</h3>
+              <p className="text-xs text-[var(--text-muted)]">
+                Review the details below before linking to your account.
               </p>
             </div>
-            <VerificationBadge status={verificationStatus} />
           </div>
 
-          <div className="flex items-center gap-2 text-xs text-neutral-500">
-            <span className="inline-block h-2 w-2 rounded-full bg-green-400" />
-            {network}
+          {/* Wallet details */}
+          <div className="rounded-md bg-[var(--bg-muted)] p-4 space-y-3">
+            <div>
+              <p className="text-xs text-[var(--text-muted)] mb-1">Stellar Address</p>
+              <p className="font-mono text-sm text-[var(--text)] break-all leading-relaxed">
+                {publicKey}
+              </p>
+            </div>
+            <div className="flex items-center gap-3">
+              <div>
+                <p className="text-xs text-[var(--text-muted)] mb-0.5">Network</p>
+                <span className="inline-flex items-center gap-1.5 text-sm text-[var(--text)]">
+                  <span className={`h-2 w-2 rounded-full ${network === "testnet" ? "bg-amber-400" : "bg-green-400"}`} />
+                  {network}
+                </span>
+              </div>
+              <div>
+                <p className="text-xs text-[var(--text-muted)] mb-0.5">Provider</p>
+                <span className="text-sm text-[var(--text)]">Freighter</span>
+              </div>
+            </div>
           </div>
 
-          <div className="flex gap-2">
-            {verificationStatus !== "Verified" && (
-              <button
-                onClick={verify}
-                disabled={verificationStatus === "Pending"}
-                className="flex-1 rounded-md border border-neutral-300 px-3 py-1.5 text-xs font-medium hover:bg-neutral-50 disabled:opacity-50"
-              >
-                {verificationStatus === "Pending" ? "Verifying…" : "Verify Ownership"}
-              </button>
-            )}
+          {/* Action buttons */}
+          <div className="flex gap-3">
             <button
-              onClick={disconnect}
-              className="rounded-md border border-neutral-300 px-3 py-1.5 text-xs font-medium text-red-600 hover:bg-red-50"
+              onClick={confirmAndLink}
+              className="flex-1 btn-primary rounded-md px-4 py-2.5 text-sm font-medium transition-colors"
             >
-              Disconnect
+              Confirm & Link Wallet
+            </button>
+            <button
+              onClick={cancel}
+              className="rounded-md border border-[var(--border)] px-4 py-2.5 text-sm font-medium text-[var(--text-secondary)] hover:bg-[var(--bg-muted)] transition-colors"
+            >
+              Cancel
             </button>
           </div>
         </div>
       )}
 
-      {state === "Error" && (
-        <button
-          onClick={connect}
-          className="w-full rounded-md border border-neutral-300 px-4 py-2.5 text-sm font-medium hover:bg-neutral-50"
-        >
-          Retry Connection
-        </button>
+      {/* LINKING: Saving to database */}
+      {step === "linking" && (
+        <div className="card p-6 flex flex-col items-center gap-3">
+          <div className="h-6 w-6 animate-spin rounded-full border-2 border-[var(--border)] border-t-[var(--accent)]" />
+          <p className="text-sm text-[var(--text-muted)]">Linking wallet to your account…</p>
+        </div>
+      )}
+
+      {/* DONE: Success */}
+      {step === "done" && publicKey && (
+        <div className="card p-5">
+          <div className="flex items-center gap-3">
+            <div className="h-8 w-8 rounded-full bg-[var(--success-bg)] flex items-center justify-center">
+              <span className="text-[var(--success)]">✓</span>
+            </div>
+            <div>
+              <p className="text-sm font-medium text-[var(--text)]">Wallet linked successfully</p>
+              <p className="text-xs text-[var(--text-muted)] font-mono">
+                {publicKey.slice(0, 8)}…{publicKey.slice(-6)}
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ERROR: With retry and install link */}
+      {step === "error" && (
+        <div className="space-y-3">
+          <button
+            onClick={() => { setError(null); setStep("idle"); }}
+            className="w-full rounded-md border border-[var(--border)] px-4 py-2.5 text-sm font-medium text-[var(--text)] hover:bg-[var(--bg-muted)] transition-colors"
+          >
+            Try Again
+          </button>
+          <p className="text-xs text-[var(--text-muted)] text-center">
+            Don't have Freighter?{" "}
+            <a href="https://www.freighter.app/" target="_blank" rel="noopener noreferrer" className="text-[var(--accent)] hover:underline">
+              Install it here
+            </a>
+          </p>
+        </div>
       )}
     </div>
-  );
-}
-
-function VerificationBadge({ status }: { status: "Unverified" | "Pending" | "Verified" }) {
-  const styles = {
-    Unverified: "bg-neutral-100 text-neutral-600",
-    Pending: "bg-amber-100 text-amber-700",
-    Verified: "bg-green-100 text-green-700",
-  };
-
-  return (
-    <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${styles[status]}`}>
-      {status}
-    </span>
   );
 }

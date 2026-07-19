@@ -6,6 +6,7 @@
  */
 import "server-only";
 
+import { Keypair } from "@stellar/stellar-sdk";
 import { createServiceClient } from "@/lib/supabase/service";
 import { BadRequestError, ConflictError, NotFoundError } from "@/lib/errors";
 
@@ -93,20 +94,49 @@ export async function verifyChallenge(
     throw new ConflictError("This challenge has already been used.");
   }
 
-  // Verify signature using Stellar SDK
-  // Dynamic import to keep @stellar/stellar-sdk out of middleware bundles
-  const { Keypair } = await import("@stellar/stellar-sdk");
-
+  // Verify signature using Stellar SDK (imported at top of file)
   const publicKey = challenge.claimed_public_key;
-  const nonceBuffer = Buffer.from(challenge.nonce, "hex");
   const signatureBuffer = Buffer.from(signature, "base64");
 
+  // Freighter may sign the message in different formats depending on version:
+  // 1. UTF-8 bytes of the hex nonce string (signMessage gets the hex string directly)
+  // 2. Raw hex-decoded bytes of the nonce
+  // We try both approaches for compatibility.
+  const keypair = Keypair.fromPublicKey(publicKey);
+  const messageCandidates = [
+    Buffer.from(challenge.nonce, "utf8"),  // UTF-8 of hex string
+    Buffer.from(challenge.nonce, "hex"),    // Raw bytes the hex represents
+  ];
+
   let verified = false;
-  try {
-    const keypair = Keypair.fromPublicKey(publicKey);
-    verified = keypair.verify(nonceBuffer, signatureBuffer);
-  } catch {
-    verified = false;
+  for (const messageBuffer of messageCandidates) {
+    try {
+      if (keypair.verify(messageBuffer, signatureBuffer)) {
+        verified = true;
+        break;
+      }
+    } catch {
+      // Try next candidate
+    }
+  }
+
+  // Also try if signature was sent as hex instead of base64
+  if (!verified) {
+    try {
+      const sigHex = Buffer.from(signature, "hex");
+      for (const messageBuffer of messageCandidates) {
+        try {
+          if (keypair.verify(messageBuffer, sigHex)) {
+            verified = true;
+            break;
+          }
+        } catch {
+          // continue
+        }
+      }
+    } catch {
+      // Signature not valid hex either
+    }
   }
 
   if (!verified) {

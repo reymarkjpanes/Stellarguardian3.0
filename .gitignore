@@ -7,3 +7,10 @@ coverage/
 .env*
 !.env.example
 database.sqlite*
+
+# Playwright MCP snapshots (auto-generated, not source code)
+.playwright-mcp/
+
+# Kiro local settings (contains env var references — safe but personal)
+# Uncomment the next line if you don't want to share MCP config with team:
+# .kiro/settings/

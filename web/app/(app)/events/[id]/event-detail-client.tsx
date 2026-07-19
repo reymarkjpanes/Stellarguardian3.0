@@ -65,16 +65,16 @@ export function EventDetailClient({ event, members, teams, isOrganizer, myMember
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <div className="flex items-center gap-2 text-sm text-neutral-500 mb-1">
-            <a href="/dashboard" className="hover:text-neutral-900">Dashboard</a>
+          <div className="flex items-center gap-2 text-sm text-[var(--text-muted)] mb-1">
+            <a href="/dashboard" className="hover:text-[var(--text)]">Dashboard</a>
             <span>›</span>
-            <span className="text-neutral-900">{event.title as string}</span>
+            <span className="text-[var(--text)]">{event.title as string}</span>
           </div>
           <h1 className="text-2xl font-semibold tracking-tight">{event.title as string}</h1>
         </div>
         <div className="flex items-center gap-2">
-          <span className="rounded-full bg-neutral-100 px-3 py-1 text-xs font-medium">{event.state as string}</span>
-          <span className="rounded-full bg-neutral-100 px-3 py-1 text-xs font-medium">{event.category as string}</span>
+          <span className="badge-default rounded-full px-3 py-1 text-xs font-medium">{event.state as string}</span>
+          <span className="badge-default rounded-full px-3 py-1 text-xs font-medium">{event.category as string}</span>
         </div>
       </div>
 
@@ -87,8 +87,8 @@ export function EventDetailClient({ event, members, teams, isOrganizer, myMember
               onClick={() => setActiveTab(tab)}
               className={`whitespace-nowrap pb-3 px-1 border-b-2 text-sm font-medium capitalize transition-colors ${
                 activeTab === tab
-                  ? "border-neutral-900 text-neutral-900"
-                  : "border-transparent text-neutral-500 hover:text-neutral-700 hover:border-neutral-300"
+                  ? "border-neutral-900 text-[var(--text)]"
+                  : "border-transparent text-[var(--text-muted)] hover:text-neutral-700 hover:border-neutral-300"
               }`}
             >
               {tab}
@@ -102,9 +102,9 @@ export function EventDetailClient({ event, members, teams, isOrganizer, myMember
         {activeTab === "overview" && (
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             <div className="lg:col-span-2 space-y-4">
-              <div className="rounded-lg border border-neutral-200 p-5">
+              <div className="rounded-lg border border-[var(--card-border)] p-5">
                 <h2 className="font-medium mb-2">Description</h2>
-                <p className="text-sm text-neutral-600 whitespace-pre-wrap">{event.description as string}</p>
+                <p className="text-sm text-[var(--text-secondary)] whitespace-pre-wrap">{event.description as string}</p>
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <InfoCard label="Format" value={event.format as string} />
@@ -116,20 +116,20 @@ export function EventDetailClient({ event, members, teams, isOrganizer, myMember
             <div className="space-y-4">
               {/* Sidebar - participant actions */}
               {!isOrganizer && (
-                <div className="rounded-lg border border-neutral-200 p-5 text-center">
+                <div className="rounded-lg border border-[var(--card-border)] p-5 text-center">
                   <h3 className="font-medium mb-3">Participate</h3>
                   {!myMembership && event.state === "RegistrationOpen" && (
-                    <button onClick={handleApply} disabled={actionLoading} className="w-full rounded-md bg-neutral-900 px-4 py-2 text-sm font-medium text-white hover:bg-neutral-800 disabled:opacity-50">
+                    <button onClick={handleApply} disabled={actionLoading} className="w-full rounded-md bg-[var(--btn-primary-bg)] px-4 py-2 text-sm font-medium text-white hover:bg-[var(--btn-primary-hover)] disabled:opacity-50">
                       {actionLoading ? "Applying…" : "Apply to Participate"}
                     </button>
                   )}
                   {myMembership && (
-                    <div className="rounded-md bg-green-50 border border-green-200 p-3">
-                      <p className="text-sm font-medium text-green-800">{myMembership.role} — {myMembership.status}</p>
+                    <div className="rounded-md bg-[var(--success-bg)] border border-[var(--success)] p-3">
+                      <p className="text-sm font-medium text-[var(--success)]">{myMembership.role} — {myMembership.status}</p>
                     </div>
                   )}
                   {!myMembership && event.state !== "RegistrationOpen" && (
-                    <p className="text-sm text-neutral-500">Registration is not open.</p>
+                    <p className="text-sm text-[var(--text-muted)]">Registration is not open.</p>
                   )}
                 </div>
               )}
@@ -143,11 +143,11 @@ export function EventDetailClient({ event, members, teams, isOrganizer, myMember
           <div className="space-y-3">
             <h2 className="font-medium">Event Members ({members.length})</h2>
             {members.length === 0 ? (
-              <p className="text-sm text-neutral-500">No members yet.</p>
+              <p className="text-sm text-[var(--text-muted)]">No members yet.</p>
             ) : (
               <div className="space-y-2">
                 {members.map((m) => (
-                  <div key={`${m.user_id}-${m.role}`} className="flex items-center justify-between rounded-lg border border-neutral-200 p-3">
+                  <div key={`${m.user_id}-${m.role}`} className="flex items-center justify-between rounded-lg border border-[var(--card-border)] p-3">
                     <span className="text-sm font-mono">{m.user_id.slice(0, 8)}…</span>
                     <div className="flex items-center gap-2">
                       <span className="rounded-full bg-neutral-100 px-2 py-0.5 text-xs">{m.role}</span>
@@ -164,13 +164,13 @@ export function EventDetailClient({ event, members, teams, isOrganizer, myMember
           <div className="space-y-3">
             <h2 className="font-medium">Teams ({teams.length})</h2>
             {teams.length === 0 ? (
-              <p className="text-sm text-neutral-500">No teams formed yet.</p>
+              <p className="text-sm text-[var(--text-muted)]">No teams formed yet.</p>
             ) : (
               <div className="grid gap-3 sm:grid-cols-2">
                 {teams.map((team) => (
-                  <div key={team.id} className="rounded-lg border border-neutral-200 p-4">
+                  <div key={team.id} className="rounded-lg border border-[var(--card-border)] p-4">
                     <p className="font-medium">{team.name}</p>
-                    <p className="text-xs text-neutral-500 mt-1">{team.team_members?.length ?? 0} members</p>
+                    <p className="text-xs text-[var(--text-muted)] mt-1">{team.team_members?.length ?? 0} members</p>
                   </div>
                 ))}
               </div>
@@ -179,19 +179,58 @@ export function EventDetailClient({ event, members, teams, isOrganizer, myMember
         )}
 
         {activeTab === "submissions" && (
-          <div className="text-center py-12">
-            <p className="text-sm text-neutral-500">Submissions will appear here when the submission period opens.</p>
+          <div className="space-y-4">
+            <div className="flex items-center justify-between">
+              <p className="text-sm text-[var(--text-secondary)]">View and manage project submissions.</p>
+              <a href={`/events/${event.id}/submissions`} className="text-sm font-medium text-[var(--accent)] hover:underline">
+                Open Full View →
+              </a>
+            </div>
+            <a
+              href={`/events/${event.id}/submissions`}
+              className="block card p-8 text-center hover:border-[var(--accent)] transition-colors"
+            >
+              <p className="text-sm text-[var(--text-muted)]">Click to manage submissions</p>
+            </a>
           </div>
         )}
 
         {activeTab === "judging" && (
-          <div className="text-center py-12">
-            <p className="text-sm text-neutral-500">Judging results will appear here during the judging phase.</p>
+          <div className="space-y-4">
+            <div className="flex items-center justify-between">
+              <p className="text-sm text-[var(--text-secondary)]">Judge scoring and evaluation results.</p>
+            </div>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <a href={`/events/${event.id}/submissions`} className="card p-6 text-center hover:border-[var(--accent)] transition-colors">
+                <p className="font-medium text-[var(--text)]">Submissions</p>
+                <p className="text-xs text-[var(--text-muted)] mt-1">Review submitted projects</p>
+              </a>
+              <a href={`/events/${event.id}/winners`} className="card p-6 text-center hover:border-[var(--accent)] transition-colors">
+                <p className="font-medium text-[var(--text)]">Winners</p>
+                <p className="text-xs text-[var(--text-muted)] mt-1">View prize allocation</p>
+              </a>
+              <a href={`/events/${event.id}/escrow`} className="card p-6 text-center hover:border-[var(--accent)] transition-colors">
+                <p className="font-medium text-[var(--text)]">Escrow</p>
+                <p className="text-xs text-[var(--text-muted)] mt-1">Funding & distribution</p>
+              </a>
+              <a href={`/events/${event.id}/disputes`} className="card p-6 text-center hover:border-[var(--accent)] transition-colors">
+                <p className="font-medium text-[var(--text)]">Disputes</p>
+                <p className="text-xs text-[var(--text-muted)] mt-1">Objections & resolution</p>
+              </a>
+            </div>
           </div>
         )}
 
         {activeTab === "settings" && isOrganizer && (
           <div className="space-y-6 max-w-xl">
+            <div className="flex gap-3 mb-4">
+              <a href={`/events/${event.id}/edit`} className="rounded-md border border-[var(--border)] px-4 py-2 text-sm font-medium text-[var(--text)] hover:bg-[var(--bg-muted)] transition-colors">
+                Edit Event Details
+              </a>
+              <a href={`/events/${event.id}/teams`} className="rounded-md border border-[var(--border)] px-4 py-2 text-sm font-medium text-[var(--text)] hover:bg-[var(--bg-muted)] transition-colors">
+                Manage Teams
+              </a>
+            </div>
             <div>
               <h2 className="font-medium mb-3">Lifecycle Controls</h2>
               <div className="grid grid-cols-2 gap-3">
@@ -219,12 +258,12 @@ export function EventDetailClient({ event, members, teams, isOrganizer, myMember
               </div>
             </div>
 
-            <div className="rounded-lg border border-red-200 bg-red-50 p-4">
-              <h3 className="font-medium text-red-800 mb-2">Danger Zone</h3>
+            <div className="rounded-lg border border-[var(--error)] bg-[var(--error-bg)] p-4">
+              <h3 className="font-medium text-[var(--error)] mb-2">Danger Zone</h3>
               <div className="flex gap-3">
                 <button
                   onClick={() => { if (confirm("Cancel this event? This cannot be undone.")) handleStateChange("Cancelled"); }}
-                  className="rounded-md border border-red-300 px-3 py-1.5 text-xs font-medium text-red-700 hover:bg-red-100"
+                  className="rounded-md border border-[var(--error)] px-3 py-1.5 text-xs font-medium text-[var(--error)] hover:bg-red-100"
                   disabled={actionLoading}
                 >
                   Cancel Event
@@ -240,9 +279,9 @@ export function EventDetailClient({ event, members, teams, isOrganizer, myMember
 
 function InfoCard({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded-lg border border-neutral-200 p-4">
-      <p className="text-xs text-neutral-500 uppercase tracking-wide">{label}</p>
-      <p className="mt-1 font-medium">{value}</p>
+    <div className="card p-4">
+      <p className="text-xs text-[var(--text-muted)] uppercase tracking-wide">{label}</p>
+      <p className="mt-1 font-medium text-[var(--text)]">{value}</p>
     </div>
   );
 }
@@ -252,7 +291,7 @@ function ActionButton({ label, onClick, disabled }: { label: string; onClick: ()
     <button
       onClick={onClick}
       disabled={disabled}
-      className="rounded-md border border-neutral-300 px-4 py-2 text-sm font-medium hover:bg-neutral-50 disabled:opacity-50 transition-colors"
+      className="rounded-md border border-[var(--border)] px-4 py-2 text-sm font-medium text-[var(--text)] hover:bg-[var(--bg-muted)] disabled:opacity-50 transition-colors"
     >
       {label}
     </button>
