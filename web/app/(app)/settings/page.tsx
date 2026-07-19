@@ -106,64 +106,14 @@ export default function SettingsPage() {
               Connected wallets
             </p>
             {wallets.map((w) => (
-              <div key={w.id} className="rounded-lg border border-[var(--border)] p-4">
-                <div className="flex items-center justify-between">
-                  <div className="space-y-1">
-                    <p className="font-mono text-sm text-[var(--text)]">
-                      {w.public_key.slice(0, 12)}…{w.public_key.slice(-8)}
-                    </p>
-                    <div className="flex items-center gap-2">
-                      <span className="inline-flex items-center gap-1 text-xs text-[var(--text-muted)]">
-                        <span className="h-1.5 w-1.5 rounded-full bg-green-400" />
-                        {w.network_mode}
-                      </span>
-                      <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${
-                        w.verification_status === "Verified"
-                          ? "bg-[var(--success-bg)] text-[var(--success)]"
-                          : "badge-default"
-                      }`}>
-                        {w.verification_status}
-                      </span>
-                    </div>
-                  </div>
-
-                  {/* Remove button / confirmation */}
-                  {confirmRemoveId === w.id ? (
-                    <div className="flex items-center gap-2">
-                      <button
-                        onClick={() => removeWallet(w.id)}
-                        disabled={removingId === w.id}
-                        className="rounded-md bg-[var(--error-bg)] border border-[var(--error)] px-3 py-1.5 text-xs font-medium text-[var(--error)] hover:opacity-80 disabled:opacity-50"
-                      >
-                        {removingId === w.id ? "Removing…" : "Yes, remove"}
-                      </button>
-                      <button
-                        onClick={() => setConfirmRemoveId(null)}
-                        className="rounded-md border border-[var(--border)] px-3 py-1.5 text-xs font-medium text-[var(--text-secondary)] hover:bg-[var(--bg-muted)]"
-                      >
-                        Cancel
-                      </button>
-                    </div>
-                  ) : (
-                    <button
-                      onClick={() => setConfirmRemoveId(w.id)}
-                      className="rounded-md border border-[var(--border)] px-3 py-1.5 text-xs font-medium text-[var(--error)] hover:bg-[var(--error-bg)] transition-colors"
-                    >
-                      Remove
-                    </button>
-                  )}
-                </div>
-
-                {/* Confirmation warning */}
-                {confirmRemoveId === w.id && (
-                  <div className="mt-3 rounded-md bg-[var(--warning-bg)] border border-[color-mix(in_srgb,var(--warning)_30%,transparent)] px-3 py-2">
-                    <p className="text-xs text-[var(--warning)]">
-                      Are you sure? Removing this wallet will disconnect it from your account.
-                      You won't be able to receive prizes at this address until you reconnect.
-                    </p>
-                  </div>
-                )}
-              </div>
+              <WalletItem
+                key={w.id}
+                wallet={w}
+                onRemove={removeWallet}
+                removingId={removingId}
+                confirmRemoveId={confirmRemoveId}
+                setConfirmRemoveId={setConfirmRemoveId}
+              />
             ))}
           </div>
         )}
@@ -216,6 +166,104 @@ export default function SettingsPage() {
           Sign Out
         </button>
       </section>
+    </div>
+  );
+}
+
+/**
+ * Wallet item with balance fetching.
+ */
+function WalletItem({
+  wallet: w,
+  onRemove,
+  removingId,
+  confirmRemoveId,
+  setConfirmRemoveId,
+}: {
+  wallet: WalletRecord;
+  onRemove: (id: string) => void;
+  removingId: string | null;
+  confirmRemoveId: string | null;
+  setConfirmRemoveId: (id: string | null) => void;
+}) {
+  const [balance, setBalance] = useState<string | null>(null);
+
+  useEffect(() => {
+    fetch(`/api/wallets/${w.public_key}/balance`)
+      .then((res) => res.json())
+      .then((data) => setBalance(data.balance))
+      .catch(() => setBalance("0"));
+  }, [w.public_key]);
+
+  return (
+    <div className="rounded-lg border border-[var(--border)] p-4">
+      <div className="flex items-center justify-between">
+        <div className="space-y-2">
+          <p className="font-mono text-sm text-[var(--text)]">
+            {w.public_key.slice(0, 12)}…{w.public_key.slice(-8)}
+          </p>
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="inline-flex items-center gap-1 text-xs text-[var(--text-muted)]">
+              <span className="h-1.5 w-1.5 rounded-full bg-green-400" />
+              {w.network_mode}
+            </span>
+            <span
+              className={`rounded-full px-2 py-0.5 text-xs font-medium ${
+                w.verification_status === "Verified"
+                  ? "bg-[var(--success-bg)] text-[var(--success)]"
+                  : "badge-default"
+              }`}
+            >
+              {w.verification_status}
+            </span>
+            {balance !== null ? (
+              <span className="rounded-full px-2 py-0.5 text-xs font-medium bg-[color-mix(in_srgb,var(--accent)_10%,transparent)] text-[var(--accent)] border border-[color-mix(in_srgb,var(--accent)_20%,transparent)]">
+                Balance: {balance} XLM
+              </span>
+            ) : (
+              <span className="rounded-full px-2 py-0.5 text-xs font-medium bg-[var(--bg-muted)] text-[var(--text-muted)] border border-[var(--border)]">
+                Fetching balance…
+              </span>
+            )}
+          </div>
+        </div>
+
+        {/* Remove button / confirmation */}
+        {confirmRemoveId === w.id ? (
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => onRemove(w.id)}
+              disabled={removingId === w.id}
+              className="rounded-md bg-[var(--error-bg)] border border-[var(--error)] px-3 py-1.5 text-xs font-medium text-[var(--error)] hover:opacity-80 disabled:opacity-50"
+            >
+              {removingId === w.id ? "Removing…" : "Yes, remove"}
+            </button>
+            <button
+              onClick={() => setConfirmRemoveId(null)}
+              className="rounded-md border border-[var(--border)] px-3 py-1.5 text-xs font-medium text-[var(--text-secondary)] hover:bg-[var(--bg-muted)]"
+            >
+              Cancel
+            </button>
+          </div>
+        ) : (
+          <button
+            onClick={() => setConfirmRemoveId(w.id)}
+            className="rounded-md border border-[var(--border)] px-3 py-1.5 text-xs font-medium text-[var(--error)] hover:bg-[var(--error-bg)] transition-colors"
+          >
+            Remove
+          </button>
+        )}
+      </div>
+
+      {/* Confirmation warning */}
+      {confirmRemoveId === w.id && (
+        <div className="mt-3 rounded-md bg-[var(--warning-bg)] border border-[color-mix(in_srgb,var(--warning)_30%,transparent)] px-3 py-2">
+          <p className="text-xs text-[var(--warning)]">
+            Are you sure? Removing this wallet will disconnect it from your account. You won't be
+            able to receive prizes at this address until you reconnect.
+          </p>
+        </div>
+      )}
     </div>
   );
 }

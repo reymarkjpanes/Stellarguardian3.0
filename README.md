@@ -20,6 +20,41 @@ Stellar Guardian 3.0 is a full-stack, enterprise-ready platform designed to host
 
 ---
 
+## 🏆 Stellar Builder Challenge (White Belt) Submission
+
+This project satisfies all requirements for the **Stellar Journey to Mastery Monthly Builder Challenges (White Belt)**:
+
+1. **Wallet Setup & Connection** (`web/components/wallet/wallet-connect.tsx`)
+   - Uses the official `@stellar/freighter-api` to connect to the Freighter Wallet on the Stellar Testnet.
+   - Users can securely connect and disconnect their wallets on the **Settings** page.
+
+2. **Balance Handling** (`web/app/(app)/settings/page.tsx` & `web/app/api/wallets/[public_key]/balance/route.ts`)
+   - Fetches and clearly displays the connected wallet's native XLM balance using the Horizon API directly in the UI.
+
+3. **Transaction Flow** (`web/app/(app)/events/[id]/escrow/page.tsx`)
+   - Users can fund hackathon prize escrows by signing a Testnet XLM transaction with their connected Freighter wallet.
+   - The UI shows real-time transaction feedback (success/failure) and displays the updated on-chain balance.
+
+### Required Screenshots
+
+#### 1. Wallet Connected State
+> *(Replace this placeholder with a screenshot of the Settings page showing the connected wallet)*
+![Wallet Connected](./docs/wallet-connected.png)
+
+#### 2. Balance Displayed
+> *(Replace this placeholder with a screenshot of the Settings page showing the fetched XLM balance)*
+![Balance Displayed](./docs/balance-displayed.png)
+
+#### 3. Successful Testnet Transaction
+> *(Replace this placeholder with a screenshot of Freighter asking to sign the transaction during escrow funding)*
+![Successful Transaction](./docs/successful-transaction.png)
+
+#### 4. Transaction Result Shown to User
+> *(Replace this placeholder with a screenshot of the success message after funding the escrow)*
+![Transaction Result](./docs/transaction-result.png)
+
+---
+
 ## 🌟 Key Features
 
 ### 🛡️ Smart Contract Escrow & Settlement
