@@ -12,6 +12,7 @@
 import { useState, useEffect } from "react";
 import { useParams } from "next/navigation";
 import { createBrowserClient } from "@/lib/supabase/client";
+import { BackButton } from "@/components/ui/back-button";
 
 interface EscrowData {
   id: string;
@@ -32,7 +33,8 @@ interface Transaction {
   created_at: string;
 }
 
-type FundingStep = "idle" | "connecting" | "building" | "signing" | "submitting" | "verifying" | "done" | "error";
+type FundingStep =
+  "idle" | "connecting" | "building" | "signing" | "submitting" | "verifying" | "done" | "error";
 
 export default function EventEscrowPage() {
   const { id: eventId } = useParams<{ id: string }>();
@@ -54,20 +56,39 @@ export default function EventEscrowPage() {
   const [actionError, setActionError] = useState<string | null>(null);
   const [verifyResult, setVerifyResult] = useState<Record<string, unknown> | null>(null);
 
-  useEffect(() => { loadData(); }, [eventId]);
+  useEffect(() => {
+    loadData();
+  }, [eventId]);
 
   async function loadData() {
     try {
       const supabase = createBrowserClient();
-      const { data: { user }, error: authError } = await supabase.auth.getUser();
+      const {
+        data: { user },
+        error: authError,
+      } = await supabase.auth.getUser();
       if (authError || !user) return;
 
-      const [{ data: event }, { data: membership }, { data: escrowData }, { data: txs }] = await Promise.all([
-        supabase.from("events").select("state, prize_pool_target, network_mode").eq("id", eventId).single(),
-        supabase.from("event_members").select("role").eq("event_id", eventId).eq("user_id", user.id).maybeSingle(),
-        supabase.from("escrow_accounts").select("*").eq("event_id", eventId).maybeSingle(),
-        supabase.from("transactions").select("*").eq("event_id", eventId).order("created_at", { ascending: false }),
-      ]);
+      const [{ data: event }, { data: membership }, { data: escrowData }, { data: txs }] =
+        await Promise.all([
+          supabase
+            .from("events")
+            .select("state, prize_pool_target, network_mode")
+            .eq("id", eventId)
+            .single(),
+          supabase
+            .from("event_members")
+            .select("role")
+            .eq("event_id", eventId)
+            .eq("user_id", user.id)
+            .maybeSingle(),
+          supabase.from("escrow_accounts").select("*").eq("event_id", eventId).maybeSingle(),
+          supabase
+            .from("transactions")
+            .select("*")
+            .eq("event_id", eventId)
+            .order("created_at", { ascending: false }),
+        ]);
 
       setEventState(event?.state ?? "");
       setPrizePoolTarget(Number(event?.prize_pool_target ?? 0));
@@ -102,25 +123,29 @@ export default function EventEscrowPage() {
 
       const available = await wallet.isAvailable();
       if (!available) {
-        throw new Error("Freighter wallet extension is not installed. Please install it from freighter.app");
+        throw new Error(
+          "Freighter wallet extension is not installed. Please install it from freighter.app",
+        );
       }
 
       const { publicKey, network } = await wallet.connect();
 
       if (network !== networkMode) {
-        throw new Error(`Wallet is connected to ${network} but this event uses ${networkMode}. Please switch networks in Freighter.`);
+        throw new Error(
+          `Wallet is connected to ${network} but this event uses ${networkMode}. Please switch networks in Freighter.`,
+        );
       }
 
       // Step 2: Build the payment transaction
       setFundingStep("building");
-      const { Horizon, TransactionBuilder, Operation, Asset, Networks } = await import("@stellar/stellar-sdk");
+      const { Horizon, TransactionBuilder, Operation, Asset, Networks } =
+        await import("@stellar/stellar-sdk");
 
-      const horizonUrl = networkMode === "mainnet"
-        ? "https://horizon.stellar.org"
-        : "https://horizon-testnet.stellar.org";
-      const networkPassphrase = networkMode === "mainnet"
-        ? Networks.PUBLIC
-        : Networks.TESTNET;
+      const horizonUrl =
+        networkMode === "mainnet"
+          ? "https://horizon.stellar.org"
+          : "https://horizon-testnet.stellar.org";
+      const networkPassphrase = networkMode === "mainnet" ? Networks.PUBLIC : Networks.TESTNET;
 
       const server = new Horizon.Server(horizonUrl);
       const sourceAccount = await server.loadAccount(publicKey);
@@ -129,17 +154,22 @@ export default function EventEscrowPage() {
         fee: "100",
         networkPassphrase,
       })
-        .addOperation(Operation.payment({
-          destination: escrow.stellar_public_key,
-          asset: Asset.native(),
-          amount: fundAmount,
-        }))
+        .addOperation(
+          Operation.payment({
+            destination: escrow.stellar_public_key,
+            asset: Asset.native(),
+            amount: fundAmount,
+          }),
+        )
         .setTimeout(60)
         .build();
 
       // Step 3: Sign with Freighter
       setFundingStep("signing");
-      const signedXdr = await wallet.signTransaction(transaction.toXDR(), networkMode as "testnet" | "mainnet");
+      const signedXdr = await wallet.signTransaction(
+        transaction.toXDR(),
+        networkMode as "testnet" | "mainnet",
+      );
 
       // Step 4: Submit to Horizon
       setFundingStep("submitting");
@@ -196,7 +226,12 @@ export default function EventEscrowPage() {
   }
 
   async function handleDisburse() {
-    if (!confirm("Disburse prizes to all winners? This action is irreversible once confirmed on-chain.")) return;
+    if (
+      !confirm(
+        "Disburse prizes to all winners? This action is irreversible once confirmed on-chain.",
+      )
+    )
+      return;
     setActionLoading("disburse");
     setActionError(null);
     try {
@@ -247,8 +282,15 @@ export default function EventEscrowPage() {
 
   const isOrganizer = userRole === "Organizer";
   const canFund = isOrganizer && escrow?.state === "PendingFunding";
-  const canDisburse = isOrganizer && (escrow?.state === "Locked" || escrow?.state === "FullyFunded") && eventState === "PrizeDistribution";
-  const canRefund = isOrganizer && escrow && !["Released", "Refunded"].includes(escrow.state) && eventState === "Cancelled";
+  const canDisburse =
+    isOrganizer &&
+    (escrow?.state === "Locked" || escrow?.state === "FullyFunded") &&
+    eventState === "PrizeDistribution";
+  const canRefund =
+    isOrganizer &&
+    escrow &&
+    !["Released", "Refunded"].includes(escrow.state) &&
+    eventState === "Cancelled";
 
   if (loading) {
     return (
@@ -261,10 +303,14 @@ export default function EventEscrowPage() {
 
   return (
     <div className="space-y-6">
+      <BackButton href={`/events/${eventId}`} label="Back to Event" />
       <h2 className="text-lg font-medium">Escrow & Funding</h2>
 
       {actionError && (
-        <div className="rounded-md border border-[var(--error)] bg-[var(--error-bg)] px-4 py-3" role="alert">
+        <div
+          className="rounded-md border border-[var(--error)] bg-[var(--error-bg)] px-4 py-3"
+          role="alert"
+        >
           <p className="text-sm text-[var(--error)]">{actionError}</p>
         </div>
       )}
@@ -286,15 +332,17 @@ export default function EventEscrowPage() {
           <div className="card p-6 space-y-4">
             <div className="flex items-center justify-between">
               <h3 className="text-sm font-medium text-[var(--text)]">Escrow Account</h3>
-              <span className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${
-                escrow.state === "FullyFunded" || escrow.state === "Locked"
-                  ? "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300"
-                  : escrow.state === "Released"
-                  ? "bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300"
-                  : escrow.inconsistent
-                  ? "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300"
-                  : "bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300"
-              }`}>
+              <span
+                className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${
+                  escrow.state === "FullyFunded" || escrow.state === "Locked"
+                    ? "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300"
+                    : escrow.state === "Released"
+                      ? "bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300"
+                      : escrow.inconsistent
+                        ? "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300"
+                        : "bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300"
+                }`}
+              >
                 {escrow.inconsistent ? "⚠ Inconsistent" : escrow.state}
               </span>
             </div>
@@ -321,11 +369,15 @@ export default function EventEscrowPage() {
               </div>
               <div>
                 <p className="text-xs text-[var(--text-muted)]">Expected Balance</p>
-                <p className="text-lg font-semibold text-[var(--text)]">{escrow.expected_balance ?? 0} XLM</p>
+                <p className="text-lg font-semibold text-[var(--text)]">
+                  {escrow.expected_balance ?? 0} XLM
+                </p>
               </div>
               <div>
                 <p className="text-xs text-[var(--text-muted)]">On-Chain Balance</p>
-                <p className="text-lg font-semibold text-[var(--text)]">{escrow.last_reconciled_balance ?? 0} XLM</p>
+                <p className="text-lg font-semibold text-[var(--text)]">
+                  {escrow.last_reconciled_balance ?? 0} XLM
+                </p>
               </div>
             </div>
 
@@ -364,14 +416,17 @@ export default function EventEscrowPage() {
             <div className="card p-6 space-y-4">
               <h3 className="text-sm font-medium text-[var(--text)]">Fund Escrow</h3>
               <p className="text-xs text-[var(--text-muted)]">
-                Send XLM from your Freighter wallet to the escrow account. The transaction will
-                be signed by your wallet and submitted to the Stellar {networkMode} network.
+                Send XLM from your Freighter wallet to the escrow account. The transaction will be
+                signed by your wallet and submitted to the Stellar {networkMode} network.
               </p>
 
               {fundingStep === "idle" || fundingStep === "error" ? (
                 <div className="flex items-end gap-3">
                   <div className="flex-1">
-                    <label htmlFor="fund-amount" className="block text-xs text-[var(--text-muted)] mb-1">
+                    <label
+                      htmlFor="fund-amount"
+                      className="block text-xs text-[var(--text-muted)] mb-1"
+                    >
                       Amount (XLM)
                     </label>
                     <input
@@ -409,7 +464,10 @@ export default function EventEscrowPage() {
                 <div className="rounded-md border border-[var(--error)] bg-[var(--error-bg)] px-4 py-3">
                   <p className="text-sm text-[var(--error)]">{fundingError}</p>
                   <button
-                    onClick={() => { setFundingStep("idle"); setFundingError(null); }}
+                    onClick={() => {
+                      setFundingStep("idle");
+                      setFundingError(null);
+                    }}
                     className="mt-2 text-xs text-[var(--error)] underline"
                   >
                     Try again
@@ -426,7 +484,10 @@ export default function EventEscrowPage() {
               <pre className="text-xs text-[var(--text-secondary)] bg-[var(--bg-muted)] rounded p-3 overflow-x-auto">
                 {JSON.stringify(verifyResult, null, 2)}
               </pre>
-              <button onClick={() => setVerifyResult(null)} className="mt-2 text-xs text-[var(--text-muted)] hover:underline">
+              <button
+                onClick={() => setVerifyResult(null)}
+                className="mt-2 text-xs text-[var(--text-muted)] hover:underline"
+              >
                 Dismiss
               </button>
             </div>
@@ -447,7 +508,9 @@ export default function EventEscrowPage() {
                     </div>
                     <div className="text-right">
                       <p className="text-sm font-medium text-[var(--text)]">{tx.amount} XLM</p>
-                      <p className={`text-xs ${tx.status === "confirmed" ? "text-green-600" : "text-[var(--text-muted)]"}`}>
+                      <p
+                        className={`text-xs ${tx.status === "confirmed" ? "text-green-600" : "text-[var(--text-muted)]"}`}
+                      >
                         {tx.status}
                       </p>
                     </div>
@@ -480,14 +543,20 @@ function FundingProgress({ step }: { step: FundingStep }) {
         const isDone = i < stepIndex;
         return (
           <div key={s.key} className="flex items-center gap-3">
-            <div className={`h-5 w-5 rounded-full flex items-center justify-center text-xs font-medium ${
-              isDone ? "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300"
-              : isCurrent ? "bg-[var(--accent)] text-white animate-pulse"
-              : "bg-[var(--bg-muted)] text-[var(--text-muted)]"
-            }`}>
+            <div
+              className={`h-5 w-5 rounded-full flex items-center justify-center text-xs font-medium ${
+                isDone
+                  ? "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300"
+                  : isCurrent
+                    ? "bg-[var(--accent)] text-white animate-pulse"
+                    : "bg-[var(--bg-muted)] text-[var(--text-muted)]"
+              }`}
+            >
               {isDone ? "✓" : i + 1}
             </div>
-            <span className={`text-sm ${isCurrent ? "text-[var(--text)] font-medium" : isDone ? "text-[var(--text-secondary)]" : "text-[var(--text-muted)]"}`}>
+            <span
+              className={`text-sm ${isCurrent ? "text-[var(--text)] font-medium" : isDone ? "text-[var(--text-secondary)]" : "text-[var(--text-muted)]"}`}
+            >
               {s.label}
             </span>
           </div>

@@ -3,10 +3,13 @@
  */
 import { createServerClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
+import { BackButton } from "@/components/ui/back-button";
 
 export default async function AuditLogPage() {
   const supabase = await createServerClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
   if (!user) redirect("/login");
 
   const { data: records } = await supabase
@@ -24,9 +27,7 @@ export default async function AuditLogPage() {
             Immutable record of all platform actions
           </p>
         </div>
-        <a href="/admin" className="text-sm text-[var(--text-muted)] hover:text-[var(--text)]">
-          ← Back to Admin
-        </a>
+        <BackButton href="/admin" label="Back to Admin" />
       </div>
 
       {records && records.length > 0 ? (
@@ -34,16 +35,16 @@ export default async function AuditLogPage() {
           {records.map((record) => (
             <div key={record.id} className="card p-4">
               <div className="flex items-center justify-between mb-1">
-                <span className="text-sm font-medium text-[var(--text)]">
-                  {record.action}
-                </span>
+                <span className="text-sm font-medium text-[var(--text)]">{record.action}</span>
                 <span className="text-xs text-[var(--text-muted)]">
                   {new Date(record.created_at).toLocaleString()}
                 </span>
               </div>
               <div className="flex gap-4 text-xs text-[var(--text-muted)]">
                 <span>Actor: {record.actor_id?.slice(0, 8) ?? "system"}…</span>
-                <span>Resource: {record.resource_type}/{record.resource_id?.slice(0, 8)}…</span>
+                <span>
+                  Resource: {record.resource_type}/{record.resource_id?.slice(0, 8)}…
+                </span>
               </div>
               {record.metadata && Object.keys(record.metadata).length > 0 && (
                 <pre className="mt-2 text-xs bg-[var(--bg-muted)] p-2 rounded overflow-x-auto">

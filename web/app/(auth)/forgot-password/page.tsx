@@ -6,6 +6,7 @@
 
 import { useState } from "react";
 import { createBrowserClient } from "@/lib/supabase/client";
+import { BackButton } from "@/components/ui/back-button";
 
 export default function ForgotPasswordPage() {
   const [email, setEmail] = useState("");
@@ -19,10 +20,9 @@ export default function ForgotPasswordPage() {
     setError(null);
 
     const supabase = createBrowserClient();
-    const { error: resetError } = await supabase.auth.resetPasswordForEmail(
-      email,
-      { redirectTo: `${window.location.origin}/auth/callback?next=/reset-password` },
-    );
+    const { error: resetError } = await supabase.auth.resetPasswordForEmail(email, {
+      redirectTo: `${window.location.origin}/auth/callback?next=/reset-password`,
+    });
 
     if (resetError) {
       setError(resetError.message);
@@ -41,12 +41,12 @@ export default function ForgotPasswordPage() {
           </div>
           <h1 className="text-2xl font-semibold tracking-tight">Check your email</h1>
           <p className="text-sm text-[var(--text-muted)]">
-            If an account exists for <strong>{email}</strong>, we sent a
-            password reset link. Check your inbox (and spam folder).
+            If an account exists for <strong>{email}</strong>, we sent a password reset link. Check
+            your inbox (and spam folder).
           </p>
-          <a href="/login" className="text-sm text-[var(--accent)] hover:underline">
-            Back to login
-          </a>
+          <div className="flex justify-center">
+            <BackButton href="/login" label="Back to login" />
+          </div>
         </div>
       </div>
     );
@@ -58,14 +58,17 @@ export default function ForgotPasswordPage() {
         <div className="text-center">
           <h1 className="text-2xl font-semibold tracking-tight">Reset your password</h1>
           <p className="text-sm text-[var(--text-muted)] mt-2">
-            Enter the email address associated with your account and we&apos;ll
-            send you a link to reset your password.
+            Enter the email address associated with your account and we&apos;ll send you a link to
+            reset your password.
           </p>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <label htmlFor="email" className="block text-sm font-medium text-[var(--text-secondary)] mb-1">
+            <label
+              htmlFor="email"
+              className="block text-sm font-medium text-[var(--text-secondary)] mb-1"
+            >
               Email address
             </label>
             <input
@@ -81,7 +84,9 @@ export default function ForgotPasswordPage() {
           </div>
 
           {error && (
-            <p className="text-sm text-[var(--error)]" role="alert">{error}</p>
+            <p className="text-sm text-[var(--error)]" role="alert">
+              {error}
+            </p>
           )}
 
           <button
@@ -95,7 +100,9 @@ export default function ForgotPasswordPage() {
 
         <p className="text-center text-sm text-[var(--text-muted)]">
           Remember your password?{" "}
-          <a href="/login" className="text-[var(--accent)] hover:underline">Sign in</a>
+          <a href="/login" className="text-[var(--accent)] hover:underline">
+            Sign in
+          </a>
         </p>
       </div>
     </div>

@@ -14,8 +14,10 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import Link from "next/link";
 import { createBrowserClient } from "@/lib/supabase/client";
 import { clearDraft } from "@/lib/hooks/use-form-draft";
+import { BackButton } from "@/components/ui/back-button";
 
 const DRAFT_KEY = "create-event-wizard";
 
@@ -98,7 +100,9 @@ export default function CreateEventPage() {
       try {
         const saved = localStorage.getItem(`sg-draft:${DRAFT_KEY}`);
         return saved ? { ...INITIAL, ...JSON.parse(saved) } : INITIAL;
-      } catch { return INITIAL; }
+      } catch {
+        return INITIAL;
+      }
     }
     return INITIAL;
   });
@@ -110,14 +114,18 @@ export default function CreateEventPage() {
   useEffect(() => {
     try {
       localStorage.setItem(`sg-draft:${DRAFT_KEY}`, JSON.stringify(form));
-    } catch { /* quota exceeded or private mode */ }
+    } catch {
+      /* quota exceeded or private mode */
+    }
   }, [form]);
 
   // Load workspaces
   useEffect(() => {
     async function load() {
       const supabase = createBrowserClient();
-      const { data: { user } } = await supabase.auth.getUser();
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
       if (!user) return;
       const { data: memberships } = await supabase
         .from("workspace_members")
@@ -151,7 +159,10 @@ export default function CreateEventPage() {
 
   function advance() {
     const error = validate(step, form);
-    if (error) { setFieldError(error); return; }
+    if (error) {
+      setFieldError(error);
+      return;
+    }
     setFieldError(null);
     setStep((s) => Math.min(s + 1, 4));
   }
@@ -185,7 +196,11 @@ export default function CreateEventPage() {
       });
       if (!res.ok) {
         let msg = "Failed to create event.";
-        try { msg = (await res.json()).error?.message ?? msg; } catch { /* empty body */ }
+        try {
+          msg = (await res.json()).error?.message ?? msg;
+        } catch {
+          /* empty body */
+        }
         setSubmitError(msg);
         setSubmitting(false);
         return;
@@ -200,7 +215,8 @@ export default function CreateEventPage() {
     }
   }
 
-  const inputCls = "w-full rounded-md border border-[var(--border)] bg-[var(--input-bg)] px-3 py-2 text-sm text-[var(--text)] focus:outline-none focus:ring-2 focus:ring-[var(--accent)] placeholder:text-[var(--text-muted)]";
+  const inputCls =
+    "w-full rounded-md border border-[var(--border)] bg-[var(--input-bg)] px-3 py-2 text-sm text-[var(--text)] focus:outline-none focus:ring-2 focus:ring-[var(--accent)] placeholder:text-[var(--text-muted)]";
   const labelCls = "block text-sm font-medium text-[var(--text-secondary)] mb-1";
 
   if (workspaces.length === 0 && form.workspace_id === "") {
@@ -210,7 +226,9 @@ export default function CreateEventPage() {
   return (
     <main className="max-w-4xl mx-auto px-4 py-10">
       <div className="mb-8">
-        <h1 className="text-2xl font-semibold tracking-tight text-[var(--text)]">Create an event</h1>
+        <h1 className="text-2xl font-semibold tracking-tight text-[var(--text)]">
+          Create an event
+        </h1>
         <p className="text-sm text-[var(--text-muted)] mt-1">
           Set up a hackathon or competition with on-chain escrow-backed prizes.
         </p>
@@ -226,22 +244,32 @@ export default function CreateEventPage() {
               return (
                 <button
                   key={s.num}
-                  onClick={() => isDone ? setStep(s.num) : undefined}
+                  onClick={() => (isDone ? setStep(s.num) : undefined)}
                   disabled={!isDone && !isActive}
                   className={`w-full text-left rounded-lg p-3 transition-colors ${
-                    isActive ? "bg-[var(--accent-muted)]" : isDone ? "hover:bg-[var(--bg-muted)] cursor-pointer" : "opacity-40 cursor-default"
+                    isActive
+                      ? "bg-[var(--accent-muted)]"
+                      : isDone
+                        ? "hover:bg-[var(--bg-muted)] cursor-pointer"
+                        : "opacity-40 cursor-default"
                   }`}
                 >
                   <div className="flex items-center gap-2">
-                    <div className={`h-5 w-5 rounded-full flex items-center justify-center text-[10px] font-bold flex-shrink-0 ${
-                      isDone ? "bg-[var(--success)] text-white"
-                      : isActive ? "bg-[var(--accent)] text-white"
-                      : "bg-[var(--bg-muted)] text-[var(--text-muted)]"
-                    }`}>
+                    <div
+                      className={`h-5 w-5 rounded-full flex items-center justify-center text-[10px] font-bold flex-shrink-0 ${
+                        isDone
+                          ? "bg-[var(--success)] text-white"
+                          : isActive
+                            ? "bg-[var(--accent)] text-white"
+                            : "bg-[var(--bg-muted)] text-[var(--text-muted)]"
+                      }`}
+                    >
                       {isDone ? "✓" : s.num}
                     </div>
                     <div>
-                      <p className={`text-xs font-semibold ${isActive ? "text-[var(--accent)]" : isDone ? "text-[var(--text)]" : "text-[var(--text-muted)]"}`}>
+                      <p
+                        className={`text-xs font-semibold ${isActive ? "text-[var(--accent)]" : isDone ? "text-[var(--text)]" : "text-[var(--text-muted)]"}`}
+                      >
                         {s.label}
                       </p>
                       <p className="text-[10px] text-[var(--text-muted)]">{s.hint}</p>
@@ -271,10 +299,15 @@ export default function CreateEventPage() {
             {workspaces.length === 0 ? (
               <div className="rounded-md border border-[var(--warning-bg)] bg-[var(--warning-bg)] px-4 py-4 text-sm text-[var(--warning)]">
                 <p className="font-medium">No workspace found</p>
-                <p className="mt-1 text-xs">You need to create a workspace before creating events.</p>
-                <a href="/workspaces/new" className="mt-3 inline-block text-xs font-medium text-[var(--warning)] underline">
+                <p className="mt-1 text-xs">
+                  You need to create a workspace before creating events.
+                </p>
+                <Link
+                  href="/workspaces/new"
+                  className="mt-3 inline-block text-xs font-medium text-[var(--warning)] underline"
+                >
                   Create a workspace first →
-                </a>
+                </Link>
               </div>
             ) : (
               <>
@@ -282,47 +315,107 @@ export default function CreateEventPage() {
                 {step === 1 && (
                   <div className="space-y-5">
                     <div>
-                      <h2 className="text-base font-semibold text-[var(--text)]">Basic Information</h2>
-                      <p className="text-xs text-[var(--text-muted)] mt-0.5">Give your event a clear name and description.</p>
+                      <h2 className="text-base font-semibold text-[var(--text)]">
+                        Basic Information
+                      </h2>
+                      <p className="text-xs text-[var(--text-muted)] mt-0.5">
+                        Give your event a clear name and description.
+                      </p>
                     </div>
 
                     <div>
-                      <label htmlFor="ws" className={labelCls}>Workspace</label>
-                      <select id="ws" value={form.workspace_id} onChange={(e) => update("workspace_id", e.target.value)} className={inputCls}>
+                      <label htmlFor="ws" className={labelCls}>
+                        Workspace
+                      </label>
+                      <select
+                        id="ws"
+                        value={form.workspace_id}
+                        onChange={(e) => update("workspace_id", e.target.value)}
+                        className={inputCls}
+                      >
                         {workspaces.map((ws) => (
-                          <option key={ws.workspace_id} value={ws.workspace_id}>{ws.name} ({ws.role})</option>
+                          <option key={ws.workspace_id} value={ws.workspace_id}>
+                            {ws.name} ({ws.role})
+                          </option>
                         ))}
                       </select>
                     </div>
 
                     <div>
-                      <label htmlFor="title" className={labelCls}>Event title <span className="text-[var(--error)]">*</span></label>
-                      <input id="title" type="text" required value={form.title} onChange={(e) => update("title", e.target.value)} className={inputCls} placeholder="Stellar DeFi Hackathon 2026" />
+                      <label htmlFor="title" className={labelCls}>
+                        Event title <span className="text-[var(--error)]">*</span>
+                      </label>
+                      <input
+                        id="title"
+                        type="text"
+                        required
+                        value={form.title}
+                        onChange={(e) => update("title", e.target.value)}
+                        className={inputCls}
+                        placeholder="Stellar DeFi Hackathon 2026"
+                      />
                     </div>
 
                     <div>
-                      <label htmlFor="desc" className={labelCls}>Description <span className="text-[var(--error)]">*</span></label>
-                      <textarea id="desc" rows={5} required value={form.description} onChange={(e) => update("description", e.target.value)} className={inputCls} placeholder="Describe what participants will build, how they'll be judged, and what the prizes are…" />
-                      <p className="text-xs text-[var(--text-muted)] mt-1">{form.description.length} characters (min 20)</p>
+                      <label htmlFor="desc" className={labelCls}>
+                        Description <span className="text-[var(--error)]">*</span>
+                      </label>
+                      <textarea
+                        id="desc"
+                        rows={5}
+                        required
+                        value={form.description}
+                        onChange={(e) => update("description", e.target.value)}
+                        className={inputCls}
+                        placeholder="Describe what participants will build, how they'll be judged, and what the prizes are…"
+                      />
+                      <p className="text-xs text-[var(--text-muted)] mt-1">
+                        {form.description.length} characters (min 20)
+                      </p>
                     </div>
 
                     <div className="grid grid-cols-2 gap-4">
                       <div>
-                        <label htmlFor="cat" className={labelCls}>Category</label>
-                        <select id="cat" value={form.category} onChange={(e) => update("category", e.target.value)} className={inputCls}>
-                          {CATEGORY_OPTIONS.map((c) => <option key={c} value={c}>{c.charAt(0).toUpperCase() + c.slice(1)}</option>)}
+                        <label htmlFor="cat" className={labelCls}>
+                          Category
+                        </label>
+                        <select
+                          id="cat"
+                          value={form.category}
+                          onChange={(e) => update("category", e.target.value)}
+                          className={inputCls}
+                        >
+                          {CATEGORY_OPTIONS.map((c) => (
+                            <option key={c} value={c}>
+                              {c.charAt(0).toUpperCase() + c.slice(1)}
+                            </option>
+                          ))}
                         </select>
                       </div>
                       <div>
-                        <label htmlFor="fmt" className={labelCls}>Format</label>
-                        <select id="fmt" value={form.format} onChange={(e) => update("format", e.target.value)} className={inputCls}>
-                          {FORMAT_OPTIONS.map((f) => <option key={f} value={f}>{f.charAt(0).toUpperCase() + f.slice(1)}</option>)}
+                        <label htmlFor="fmt" className={labelCls}>
+                          Format
+                        </label>
+                        <select
+                          id="fmt"
+                          value={form.format}
+                          onChange={(e) => update("format", e.target.value)}
+                          className={inputCls}
+                        >
+                          {FORMAT_OPTIONS.map((f) => (
+                            <option key={f} value={f}>
+                              {f.charAt(0).toUpperCase() + f.slice(1)}
+                            </option>
+                          ))}
                         </select>
                       </div>
                     </div>
 
                     <div>
-                      <label className={labelCls}>Tags <span className="font-normal text-[var(--text-muted)]">(optional)</span></label>
+                      <label className={labelCls}>
+                        Tags{" "}
+                        <span className="font-normal text-[var(--text-muted)]">(optional)</span>
+                      </label>
                       <div className="flex flex-wrap gap-2">
                         {TAG_PRESETS.map((tag) => (
                           <button
@@ -347,26 +440,64 @@ export default function CreateEventPage() {
                 {step === 2 && (
                   <div className="space-y-5">
                     <div>
-                      <h2 className="text-base font-semibold text-[var(--text)]">Team & Timeline</h2>
-                      <p className="text-xs text-[var(--text-muted)] mt-0.5">Set team constraints and registration deadline.</p>
+                      <h2 className="text-base font-semibold text-[var(--text)]">
+                        Team & Timeline
+                      </h2>
+                      <p className="text-xs text-[var(--text-muted)] mt-0.5">
+                        Set team constraints and registration deadline.
+                      </p>
                     </div>
 
                     <div className="grid grid-cols-2 gap-4">
                       <div>
-                        <label htmlFor="tsmin" className={labelCls}>Min team size <span className="text-[var(--error)]">*</span></label>
-                        <input id="tsmin" type="number" min="1" max="20" value={form.team_size_min} onChange={(e) => update("team_size_min", e.target.value)} className={inputCls} />
+                        <label htmlFor="tsmin" className={labelCls}>
+                          Min team size <span className="text-[var(--error)]">*</span>
+                        </label>
+                        <input
+                          id="tsmin"
+                          type="number"
+                          min="1"
+                          max="20"
+                          value={form.team_size_min}
+                          onChange={(e) => update("team_size_min", e.target.value)}
+                          className={inputCls}
+                        />
                       </div>
                       <div>
-                        <label htmlFor="tsmax" className={labelCls}>Max team size <span className="text-[var(--error)]">*</span></label>
-                        <input id="tsmax" type="number" min="1" max="20" value={form.team_size_max} onChange={(e) => update("team_size_max", e.target.value)} className={inputCls} />
+                        <label htmlFor="tsmax" className={labelCls}>
+                          Max team size <span className="text-[var(--error)]">*</span>
+                        </label>
+                        <input
+                          id="tsmax"
+                          type="number"
+                          min="1"
+                          max="20"
+                          value={form.team_size_max}
+                          onChange={(e) => update("team_size_max", e.target.value)}
+                          className={inputCls}
+                        />
                       </div>
                     </div>
-                    <p className="text-xs text-[var(--text-muted)]">The state machine enforces these limits during team formation.</p>
+                    <p className="text-xs text-[var(--text-muted)]">
+                      The state machine enforces these limits during team formation.
+                    </p>
 
                     <div>
-                      <label htmlFor="deadline" className={labelCls}>Registration deadline <span className="font-normal text-[var(--text-muted)]">(optional)</span></label>
-                      <input id="deadline" type="date" value={form.registration_deadline} onChange={(e) => update("registration_deadline", e.target.value)} className={inputCls} />
-                      <p className="text-xs text-[var(--text-muted)] mt-1">If set, the event automatically transitions from RegistrationOpen to RegistrationClosed when this date passes.</p>
+                      <label htmlFor="deadline" className={labelCls}>
+                        Registration deadline{" "}
+                        <span className="font-normal text-[var(--text-muted)]">(optional)</span>
+                      </label>
+                      <input
+                        id="deadline"
+                        type="date"
+                        value={form.registration_deadline}
+                        onChange={(e) => update("registration_deadline", e.target.value)}
+                        className={inputCls}
+                      />
+                      <p className="text-xs text-[var(--text-muted)] mt-1">
+                        If set, the event automatically transitions from RegistrationOpen to
+                        RegistrationClosed when this date passes.
+                      </p>
                     </div>
                   </div>
                 )}
@@ -375,18 +506,39 @@ export default function CreateEventPage() {
                 {step === 3 && (
                   <div className="space-y-5">
                     <div>
-                      <h2 className="text-base font-semibold text-[var(--text)]">Prize & Network</h2>
-                      <p className="text-xs text-[var(--text-muted)] mt-0.5">Set the prize target and Stellar network. Mainnet uses real XLM.</p>
+                      <h2 className="text-base font-semibold text-[var(--text)]">
+                        Prize & Network
+                      </h2>
+                      <p className="text-xs text-[var(--text-muted)] mt-0.5">
+                        Set the prize target and Stellar network. Mainnet uses real XLM.
+                      </p>
                     </div>
 
                     <div>
-                      <label htmlFor="prize" className={labelCls}>Prize pool target (XLM) <span className="font-normal text-[var(--text-muted)]">(optional)</span></label>
-                      <input id="prize" type="number" min="0" step="0.01" value={form.prize_pool_target} onChange={(e) => update("prize_pool_target", e.target.value)} className={inputCls} placeholder="e.g. 10000" />
-                      <p className="text-xs text-[var(--text-muted)] mt-1">This is the target amount to lock in the Soroban escrow contract. Leave blank to set later.</p>
+                      <label htmlFor="prize" className={labelCls}>
+                        Prize pool target (XLM){" "}
+                        <span className="font-normal text-[var(--text-muted)]">(optional)</span>
+                      </label>
+                      <input
+                        id="prize"
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        value={form.prize_pool_target}
+                        onChange={(e) => update("prize_pool_target", e.target.value)}
+                        className={inputCls}
+                        placeholder="e.g. 10000"
+                      />
+                      <p className="text-xs text-[var(--text-muted)] mt-1">
+                        This is the target amount to lock in the Soroban escrow contract. Leave
+                        blank to set later.
+                      </p>
                     </div>
 
                     <div>
-                      <label htmlFor="net" className={labelCls}>Stellar network <span className="text-[var(--error)]">*</span></label>
+                      <label htmlFor="net" className={labelCls}>
+                        Stellar network <span className="text-[var(--error)]">*</span>
+                      </label>
                       <div className="grid grid-cols-2 gap-3">
                         {(["testnet", "mainnet"] as const).map((n) => (
                           <button
@@ -399,24 +551,44 @@ export default function CreateEventPage() {
                                 : "border-[var(--border)] hover:border-[var(--text-muted)]"
                             }`}
                           >
-                            <p className="text-sm font-semibold text-[var(--text)] capitalize">{n}</p>
+                            <p className="text-sm font-semibold text-[var(--text)] capitalize">
+                              {n}
+                            </p>
                             <p className="text-xs text-[var(--text-muted)] mt-0.5">
-                              {n === "testnet" ? "Test XLM only — safe for development" : "Real XLM — irreversible transactions"}
+                              {n === "testnet"
+                                ? "Test XLM only — safe for development"
+                                : "Real XLM — irreversible transactions"}
                             </p>
                           </button>
                         ))}
                       </div>
                       {form.network_mode === "mainnet" && (
                         <div className="mt-3 rounded-md bg-[var(--warning-bg)] border border-[color-mix(in_srgb,var(--warning)_30%,transparent)] px-3 py-2">
-                          <p className="text-xs text-[var(--warning)] font-medium">⚠ Mainnet uses real XLM. Disbursements are irreversible once confirmed on-chain.</p>
+                          <p className="text-xs text-[var(--warning)] font-medium">
+                            ⚠ Mainnet uses real XLM. Disbursements are irreversible once confirmed
+                            on-chain.
+                          </p>
                         </div>
                       )}
                     </div>
 
                     <div>
-                      <label htmlFor="rw" className={labelCls}>Dispute review window (hours) <span className="text-[var(--error)]">*</span></label>
-                      <input id="rw" type="number" min="24" max="168" value={form.review_window_hours} onChange={(e) => update("review_window_hours", e.target.value)} className={inputCls} />
-                      <p className="text-xs text-[var(--text-muted)] mt-1">After judging closes, participants have this long to file disputes before prize disbursement becomes available (24–168 hours).</p>
+                      <label htmlFor="rw" className={labelCls}>
+                        Dispute review window (hours) <span className="text-[var(--error)]">*</span>
+                      </label>
+                      <input
+                        id="rw"
+                        type="number"
+                        min="24"
+                        max="168"
+                        value={form.review_window_hours}
+                        onChange={(e) => update("review_window_hours", e.target.value)}
+                        className={inputCls}
+                      />
+                      <p className="text-xs text-[var(--text-muted)] mt-1">
+                        After judging closes, participants have this long to file disputes before
+                        prize disbursement becomes available (24–168 hours).
+                      </p>
                     </div>
                   </div>
                 )}
@@ -425,36 +597,71 @@ export default function CreateEventPage() {
                 {step === 4 && (
                   <div className="space-y-5">
                     <div>
-                      <h2 className="text-base font-semibold text-[var(--text)]">Review & Launch</h2>
-                      <p className="text-xs text-[var(--text-muted)] mt-0.5">Your event will be created in Draft state. You can edit details before publishing.</p>
+                      <h2 className="text-base font-semibold text-[var(--text)]">
+                        Review & Launch
+                      </h2>
+                      <p className="text-xs text-[var(--text-muted)] mt-0.5">
+                        Your event will be created in Draft state. You can edit details before
+                        publishing.
+                      </p>
                     </div>
 
                     <div className="space-y-3">
                       {[
-                        { label: "Workspace", value: workspaces.find((w) => w.workspace_id === form.workspace_id)?.name ?? "—" },
+                        {
+                          label: "Workspace",
+                          value:
+                            workspaces.find((w) => w.workspace_id === form.workspace_id)?.name ??
+                            "—",
+                        },
                         { label: "Title", value: form.title },
                         { label: "Category", value: `${form.category} · ${form.format}` },
-                        { label: "Team size", value: `${form.team_size_min}–${form.team_size_max} members` },
-                        { label: "Prize pool", value: form.prize_pool_target ? `${form.prize_pool_target} XLM` : "Not set" },
+                        {
+                          label: "Team size",
+                          value: `${form.team_size_min}–${form.team_size_max} members`,
+                        },
+                        {
+                          label: "Prize pool",
+                          value: form.prize_pool_target
+                            ? `${form.prize_pool_target} XLM`
+                            : "Not set",
+                        },
                         { label: "Network", value: form.network_mode },
                         { label: "Review window", value: `${form.review_window_hours} hours` },
-                        { label: "Tags", value: form.tags.length > 0 ? form.tags.join(", ") : "None" },
+                        {
+                          label: "Tags",
+                          value: form.tags.length > 0 ? form.tags.join(", ") : "None",
+                        },
                         { label: "Deadline", value: form.registration_deadline || "Not set" },
                       ].map(({ label, value }) => (
-                        <div key={label} className="flex justify-between py-2 border-b border-[var(--border)] last:border-0">
-                          <span className="text-xs text-[var(--text-muted)] font-medium">{label}</span>
-                          <span className="text-xs text-[var(--text)] text-right max-w-xs truncate">{value}</span>
+                        <div
+                          key={label}
+                          className="flex justify-between py-2 border-b border-[var(--border)] last:border-0"
+                        >
+                          <span className="text-xs text-[var(--text-muted)] font-medium">
+                            {label}
+                          </span>
+                          <span className="text-xs text-[var(--text)] text-right max-w-xs truncate">
+                            {value}
+                          </span>
                         </div>
                       ))}
                     </div>
 
                     <div className="rounded-md bg-[var(--bg-elevated)] border border-[var(--border)] p-4 text-xs text-[var(--text-secondary)]">
                       <p className="font-medium text-[var(--text)] mb-1">What happens next</p>
-                      <p>Your event starts in <strong>Draft</strong> state. Assign at least one judge, then publish to open registration. Prize escrow funding happens after winners are finalized.</p>
+                      <p>
+                        Your event starts in <strong>Draft</strong> state. Assign at least one
+                        judge, then publish to open registration. Prize escrow funding happens after
+                        winners are finalized.
+                      </p>
                     </div>
 
                     {submitError && (
-                      <div className="rounded-md border border-[var(--error)] bg-[var(--error-bg)] px-4 py-3" role="alert">
+                      <div
+                        className="rounded-md border border-[var(--error)] bg-[var(--error-bg)] px-4 py-3"
+                        role="alert"
+                      >
                         <p className="text-sm text-[var(--error)]">{submitError}</p>
                       </div>
                     )}
@@ -463,21 +670,17 @@ export default function CreateEventPage() {
 
                 {/* Field validation error */}
                 {fieldError && (
-                  <div className="mt-4 rounded-md border border-[var(--error)] bg-[var(--error-bg)] px-4 py-3" role="alert">
+                  <div
+                    className="mt-4 rounded-md border border-[var(--error)] bg-[var(--error-bg)] px-4 py-3"
+                    role="alert"
+                  >
                     <p className="text-sm text-[var(--error)]">{fieldError}</p>
                   </div>
                 )}
 
                 {/* Navigation */}
                 <div className="flex items-center justify-between mt-6 pt-4 border-t border-[var(--border)]">
-                  <button
-                    type="button"
-                    onClick={back}
-                    disabled={step === 1}
-                    className="text-sm text-[var(--text-secondary)] hover:text-[var(--text)] disabled:opacity-30 transition-colors"
-                  >
-                    ← Back
-                  </button>
+                  {step > 1 ? <BackButton label="Back" onClick={back} /> : <div />}
 
                   {step < 4 ? (
                     <button

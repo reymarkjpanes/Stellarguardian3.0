@@ -6,6 +6,7 @@
 import { useState, useEffect } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { createBrowserClient } from "@/lib/supabase/client";
+import { BackButton } from "@/components/ui/back-button";
 
 export default function EventRegisterPage() {
   const { id: eventId } = useParams<{ id: string }>();
@@ -18,42 +19,52 @@ export default function EventRegisterPage() {
   const [alreadyRegistered, setAlreadyRegistered] = useState(false);
 
   useEffect(() => {
+    let ignore = false;
+    async function loadData() {
+      const supabase = createBrowserClient();
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+
+      if (!user) {
+        router.push(`/login?redirect=/events/${eventId}/register`);
+        return;
+      }
+
+      const { data: eventData } = await supabase
+        .from("events")
+        .select(
+          "id, title, description, state, category, format, registration_deadline, team_size_min, team_size_max, prize_pool_target",
+        )
+        .eq("id", eventId)
+        .single();
+
+      if (!eventData) {
+        router.push("/discover");
+        return;
+      }
+
+      if (!ignore) {
+        setEvent(eventData);
+
+        // Check existing registration
+        const { data: existing } = await supabase
+          .from("event_members")
+          .select("role")
+          .eq("event_id", eventId)
+          .eq("user_id", user.id)
+          .maybeSingle();
+
+        if (existing) setAlreadyRegistered(true);
+        setLoading(false);
+      }
+    }
+
     loadData();
-  }, [eventId]);
-
-  async function loadData() {
-    const supabase = createBrowserClient();
-    const { data: { user } } = await supabase.auth.getUser();
-
-    if (!user) {
-      router.push(`/login?redirect=/events/${eventId}/register`);
-      return;
-    }
-
-    const { data: eventData } = await supabase
-      .from("events")
-      .select("id, title, description, state, category, format, registration_deadline, team_size_min, team_size_max, prize_pool_target")
-      .eq("id", eventId)
-      .single();
-
-    if (!eventData) {
-      router.push("/discover");
-      return;
-    }
-
-    setEvent(eventData);
-
-    // Check existing registration
-    const { data: existing } = await supabase
-      .from("event_members")
-      .select("role")
-      .eq("event_id", eventId)
-      .eq("user_id", user.id)
-      .maybeSingle();
-
-    if (existing) setAlreadyRegistered(true);
-    setLoading(false);
-  }
+    return () => {
+      ignore = true;
+    };
+  }, [eventId, router]);
 
   async function handleRegister() {
     setRegistering(true);
@@ -92,9 +103,7 @@ export default function EventRegisterPage() {
   return (
     <main className="max-w-2xl mx-auto px-4 py-12 space-y-8">
       <div>
-        <a href={`/events/${eventId}`} className="text-sm text-[var(--text-muted)] hover:text-[var(--text)]">
-          ← Back to event
-        </a>
+        <BackButton href={`/events/${eventId}`} label="Back to Event" />
         <h1 className="text-2xl font-semibold tracking-tight mt-3">
           Register for {String(event.title)}
         </h1>
@@ -107,7 +116,9 @@ export default function EventRegisterPage() {
         <div className="grid gap-3 sm:grid-cols-2">
           <div>
             <p className="text-xs text-[var(--text-muted)]">Team Size</p>
-            <p className="text-sm font-medium">{String(event.team_size_min)}–{String(event.team_size_max)} members</p>
+            <p className="text-sm font-medium">
+              {String(event.team_size_min)}–{String(event.team_size_max)} members
+            </p>
           </div>
           <div>
             <p className="text-xs text-[var(--text-muted)]">Prize Pool</p>
@@ -128,18 +139,24 @@ export default function EventRegisterPage() {
         {success ? (
           <div className="rounded-md bg-green-50 border border-green-200 p-4 dark:bg-green-900/20 dark:border-green-800">
             <p className="text-sm font-medium text-green-800 dark:text-green-300">
-              ✓ You've been registered!
+              ✓ You&apos;ve been registered!
             </p>
-            <a href={`/events/${eventId}`} className="text-sm text-green-600 hover:underline mt-1 inline-block">
+            <a
+              href={`/events/${eventId}`}
+              className="text-sm text-green-600 hover:underline mt-1 inline-block"
+            >
               Go to event →
             </a>
           </div>
         ) : alreadyRegistered ? (
           <div className="rounded-md bg-blue-50 border border-blue-200 p-4 dark:bg-blue-900/20 dark:border-blue-800">
             <p className="text-sm font-medium text-blue-800 dark:text-blue-300">
-              You're already registered for this event.
+              You&apos;re already registered for this event.
             </p>
-            <a href={`/events/${eventId}`} className="text-sm text-blue-600 hover:underline mt-1 inline-block">
+            <a
+              href={`/events/${eventId}`}
+              className="text-sm text-blue-600 hover:underline mt-1 inline-block"
+            >
               Go to event →
             </a>
           </div>

@@ -88,10 +88,11 @@ This project satisfies all requirements for the **Stellar Journey to Mastery Mon
 
 ## 🛠️ Tech Stack
 
-- **Frontend**: React 19, TypeScript, Vite 6, Tailwind CSS 4, Motion, React Router 7, Sonner Toast
-- **Backend**: Node.js, Express 4, Kysely, SQLite (`better-sqlite3`), Zod, Helmet, Express Rate Limit
-- **Blockchain**: Stellar SDK, Soroban Smart Contracts (Rust)
-- **Testing**: Vitest, Supertest, Playwright
+- **Framework**: Next.js 16 (App Router), React 19, TypeScript
+- **Database**: Supabase PostgreSQL with RLS
+- **Styling**: Tailwind CSS 4, Motion (Framer Motion)
+- **Blockchain**: Stellar SDK, Freighter API, Soroban Smart Contracts
+- **Validation**: Zod
 - **Services**: Resend Email API, Google Gemini AI API
 
 ---
@@ -135,9 +136,11 @@ This project satisfies all requirements for the **Stellar Journey to Mastery Mon
    STELLAR_HORIZON_URL=https://horizon-testnet.stellar.org
    ```
 
-4. **Run Database Migrations**:
+4. **Supabase Local Development**:
+   If you have the Supabase CLI installed, you can start the local database:
    ```bash
-   npm run db:migrate
+   cd web
+   npx supabase start
    ```
 
 5. **Start the Development Server**:
@@ -151,16 +154,14 @@ This project satisfies all requirements for the **Stellar Journey to Mastery Mon
 
 ## 📜 Available NPM Scripts
 
+All scripts in the root directory are proxied to the `web/` application folder:
+
 | Script | Description |
 | :--- | :--- |
-| `npm run dev` | Starts the Express server and Vite development server |
-| `npm run db:migrate` | Runs all pending SQLite database migrations |
-| `npm run db:rollback` | Rollbacks the latest database migration |
-| `npm run build` | Builds the client bundle and bundles `server.ts` into `dist/server.cjs` |
-| `npm run start` | Runs the production build from `dist/server.cjs` |
-| `npm run test` | Runs the unit & integration test suite with Vitest |
-| `npm run test:watch` | Runs Vitest in interactive watch mode |
-| `npm run lint` | Type checks the project with `tsc --noEmit` |
+| `npm run dev` | Starts the Next.js development server |
+| `npm run build` | Builds the Next.js application for production |
+| `npm run start` | Runs the Next.js production server |
+| `npm run lint` | Runs ESLint type checks |
 
 ---
 
@@ -169,21 +170,15 @@ This project satisfies all requirements for the **Stellar Journey to Mastery Mon
 ```
 stellar-guardian-3.0/
 ├── .agents/              # Agent skills, rules (AGENTS.md), and taste configurations
-├── assets/               # Static images and brand assets
-├── server/
-│   ├── db/               # SQLite client, migrations, and Kysely schema definitions
-│   ├── middleware/       # Auth, error handling, CSP nonces, and validation
-│   ├── routes/           # Modular Express routes (auth, stellar, notifications, etc.)
-│   └── schemas/          # Zod request payload validation schemas
-├── src/
+├── contracts/            # Soroban Smart Contracts (Rust)
+├── web/                  # Next.js 16 Application (App Router)
+│   ├── app/              # Application routes (API and UI)
 │   ├── components/       # Reusable React components & UI primitives
-│   ├── context/          # React context providers (Auth, Theme, Workspace)
-│   ├── pages/            # Application routes & view views
-│   └── types.ts          # Core TypeScript interface contracts
-├── index.html            # Main HTML entrypoint
-├── package.json          # Dependency manifest and scripts
-├── server.ts             # Main Express + Vite integration server
-└── vite.config.ts        # Vite bundler configuration
+│   ├── lib/              # Services, State Machine, and Utilities
+│   ├── supabase/         # Supabase configuration and DB migrations
+│   └── middleware.ts     # Edge middleware for auth and CSP
+├── package.json          # Root proxy runner
+└── README.md             # Project documentation
 ```
 
 ---
