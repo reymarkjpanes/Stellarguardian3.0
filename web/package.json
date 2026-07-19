@@ -13,14 +13,18 @@
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
     "typecheck": "tsc --noEmit",
+    "seed": "npx tsx scripts/seed.ts",
     "prepare": "cd .. && husky web/.husky"
   },
   "dependencies": {
+    "@stellar/freighter-api": "^6.0.1",
+    "@stellar/stellar-sdk": "^16.0.1",
     "@supabase/ssr": "0.12.3",
     "@supabase/supabase-js": "2.110.7",
     "next": "16.2.10",
     "react": "19.2.4",
     "react-dom": "19.2.4",
+    "resend": "^4.1.2",
     "server-only": "0.0.1",
     "zod": "4.4.3"
   },

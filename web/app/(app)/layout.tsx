@@ -8,10 +8,33 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   const displayName = user?.user_metadata?.display_name ?? user?.email ?? "";
   const email = user?.email ?? "";
 
+  // Fetch wallet info for the nav
+  let wallet: { publicKey: string; network: string; verified: boolean } | null = null;
+  if (user) {
+    const { data: walletData } = await supabase
+      .from("wallets")
+      .select("public_key, network_mode, verification_status")
+      .eq("user_id", user.id)
+      .eq("verification_status", "Verified")
+      .limit(1)
+      .maybeSingle();
+
+    if (walletData) {
+      wallet = {
+        publicKey: walletData.public_key,
+        network: walletData.network_mode,
+        verified: walletData.verification_status === "Verified",
+      };
+    }
+  }
+
   return (
     <div className="min-h-screen flex flex-col">
-      <AppNav user={user ? { id: user.id, name: displayName, email } : null} />
-      <main className="flex-1 w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <AppNav
+        user={user ? { id: user.id, name: displayName, email } : null}
+        wallet={wallet}
+      />
+      <main id="main-content" className="flex-1 w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {children}
       </main>
       <footer className="border-t border-[var(--border)] mt-auto">
@@ -20,9 +43,9 @@ export default async function AppLayout({ children }: { children: React.ReactNod
             &copy; {new Date().getFullYear()} Stellar Guardian. Powered by Stellar.
           </p>
           <div className="flex items-center gap-6">
-            <a href="#" className="text-sm text-[var(--text-muted)] hover:text-[var(--text)] transition-colors">Terms</a>
-            <a href="#" className="text-sm text-[var(--text-muted)] hover:text-[var(--text)] transition-colors">Privacy</a>
-            <a href="#" className="text-sm text-[var(--text-muted)] hover:text-[var(--text)] transition-colors">Docs</a>
+            <a href="/terms" className="text-sm text-[var(--text-muted)] hover:text-[var(--text)] transition-colors">Terms</a>
+            <a href="/privacy" className="text-sm text-[var(--text-muted)] hover:text-[var(--text)] transition-colors">Privacy</a>
+            <a href="/discover" className="text-sm text-[var(--text-muted)] hover:text-[var(--text)] transition-colors">Events</a>
           </div>
         </div>
       </footer>

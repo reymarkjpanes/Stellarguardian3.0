@@ -3,7 +3,7 @@
 /**
  * Create event page (Req 6, 23, 24.6).
  */
-import { useState, useEffect, type FormEvent } from "react";
+import { useState, useEffect } from "react";
 import { createBrowserClient } from "@/lib/supabase/client";
 
 interface Workspace {
@@ -62,7 +62,7 @@ export default function CreateEventPage() {
     loadWorkspaces();
   }, []);
 
-  async function handleSubmit(e: FormEvent) {
+  async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     setError(null);
     setLoading(true);
@@ -74,43 +74,30 @@ export default function CreateEventPage() {
     }
 
     try {
-      const supabase = createBrowserClient();
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) { setError("Not authenticated."); return; }
-
-      const { data: event, error: evError } = await supabase
-        .from("events")
-        .insert({
+      const res = await fetch("/api/events", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
           workspace_id: selectedWorkspace,
-          organizer_id: user.id,
           title,
           description,
           category,
           format,
-          state: "Draft",
           team_size_min: Number(teamSizeMin),
           team_size_max: Number(teamSizeMax),
           prize_pool_target: prizePool ? Number(prizePool) : null,
           network_mode: networkMode,
-          tags: [],
-        })
-        .select("id")
-        .single();
+        }),
+      });
 
-      if (evError) {
-        setError(evError.message);
+      if (!res.ok) {
+        const { error: apiError } = await res.json();
+        setError(apiError?.message ?? "Failed to create event.");
         return;
       }
 
-      // Add creator as Organizer member
-      await supabase.from("event_members").insert({
-        event_id: event.id,
-        user_id: user.id,
-        role: "Organizer",
-        status: "accepted",
-      });
-
-      window.location.href = "/dashboard";
+      const { data } = await res.json();
+      window.location.href = `/events/${data.id}`;
     } catch {
       setError("An unexpected error occurred. Please try again.");
     } finally {

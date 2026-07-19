@@ -1,39 +1,20 @@
 /**
  * Freighter wallet adapter (Req 33.1).
  *
- * Primary adapter implementing the WalletAdapter interface for the Freighter
- * browser extension. Freighter APIs are accessed via the injected
- * `window.freighterApi` global.
+ * Uses the official @stellar/freighter-api package (v2+) which communicates
+ * with the Freighter browser extension via Chrome extension messaging.
  */
+import {
+  isConnected,
+  getAddress,
+  getNetwork,
+  signTransaction,
+  signMessage,
+  setAllowed,
+  requestAccess,
+} from "@stellar/freighter-api";
 import type { NetworkMode } from "@/types";
 import type { WalletAdapter } from "./types";
-
-/** Freighter browser extension API shape (injected as window.freighterApi). */
-interface FreighterApi {
-  isConnected(): Promise<boolean>;
-  getPublicKey(): Promise<string>;
-  getNetwork(): Promise<string>;
-  signTransaction(
-    xdr: string,
-    opts?: { networkPassphrase?: string; accountToSign?: string },
-  ): Promise<string>;
-  signMessage(message: string, opts?: { accountToSign?: string }): Promise<string>;
-}
-
-declare global {
-  interface Window {
-    freighterApi?: FreighterApi;
-  }
-}
-
-function getFreighterApi(): FreighterApi {
-  if (typeof window === "undefined" || !window.freighterApi) {
-    throw new Error(
-      "Freighter extension not detected. Please install Freighter to connect your wallet.",
-    );
-  }
-  return window.freighterApi;
-}
 
 function mapNetwork(freighterNetwork: string): NetworkMode {
   const normalized = freighterNetwork.toLowerCase();
@@ -45,43 +26,57 @@ export class FreighterAdapter implements WalletAdapter {
   readonly provider = "Freighter" as const;
 
   async isAvailable(): Promise<boolean> {
-    if (typeof window === "undefined") return false;
-    return !!window.freighterApi;
+    try {
+      const result = await isConnected();
+      return result.isConnected;
+    } catch {
+      return false;
+    }
   }
 
   async connect(): Promise<{ publicKey: string; network: NetworkMode }> {
-    const api = getFreighterApi();
-    const publicKey = await api.getPublicKey();
-    const rawNetwork = await api.getNetwork();
-    return { publicKey, network: mapNetwork(rawNetwork) };
+    // Request access (prompts user to allow this dApp)
+    await setAllowed();
+    const accessResult = await requestAccess();
+    const publicKey = accessResult.address;
+
+    const networkResult = await getNetwork();
+    return { publicKey, network: mapNetwork(networkResult.network) };
   }
 
   async disconnect(): Promise<void> {
-    // Freighter doesn't have a programmatic disconnect; we just clear local state.
+    // Freighter doesn't have a programmatic disconnect
   }
 
   async getPublicKey(): Promise<string> {
-    const api = getFreighterApi();
-    return api.getPublicKey();
+    const result = await getAddress();
+    return result.address;
   }
 
   async getNetwork(): Promise<NetworkMode> {
-    const api = getFreighterApi();
-    const rawNetwork = await api.getNetwork();
-    return mapNetwork(rawNetwork);
+    const result = await getNetwork();
+    return mapNetwork(result.network);
   }
 
   async signTransaction(xdr: string, network: NetworkMode): Promise<string> {
-    const api = getFreighterApi();
     const networkPassphrase =
       network === "mainnet"
         ? "Public Global Stellar Network ; September 2015"
         : "Test SDF Network ; September 2015";
-    return api.signTransaction(xdr, { networkPassphrase });
+
+    const result = await signTransaction(xdr, { networkPassphrase });
+    return result.signedTxXdr;
   }
 
   async signMessage(message: string): Promise<string> {
-    const api = getFreighterApi();
-    return api.signMessage(message);
+    const result = await signMessage(message, {
+      networkPassphrase: "Test SDF Network ; September 2015",
+    });
+    if (result.signedMessage === null) {
+      throw new Error("User rejected message signing.");
+    }
+    return typeof result.signedMessage === "string"
+      ? result.signedMessage
+      : Buffer.from(result.signedMessage).toString("base64");
   }
 }

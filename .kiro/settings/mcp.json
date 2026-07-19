@@ -12,6 +12,94 @@
         "get-library-docs",
         "query-docs"
       ]
+    },
+    "playwright": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@playwright/mcp@latest",
+        "--browser",
+        "chrome",
+        "--caps",
+        "vision,pdf"
+      ],
+      "disabled": false,
+      "autoApprove": [
+        "browser_navigate",
+        "browser_snapshot",
+        "browser_take_screenshot",
+        "browser_click",
+        "browser_type",
+        "browser_tab_list",
+        "browser_tab_new",
+        "browser_tab_close"
+      ]
+    },
+    "browser-tools": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@agentdeskai/browser-tools-mcp@latest"
+      ],
+      "disabled": true,
+      "autoApprove": [
+        "getConsoleLogs",
+        "getNetworkLogs",
+        "getSelectedElement",
+        "takeScreenshot",
+        "runAccessibilityAudit",
+        "runPerformanceAudit",
+        "runSEOAudit",
+        "runBestPracticesAudit",
+        "runDebuggerMode",
+        "runAuditMode"
+      ]
+    },
+    "github": {
+      "command": "docker",
+      "args": [
+        "run",
+        "-i",
+        "--rm",
+        "-e",
+        "GITHUB_PERSONAL_ACCESS_TOKEN",
+        "ghcr.io/github/github-mcp-server"
+      ],
+      "env": {
+        "GITHUB_PERSONAL_ACCESS_TOKEN": "${GITHUB_PERSONAL_ACCESS_TOKEN}"
+      },
+      "disabled": false,
+      "autoApprove": [
+        "get_file_contents",
+        "search_repositories",
+        "search_code",
+        "list_commits",
+        "get_pull_request",
+        "list_pull_requests",
+        "get_issue",
+        "list_issues"
+      ]
+    },
+    "filesystem": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@modelcontextprotocol/server-filesystem@latest",
+        "c:/Users/Reymark/Documents/Antigravity-Project/stellar-guardian-3.0",
+        "c:/Users/Reymark/Documents/Antigravity-Project/stellar-guardian-3.0/docs",
+        "c:/Users/Reymark/Documents/Antigravity-Project/stellar-guardian-3.0/web"
+      ],
+      "disabled": false,
+      "autoApprove": [
+        "read_file",
+        "write_file",
+        "create_directory",
+        "list_directory",
+        "move_file",
+        "search_files",
+        "get_file_info",
+        "list_allowed_directories"
+      ]
     }
   }
 }

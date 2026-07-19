@@ -3,17 +3,33 @@
 /**
  * App navigation bar — sticky header with desktop/mobile nav and theme toggle.
  */
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { createBrowserClient } from "@/lib/supabase/client";
 import { ThemeToggle } from "@/components/theme/theme-toggle";
+import { NotificationBell } from "@/components/layout/notification-bell";
 
 interface AppNavProps {
   user: { id: string; name: string; email: string } | null;
+  wallet?: { publicKey: string; network: string; verified: boolean } | null;
 }
 
-export function AppNav({ user }: AppNavProps) {
+export function AppNav({ user, wallet }: AppNavProps) {
   const [mobileOpen, setMobileOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
+  const dropdownRef = useRef<HTMLDivElement>(null);
+
+  // M17: Close dropdown on Escape key
+  useEffect(() => {
+    function handleKeyDown(e: KeyboardEvent) {
+      if (e.key === "Escape" && profileOpen) {
+        setProfileOpen(false);
+      }
+    }
+    if (profileOpen) {
+      document.addEventListener("keydown", handleKeyDown);
+      return () => document.removeEventListener("keydown", handleKeyDown);
+    }
+  }, [profileOpen]);
 
   async function handleSignOut() {
     const supabase = createBrowserClient();
@@ -51,17 +67,42 @@ export function AppNav({ user }: AppNavProps) {
                 <a href="/events/new" className="btn-primary text-sm font-medium px-4 py-1.5 rounded-md transition-colors">
                   Create Event
                 </a>
-                <a href="/notifications" className="text-sm text-[var(--text-muted)] hover:text-[var(--text)] transition-colors" title="Notifications">
-                  🔔
-                </a>
+                <NotificationBell userId={user.id} />
+
+                {/* Wallet badge in header */}
+                {wallet && (
+                  <a
+                    href="/settings"
+                    className="hidden lg:flex items-center gap-2 rounded-md border border-[var(--border)] px-2.5 py-1.5 hover:bg-[var(--bg-muted)] transition-colors"
+                    title={`Wallet: ${wallet.publicKey}`}
+                  >
+                    <span className={`h-2 w-2 rounded-full ${wallet.verified ? "bg-green-400" : "bg-amber-400"}`} />
+                    <span className="text-xs font-mono text-[var(--text-secondary)]">
+                      {wallet.publicKey.slice(0, 4)}…{wallet.publicKey.slice(-4)}
+                    </span>
+                    <span className="text-[10px] text-[var(--text-muted)]">{wallet.network}</span>
+                  </a>
+                )}
+                {!wallet && user && (
+                  <a
+                    href="/settings"
+                    className="hidden lg:flex items-center gap-1.5 rounded-md border border-dashed border-[var(--border)] px-2.5 py-1.5 text-xs text-[var(--text-muted)] hover:text-[var(--text)] hover:border-[var(--accent)] transition-colors"
+                  >
+                    <span>🔗</span>
+                    <span>Connect Wallet</span>
+                  </a>
+                )}
+
                 <ThemeToggle />
 
                 {/* Profile dropdown */}
-                <div className="relative ml-1">
+                <div className="relative ml-1" ref={dropdownRef}>
                   <button
                     onClick={() => setProfileOpen(!profileOpen)}
                     className="h-8 w-8 rounded-full bg-[var(--bg-muted)] flex items-center justify-center text-sm font-semibold text-[var(--text)] hover:ring-2 hover:ring-[var(--border)] transition-all"
                     aria-label="User menu"
+                    aria-expanded={profileOpen}
+                    aria-haspopup="true"
                   >
                     {user.name.charAt(0).toUpperCase()}
                   </button>
@@ -108,7 +149,12 @@ export function AppNav({ user }: AppNavProps) {
           {/* Mobile menu button */}
           <div className="flex items-center md:hidden gap-2">
             <ThemeToggle />
-            <button onClick={() => setMobileOpen(!mobileOpen)} className="p-2 rounded-md text-[var(--text-muted)] hover:text-[var(--text)] hover:bg-[var(--bg-muted)]">
+            <button
+              onClick={() => setMobileOpen(!mobileOpen)}
+              className="p-2 rounded-md text-[var(--text-muted)] hover:text-[var(--text)] hover:bg-[var(--bg-muted)]"
+              aria-label={mobileOpen ? "Close menu" : "Open menu"}
+              aria-expanded={mobileOpen}
+            >
               {mobileOpen ? "✕" : "☰"}
             </button>
           </div>

@@ -1,0 +1,170 @@
+/**
+ * Event registration page — dedicated page for participant signup flow.
+ */
+"use client";
+
+import { useState, useEffect } from "react";
+import { useParams, useRouter } from "next/navigation";
+import { createBrowserClient } from "@/lib/supabase/client";
+
+export default function EventRegisterPage() {
+  const { id: eventId } = useParams<{ id: string }>();
+  const router = useRouter();
+  const [event, setEvent] = useState<Record<string, unknown> | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [registering, setRegistering] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState(false);
+  const [alreadyRegistered, setAlreadyRegistered] = useState(false);
+
+  useEffect(() => {
+    loadData();
+  }, [eventId]);
+
+  async function loadData() {
+    const supabase = createBrowserClient();
+    const { data: { user } } = await supabase.auth.getUser();
+
+    if (!user) {
+      router.push(`/login?redirect=/events/${eventId}/register`);
+      return;
+    }
+
+    const { data: eventData } = await supabase
+      .from("events")
+      .select("id, title, description, state, category, format, registration_deadline, team_size_min, team_size_max, prize_pool_target")
+      .eq("id", eventId)
+      .single();
+
+    if (!eventData) {
+      router.push("/discover");
+      return;
+    }
+
+    setEvent(eventData);
+
+    // Check existing registration
+    const { data: existing } = await supabase
+      .from("event_members")
+      .select("role")
+      .eq("event_id", eventId)
+      .eq("user_id", user.id)
+      .maybeSingle();
+
+    if (existing) setAlreadyRegistered(true);
+    setLoading(false);
+  }
+
+  async function handleRegister() {
+    setRegistering(true);
+    setError(null);
+
+    const res = await fetch(`/api/events/${eventId}/register`, {
+      method: "POST",
+    });
+
+    if (!res.ok) {
+      const { error: err } = await res.json();
+      setError(err?.message ?? "Registration failed.");
+      setRegistering(false);
+      return;
+    }
+
+    setSuccess(true);
+    setRegistering(false);
+  }
+
+  if (loading) {
+    return (
+      <main className="max-w-2xl mx-auto px-4 py-12">
+        <div className="animate-pulse space-y-4">
+          <div className="h-8 w-64 bg-[var(--bg-muted)] rounded" />
+          <div className="h-4 w-96 bg-[var(--bg-muted)] rounded" />
+        </div>
+      </main>
+    );
+  }
+
+  if (!event) return null;
+
+  const isOpen = event.state === "RegistrationOpen";
+
+  return (
+    <main className="max-w-2xl mx-auto px-4 py-12 space-y-8">
+      <div>
+        <a href={`/events/${eventId}`} className="text-sm text-[var(--text-muted)] hover:text-[var(--text)]">
+          ← Back to event
+        </a>
+        <h1 className="text-2xl font-semibold tracking-tight mt-3">
+          Register for {String(event.title)}
+        </h1>
+        <p className="text-sm text-[var(--text-muted)] mt-1">
+          {String(event.category)} · {String(event.format)}
+        </p>
+      </div>
+
+      <div className="card p-6 space-y-4">
+        <div className="grid gap-3 sm:grid-cols-2">
+          <div>
+            <p className="text-xs text-[var(--text-muted)]">Team Size</p>
+            <p className="text-sm font-medium">{String(event.team_size_min)}–{String(event.team_size_max)} members</p>
+          </div>
+          <div>
+            <p className="text-xs text-[var(--text-muted)]">Prize Pool</p>
+            <p className="text-sm font-medium">
+              {event.prize_pool_target ? `${String(event.prize_pool_target)} XLM` : "TBD"}
+            </p>
+          </div>
+          {event.registration_deadline ? (
+            <div>
+              <p className="text-xs text-[var(--text-muted)]">Deadline</p>
+              <p className="text-sm font-medium">
+                {new Date(String(event.registration_deadline)).toLocaleDateString()}
+              </p>
+            </div>
+          ) : null}
+        </div>
+
+        {success ? (
+          <div className="rounded-md bg-green-50 border border-green-200 p-4 dark:bg-green-900/20 dark:border-green-800">
+            <p className="text-sm font-medium text-green-800 dark:text-green-300">
+              ✓ You've been registered!
+            </p>
+            <a href={`/events/${eventId}`} className="text-sm text-green-600 hover:underline mt-1 inline-block">
+              Go to event →
+            </a>
+          </div>
+        ) : alreadyRegistered ? (
+          <div className="rounded-md bg-blue-50 border border-blue-200 p-4 dark:bg-blue-900/20 dark:border-blue-800">
+            <p className="text-sm font-medium text-blue-800 dark:text-blue-300">
+              You're already registered for this event.
+            </p>
+            <a href={`/events/${eventId}`} className="text-sm text-blue-600 hover:underline mt-1 inline-block">
+              Go to event →
+            </a>
+          </div>
+        ) : !isOpen ? (
+          <div className="rounded-md bg-amber-50 border border-amber-200 p-4 dark:bg-amber-900/20 dark:border-amber-800">
+            <p className="text-sm font-medium text-amber-800 dark:text-amber-300">
+              Registration is not currently open (state: {String(event.state)}).
+            </p>
+          </div>
+        ) : (
+          <div className="space-y-4">
+            <p className="text-sm text-[var(--text-secondary)]">
+              By registering, you agree to participate in good faith and abide by the event rules.
+            </p>
+            {error && <p className="text-sm text-[var(--error)]">{error}</p>}
+            <button
+              onClick={handleRegister}
+              disabled={registering}
+              className="btn-primary w-full py-2.5 text-sm font-medium rounded-md disabled:opacity-50"
+            >
+              {registering ? "Registering..." : "Confirm Registration"}
+            </button>
+          </div>
+        )}
+      </div>
+    </main>
+  );
+}

@@ -7,31 +7,64 @@ import { useState, useEffect } from "react";
 import { createBrowserClient } from "@/lib/supabase/client";
 import { WalletConnect } from "@/components/wallet/wallet-connect";
 
+interface WalletRecord {
+  id: string;
+  public_key: string;
+  verification_status: string;
+  network_mode: string;
+}
+
 export default function SettingsPage() {
   const [user, setUser] = useState<{ id: string; email: string; name: string } | null>(null);
-  const [wallets, setWallets] = useState<Array<{ id: string; public_key: string; verification_status: string; network_mode: string }>>([]);
+  const [wallets, setWallets] = useState<WalletRecord[]>([]);
+  const [removingId, setRemovingId] = useState<string | null>(null);
+  const [confirmRemoveId, setConfirmRemoveId] = useState<string | null>(null);
+  const [showAddWallet, setShowAddWallet] = useState(false);
 
   useEffect(() => {
-    async function load() {
-      const supabase = createBrowserClient();
-      const { data: { user: authUser } } = await supabase.auth.getUser();
-      if (!authUser) return;
-
-      setUser({
-        id: authUser.id,
-        email: authUser.email ?? "",
-        name: authUser.user_metadata?.display_name ?? authUser.email ?? "",
-      });
-
-      const { data: walletData } = await supabase
-        .from("wallets")
-        .select("id, public_key, verification_status, network_mode")
-        .eq("user_id", authUser.id);
-
-      setWallets(walletData ?? []);
-    }
-    load();
+    loadData();
   }, []);
+
+  async function loadData() {
+    const supabase = createBrowserClient();
+    const { data: { user: authUser } } = await supabase.auth.getUser();
+    if (!authUser) return;
+
+    setUser({
+      id: authUser.id,
+      email: authUser.email ?? "",
+      name: authUser.user_metadata?.display_name ?? authUser.email ?? "",
+    });
+
+    const { data: walletData } = await supabase
+      .from("wallets")
+      .select("id, public_key, verification_status, network_mode")
+      .eq("user_id", authUser.id);
+
+    setWallets(walletData ?? []);
+  }
+
+  async function removeWallet(walletId: string) {
+    setRemovingId(walletId);
+    try {
+      const supabase = createBrowserClient();
+      const { error } = await supabase
+        .from("wallets")
+        .delete()
+        .eq("id", walletId);
+
+      if (error) {
+        alert(`Failed to remove wallet: ${error.message}`);
+      } else {
+        setWallets((prev) => prev.filter((w) => w.id !== walletId));
+      }
+    } catch {
+      alert("An unexpected error occurred.");
+    } finally {
+      setRemovingId(null);
+      setConfirmRemoveId(null);
+    }
+  }
 
   async function handleSignOut() {
     const supabase = createBrowserClient();
@@ -42,72 +75,258 @@ export default function SettingsPage() {
   if (!user) {
     return (
       <div className="max-w-2xl mx-auto py-12 text-center">
-        <div className="inline-block h-6 w-6 animate-spin rounded-full border-2 border-neutral-300 border-t-neutral-900" />
+        <div className="h-6 w-6 mx-auto animate-spin rounded-full border-2 border-[var(--border)] border-t-[var(--accent)]" />
       </div>
     );
   }
 
   return (
     <div className="max-w-2xl mx-auto space-y-8">
-      <h1 className="text-2xl font-semibold tracking-tight">Settings</h1>
+      <h1 className="text-2xl font-semibold tracking-tight text-[var(--text)]">Settings</h1>
 
       {/* Profile */}
-      <section className="rounded-lg border border-neutral-200 p-5 space-y-3">
-        <h2 className="font-medium">Profile</h2>
-        <div className="grid grid-cols-2 gap-4 text-sm">
-          <div>
-            <p className="text-neutral-500">Name</p>
-            <p className="font-medium">{user.name}</p>
-          </div>
-          <div>
-            <p className="text-neutral-500">Email</p>
-            <p className="font-medium">{user.email}</p>
-          </div>
-        </div>
+      <section className="card p-5 space-y-4">
+        <h2 className="font-medium text-[var(--text)]">Profile</h2>
+        <ProfileEditForm userId={user.id} initialName={user.name} email={user.email} onUpdate={(name) => setUser({ ...user, name })} />
       </section>
 
-      {/* Wallet */}
-      <section className="rounded-lg border border-neutral-200 p-5 space-y-4">
+      {/* Connected Wallets */}
+      <section className="card p-5 space-y-4">
         <div>
-          <h2 className="font-medium">Wallet Connection</h2>
-          <p className="text-sm text-neutral-500 mt-1">Connect your Freighter wallet to fund events and receive prizes.</p>
+          <h2 className="font-medium text-[var(--text)]">Wallet Connection</h2>
+          <p className="text-sm text-[var(--text-muted)] mt-1">
+            Connect your Freighter wallet to fund events and receive prizes.
+          </p>
         </div>
 
+        {/* Existing wallets */}
         {wallets.length > 0 && (
           <div className="space-y-2">
-            <p className="text-xs text-neutral-500 uppercase tracking-wide">Connected wallets</p>
+            <p className="text-xs text-[var(--text-muted)] uppercase tracking-wide font-medium">
+              Connected wallets
+            </p>
             {wallets.map((w) => (
-              <div key={w.id} className="flex items-center justify-between rounded-md border border-neutral-200 p-3">
-                <span className="font-mono text-sm">{w.public_key.slice(0, 8)}…{w.public_key.slice(-6)}</span>
-                <div className="flex items-center gap-2">
-                  <span className="text-xs text-neutral-500">{w.network_mode}</span>
-                  <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${
-                    w.verification_status === "Verified" ? "bg-green-100 text-green-700" :
-                    w.verification_status === "Pending" ? "bg-amber-100 text-amber-700" :
-                    "bg-neutral-100 text-neutral-600"
-                  }`}>{w.verification_status}</span>
+              <div key={w.id} className="rounded-lg border border-[var(--border)] p-4">
+                <div className="flex items-center justify-between">
+                  <div className="space-y-1">
+                    <p className="font-mono text-sm text-[var(--text)]">
+                      {w.public_key.slice(0, 12)}…{w.public_key.slice(-8)}
+                    </p>
+                    <div className="flex items-center gap-2">
+                      <span className="inline-flex items-center gap-1 text-xs text-[var(--text-muted)]">
+                        <span className="h-1.5 w-1.5 rounded-full bg-green-400" />
+                        {w.network_mode}
+                      </span>
+                      <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${
+                        w.verification_status === "Verified"
+                          ? "bg-[var(--success-bg)] text-[var(--success)]"
+                          : "badge-default"
+                      }`}>
+                        {w.verification_status}
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Remove button / confirmation */}
+                  {confirmRemoveId === w.id ? (
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => removeWallet(w.id)}
+                        disabled={removingId === w.id}
+                        className="rounded-md bg-[var(--error-bg)] border border-[var(--error)] px-3 py-1.5 text-xs font-medium text-[var(--error)] hover:opacity-80 disabled:opacity-50"
+                      >
+                        {removingId === w.id ? "Removing…" : "Yes, remove"}
+                      </button>
+                      <button
+                        onClick={() => setConfirmRemoveId(null)}
+                        className="rounded-md border border-[var(--border)] px-3 py-1.5 text-xs font-medium text-[var(--text-secondary)] hover:bg-[var(--bg-muted)]"
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  ) : (
+                    <button
+                      onClick={() => setConfirmRemoveId(w.id)}
+                      className="rounded-md border border-[var(--border)] px-3 py-1.5 text-xs font-medium text-[var(--error)] hover:bg-[var(--error-bg)] transition-colors"
+                    >
+                      Remove
+                    </button>
+                  )}
                 </div>
+
+                {/* Confirmation warning */}
+                {confirmRemoveId === w.id && (
+                  <div className="mt-3 rounded-md bg-[var(--warning-bg)] border border-[color-mix(in_srgb,var(--warning)_30%,transparent)] px-3 py-2">
+                    <p className="text-xs text-[var(--warning)]">
+                      Are you sure? Removing this wallet will disconnect it from your account.
+                      You won't be able to receive prizes at this address until you reconnect.
+                    </p>
+                  </div>
+                )}
               </div>
             ))}
           </div>
         )}
 
-        <WalletConnect
-          expectedNetwork="testnet"
-          onVerified={() => window.location.reload()}
-        />
+        {/* Connect new wallet — only show if no wallet connected, or user explicitly wants another */}
+        {wallets.length === 0 && (
+          <WalletConnect
+            expectedNetwork="testnet"
+            onVerified={() => loadData()}
+          />
+        )}
+
+        {wallets.length > 0 && !showAddWallet && (
+          <button
+            onClick={() => setShowAddWallet(true)}
+            className="text-sm font-medium text-[var(--accent)] hover:underline"
+          >
+            + Connect a different wallet
+          </button>
+        )}
+
+        {wallets.length > 0 && showAddWallet && (
+          <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <p className="text-xs text-[var(--text-muted)] uppercase tracking-wide font-medium">
+                Connect new wallet
+              </p>
+              <button
+                onClick={() => setShowAddWallet(false)}
+                className="text-xs text-[var(--text-muted)] hover:text-[var(--text)]"
+              >
+                Cancel
+              </button>
+            </div>
+            <WalletConnect
+              expectedNetwork="testnet"
+              onVerified={() => { loadData(); setShowAddWallet(false); }}
+            />
+          </div>
+        )}
       </section>
 
       {/* Account Actions */}
-      <section className="rounded-lg border border-red-200 bg-red-50 p-5 space-y-3">
-        <h2 className="font-medium text-red-800">Account</h2>
+      <section className="rounded-lg border border-[var(--error)] bg-[var(--error-bg)] p-5 space-y-3">
+        <h2 className="font-medium text-[var(--error)]">Account</h2>
         <button
           onClick={handleSignOut}
-          className="rounded-md border border-red-300 px-4 py-2 text-sm font-medium text-red-700 hover:bg-red-100 transition-colors"
+          className="rounded-md border border-[var(--error)] px-4 py-2 text-sm font-medium text-[var(--error)] hover:opacity-80 transition-colors"
         >
           Sign Out
         </button>
       </section>
     </div>
+  );
+}
+
+/**
+ * Profile edit form — allows updating display name via PATCH /api/users/me.
+ */
+function ProfileEditForm({
+  userId,
+  initialName,
+  email,
+  onUpdate,
+}: {
+  userId: string;
+  initialName: string;
+  email: string;
+  onUpdate: (name: string) => void;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [name, setName] = useState(initialName);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState(false);
+
+  async function handleSave(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    setSaving(true);
+    setError(null);
+    setSuccess(false);
+
+    const res = await fetch("/api/users/me", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ display_name: name }),
+    });
+
+    if (!res.ok) {
+      const { error: apiErr } = await res.json();
+      setError(apiErr?.message ?? "Failed to update profile.");
+    } else {
+      setSuccess(true);
+      onUpdate(name);
+      setEditing(false);
+      setTimeout(() => setSuccess(false), 3000);
+    }
+    setSaving(false);
+  }
+
+  if (!editing) {
+    return (
+      <div className="space-y-3">
+        <div className="grid grid-cols-2 gap-4 text-sm">
+          <div>
+            <p className="text-[var(--text-muted)]">Display name</p>
+            <p className="font-medium text-[var(--text)]">{initialName || "Not set"}</p>
+          </div>
+          <div>
+            <p className="text-[var(--text-muted)]">Email</p>
+            <p className="font-medium text-[var(--text)]">{email}</p>
+          </div>
+        </div>
+        {success && <p className="text-xs text-[var(--success)]">Profile updated.</p>}
+        <button
+          onClick={() => setEditing(true)}
+          className="text-sm font-medium text-[var(--accent)] hover:underline"
+        >
+          Edit profile
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <form onSubmit={handleSave} className="space-y-4">
+      <div>
+        <label htmlFor="display-name" className="block text-sm font-medium text-[var(--text-secondary)] mb-1">
+          Display name
+        </label>
+        <input
+          id="display-name"
+          type="text"
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          required
+          minLength={2}
+          maxLength={50}
+          className="w-full rounded-md border border-[var(--border)] bg-[var(--input-bg)] px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--accent)]"
+        />
+      </div>
+      <div>
+        <label className="block text-sm font-medium text-[var(--text-secondary)] mb-1">Email</label>
+        <p className="text-sm text-[var(--text-muted)]">{email}</p>
+        <p className="text-xs text-[var(--text-muted)] mt-1">Email cannot be changed here.</p>
+      </div>
+      {error && <p className="text-sm text-[var(--error)]">{error}</p>}
+      <div className="flex gap-3">
+        <button
+          type="submit"
+          disabled={saving}
+          className="btn-primary px-4 py-2 text-sm font-medium rounded-md disabled:opacity-50"
+        >
+          {saving ? "Saving…" : "Save"}
+        </button>
+        <button
+          type="button"
+          onClick={() => { setEditing(false); setName(initialName); }}
+          className="text-sm text-[var(--text-muted)] hover:text-[var(--text)]"
+        >
+          Cancel
+        </button>
+      </div>
+    </form>
   );
 }

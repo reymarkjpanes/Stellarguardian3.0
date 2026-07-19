@@ -166,3 +166,42 @@ input::placeholder, textarea::placeholder {
   background-color: var(--badge-bg);
   color: var(--badge-text);
 }
+
+
+/* 
+ * Override Tailwind neutral utility classes for dark mode compatibility.
+ * Any component still using hardcoded neutral-* classes gets proper contrast.
+ */
+.dark .bg-neutral-50 { background-color: var(--bg-elevated); }
+.dark .bg-neutral-100 { background-color: var(--bg-muted); }
+.dark .bg-neutral-900 { background-color: var(--btn-primary-bg); }
+.dark .text-neutral-900 { color: var(--text); }
+.dark .text-neutral-800 { color: var(--text); }
+.dark .text-neutral-700 { color: var(--text-secondary); }
+.dark .text-neutral-600 { color: var(--text-secondary); }
+.dark .text-neutral-500 { color: var(--text-muted); }
+.dark .text-neutral-400 { color: var(--text-muted); }
+.dark .border-neutral-200 { border-color: var(--border); }
+.dark .border-neutral-300 { border-color: var(--border); }
+.dark .border-neutral-100 { border-color: var(--border-muted); }
+.dark .hover\:bg-neutral-50:hover { background-color: var(--bg-elevated); }
+.dark .hover\:bg-neutral-800:hover { background-color: var(--btn-primary-hover); }
+.dark .hover\:border-neutral-400:hover { border-color: var(--accent); }
+.dark .bg-red-50 { background-color: var(--error-bg); }
+.dark .text-red-700 { color: var(--error); }
+.dark .text-red-600 { color: var(--error); }
+.dark .border-red-200 { border-color: color-mix(in srgb, var(--error) 30%, transparent); }
+.dark .bg-green-50 { background-color: var(--success-bg); }
+.dark .text-green-700 { color: var(--success); }
+.dark .text-green-800 { color: var(--success); }
+.dark .border-green-200 { border-color: color-mix(in srgb, var(--success) 30%, transparent); }
+.dark .bg-amber-50 { background-color: var(--warning-bg); }
+.dark .text-amber-700 { color: var(--warning); }
+.dark .text-amber-800 { color: var(--warning); }
+.dark .border-amber-200 { border-color: color-mix(in srgb, var(--warning) 30%, transparent); }
+.dark .ring-neutral-900 { --tw-ring-color: var(--accent); }
+.dark .focus\:ring-neutral-900:focus { --tw-ring-color: var(--accent); }
+.dark .focus\:border-neutral-900:focus { border-color: var(--input-focus); }
+.dark .focus\:ring-1:focus { box-shadow: 0 0 0 1px var(--input-focus); }
+.dark .text-white { color: var(--btn-primary-text); }
+.dark .placeholder\:text-neutral-400::placeholder { color: var(--text-muted); }

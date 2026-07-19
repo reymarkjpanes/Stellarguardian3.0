@@ -99,7 +99,7 @@ export default async function DashboardPage() {
           <h1 className="text-2xl font-semibold tracking-tight">
             Welcome back, {displayName}
           </h1>
-          <p className="mt-1 text-sm text-neutral-500">
+          <p className="mt-1 text-sm text-[var(--text-muted)]">
             {isOrganizer && "Organizer"}
             {isOrganizer && isJudge && " · "}
             {isJudge && "Judge"}
@@ -142,16 +142,16 @@ export default async function DashboardPage() {
                 <a
                   key={`${event.event_id}-${event.role}`}
                   href={`/events/${event.event_id}`}
-                  className="block rounded-lg border border-neutral-200 p-4 hover:border-neutral-400 transition-colors"
+                  className="block rounded-lg card p-4 hover:border-[var(--accent)] transition-colors"
                 >
                   <div className="flex items-center justify-between">
                     <div>
                       <p className="font-medium">{event.event_title}</p>
-                      <p className="text-xs text-neutral-500 mt-0.5">
+                      <p className="text-xs text-[var(--text-muted)] mt-0.5">
                         {event.role} · {event.event_state}
                       </p>
                     </div>
-                    <span className="rounded-full bg-neutral-100 px-2.5 py-0.5 text-xs font-medium text-neutral-600">
+                    <span className="rounded-full badge-default px-2.5 py-0.5 text-xs font-medium">
                       {event.role}
                     </span>
                   </div>
@@ -169,10 +169,10 @@ export default async function DashboardPage() {
                 <a
                   key={ws.workspace_id}
                   href={`/workspaces/${ws.workspace_slug}`}
-                  className="rounded-lg border border-neutral-200 p-4 hover:border-neutral-400 transition-colors"
+                  className="rounded-lg card p-4 hover:border-[var(--accent)] transition-colors"
                 >
                   <p className="font-medium">{ws.workspace_name}</p>
-                  <p className="text-xs text-neutral-500 mt-0.5">{ws.role}</p>
+                  <p className="text-xs text-[var(--text-muted)] mt-0.5">{ws.role}</p>
                 </a>
               ))}
             </div>
@@ -185,9 +185,9 @@ export default async function DashboardPage() {
 
 function KpiCard({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded-lg border border-neutral-200 p-4">
-      <p className="text-xs font-medium text-neutral-500 uppercase tracking-wide">{label}</p>
-      <p className="mt-1 text-2xl font-semibold">{value}</p>
+    <div className="card p-4">
+      <p className="text-xs font-medium text-[var(--text-muted)] uppercase tracking-wide">{label}</p>
+      <p className="mt-1 text-2xl font-semibold text-[var(--text)]">{value}</p>
     </div>
   );
 }
@@ -196,7 +196,7 @@ function QuickAction({ href, label }: { href: string; label: string }) {
   return (
     <a
       href={href}
-      className="rounded-md border border-neutral-300 px-4 py-2 text-sm font-medium hover:bg-neutral-50 transition-colors"
+      className="rounded-md border border-[var(--border)] px-4 py-2 text-sm font-medium text-[var(--text)] hover:bg-[var(--bg-muted)] transition-colors"
     >
       {label}
     </a>
