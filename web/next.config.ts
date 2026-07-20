@@ -9,7 +9,7 @@ const nextConfig: NextConfig = {
   // at the repo root (../package-lock.json) would otherwise be misdetected
   // as the workspace root since it sits one level up.
   turbopack: {
-    root: path.join(__dirname),
+    root: path.join(__dirname, ".."),
   },
 
   // Image optimization configuration

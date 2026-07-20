@@ -261,8 +261,8 @@ export function EventDetailClient({ event, members, teams, isOrganizer, myMember
                 <p className="font-medium text-[var(--text)]">Submissions</p>
                 <p className="text-xs text-[var(--text-muted)] mt-1">Review submitted projects</p>
               </a>
-              <a href={`/events/${event.id}/winners`} className="card p-6 text-center hover:border-[var(--accent)] transition-colors">
-                <p className="font-medium text-[var(--text)]">Winners</p>
+              <a href={`/events/${event.id}/prizes`} className="card p-6 text-center hover:border-[var(--accent)] transition-colors">
+                <p className="font-medium text-[var(--text)]">Prizes</p>
                 <p className="text-xs text-[var(--text-muted)] mt-1">View prize allocation</p>
               </a>
               <a href={`/events/${event.id}/escrow`} className="card p-6 text-center hover:border-[var(--accent)] transition-colors">
