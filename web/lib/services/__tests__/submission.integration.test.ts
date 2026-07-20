@@ -49,7 +49,7 @@ describe("Submission Integration Tests", () => {
         description: "Integration test event",
         category: "Hackathon",
         format: "Online",
-        state: "SubmissionOpen",
+        state: "Active",
         team_size_min: 1,
         team_size_max: 4,
         network_mode: "testnet",
@@ -60,12 +60,13 @@ describe("Submission Integration Tests", () => {
     eventId = ev.id;
 
     // Add user as accepted participant
-    await supabase.from("event_members").insert({
+    const { error: emError } = await supabase.from("event_members").insert({
       event_id: eventId,
       user_id: submitterId,
       role: "Participant",
-      status: "accepted",
+      availability: "Available",
     });
+    if (emError) throw emError;
   }, 30000);
 
   it("should successfully submit a project and increment version on resubmission", async () => {
@@ -105,7 +106,7 @@ describe("Submission Integration Tests", () => {
       .select("*")
       .eq("id", result.submissionId)
       .single();
-    expect(sub2?.status).toBe("Resubmitted");
+    expect(sub2?.status).toBe("Submitted");
     expect(sub2?.current_version).toBe(2);
 
     // Verify version content

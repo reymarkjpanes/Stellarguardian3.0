@@ -1,15 +1,11 @@
-/**
- * Event members sub-resource (Req 12.3, 12.4).
- *
- * GET   /api/events/[id]/members — cursor-paginated list
- * PATCH /api/events/[id]/members — approve/reject a member application
- */
-import { z } from "zod";
 import { NextRequest } from "next/server";
 import { createServerClient } from "@/lib/supabase/server";
 import { handleApiError } from "@/lib/errors";
-import { okResponse, paginatedResponse } from "@/lib/errors/responses";
+import { paginatedResponse } from "@/lib/errors/responses";
 
+/**
+ * GET /api/events/[id]/members — cursor-paginated list of Event Members
+ */
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> },
@@ -21,16 +17,19 @@ export async function GET(
     const cursor = url.searchParams.get("cursor");
     const limit = Math.min(Number(url.searchParams.get("limit") ?? 20), 50);
     const role = url.searchParams.get("role");
+    const availability = url.searchParams.get("availability");
+    const search = url.searchParams.get("search");
 
     let query = supabase
       .from("event_members")
-      .select("*, users!inner(display_name, email)", { count: "exact" })
+      .select("*, users!inner(*, user_skills(*, skills(*)), user_links(*), user_presence(*), wallets(id)), team_memberships(team_id)", { count: "exact" })
       .eq("event_id", eventId)
-      .order("user_id")
+      .order("id")
       .limit(limit);
 
     if (role) query = query.eq("role", role);
-    if (cursor) query = query.gt("user_id", cursor);
+    if (availability) query = query.eq("availability", availability);
+    if (cursor) query = query.gt("id", cursor);
 
     const { data, error, count } = await query;
 
@@ -41,100 +40,41 @@ export async function GET(
       );
     }
 
-    const members = data ?? [];
+    let members = data ?? [];
+
+    // Filter by search term on displayName or email in memory.
+    if (search) {
+      const searchLower = search.toLowerCase();
+      members = members.filter(m => 
+        (m.users?.display_name?.toLowerCase() ?? "").includes(searchLower) ||
+        (m.users?.email?.toLowerCase() ?? "").includes(searchLower)
+      );
+    }
+
+    const mappedMembers = members.map(m => {
+      const u = m.users;
+      const missingFields: string[] = [];
+      if (!u?.wallets || u.wallets.length === 0) missingFields.push("Wallet");
+      if (!u?.user_links?.some((l: any) => l.type === "GitHub")) missingFields.push("GitHub");
+      if (!u?.bio) missingFields.push("Bio");
+      if (!u?.avatar_url) missingFields.push("Avatar");
+      if (!u?.user_skills || u.user_skills.length === 0) missingFields.push("Skills");
+      if (!u?.timezone) missingFields.push("Timezone");
+      if (!u?.user_links?.some((l: any) => l.type === "Portfolio")) missingFields.push("Portfolio");
+
+      return {
+        ...m,
+        profileMissing: missingFields,
+        inTeam: m.team_memberships && m.team_memberships.length > 0,
+        teamId: m.team_memberships?.[0]?.team_id ?? null,
+        team_memberships: undefined, // remove raw relational data
+      };
+    });
+
     const hasMore = members.length === limit;
-    const nextCursor = hasMore ? members[members.length - 1]?.user_id : null;
+    const nextCursor = hasMore ? members[members.length - 1]?.id : null;
 
-    return paginatedResponse(members, { cursor: nextCursor, hasMore, total: count ?? 0 });
-  } catch (error) {
-    return handleApiError(error);
-  }
-}
-
-const MemberActionSchema = z.object({
-  user_id: z.string().uuid("Invalid user ID"),
-  action: z.enum(["approve", "reject"]),
-});
-
-/**
- * PATCH /api/events/[id]/members — Approve or reject a member application.
- * Only organizers can approve/reject members.
- */
-export async function PATCH(
-  request: NextRequest,
-  { params }: { params: Promise<{ id: string }> },
-) {
-  try {
-    const { id: eventId } = await params;
-    const supabase = await createServerClient();
-    const { data: { user } } = await supabase.auth.getUser();
-
-    if (!user) {
-      return Response.json(
-        { error: { code: "UNAUTHENTICATED", message: "Authentication required." } },
-        { status: 401 },
-      );
-    }
-
-    // Verify caller is organizer
-    const { data: callerMembership } = await supabase
-      .from("event_members")
-      .select("role")
-      .eq("event_id", eventId)
-      .eq("user_id", user.id)
-      .eq("role", "Organizer")
-      .maybeSingle();
-
-    if (!callerMembership) {
-      return Response.json(
-        { error: { code: "FORBIDDEN", message: "Only organizers can approve/reject members." } },
-        { status: 403 },
-      );
-    }
-
-    const body = await request.json();
-    const parsed = MemberActionSchema.safeParse(body);
-
-    if (!parsed.success) {
-      return Response.json(
-        {
-          error: {
-            code: "VALIDATION_FAILED",
-            message: "Invalid request body.",
-            details: { fieldErrors: z.flattenError(parsed.error).fieldErrors },
-          },
-        },
-        { status: 422 },
-      );
-    }
-
-    const { user_id: targetUserId, action } = parsed.data;
-    const newStatus = action === "approve" ? "accepted" : "rejected";
-
-    const { data: updated, error: updateError } = await supabase
-      .from("event_members")
-      .update({ status: newStatus })
-      .eq("event_id", eventId)
-      .eq("user_id", targetUserId)
-      .eq("status", "pending")
-      .select()
-      .maybeSingle();
-
-    if (updateError) {
-      return Response.json(
-        { error: { code: "INTERNAL_SERVER_ERROR", message: updateError.message } },
-        { status: 500 },
-      );
-    }
-
-    if (!updated) {
-      return Response.json(
-        { error: { code: "NOT_FOUND", message: "No pending membership found for this user." } },
-        { status: 404 },
-      );
-    }
-
-    return okResponse(updated);
+    return paginatedResponse(mappedMembers, { cursor: nextCursor, hasMore, total: count ?? 0 });
   } catch (error) {
     return handleApiError(error);
   }

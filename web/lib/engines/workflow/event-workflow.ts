@@ -6,69 +6,32 @@ interface TransitionEdge {
   validators: Array<(ctx: EventRuleContext) => string | null>;
 }
 
-const TERMINAL_STATES = new Set<EventState>(["Completed", "Cancelled", "Archived"]);
+const TERMINAL_STATES = new Set<EventState>(["Archived"]);
 
 /**
- * WORKFLOW_GRAPH defines the allowable state transitions and attaches
- * the necessary decoupled business rules to each edge.
+ * WORKFLOW_GRAPH defines the allowable state transitions for the top-level Event Lifecycle
+ * and attaches the necessary decoupled business rules to each edge.
+ * 
+ * Note: Operational phase transitions (Registration -> Submission, etc.) are managed
+ * separately by EventPhase constraints, allowing the Event Lifecycle to remain stable.
  */
 const WORKFLOW_GRAPH: Partial<Record<EventState, TransitionEdge[]>> = {
   Draft: [
-    { to: "Review", validators: [EventBusinessRules.requiresJudges] }
+    { to: "Active", validators: [EventBusinessRules.escrowFullyFunded, EventBusinessRules.requiresJudges, EventBusinessRules.requiresRegistrationDeadline] },
+    { to: "Cancelled", validators: [] }
   ],
-  Review: [
-    { to: "Published", validators: [EventBusinessRules.escrowFullyFunded] },
-    { to: "Draft", validators: [] }
-  ],
-  Published: [
-    { to: "RegistrationOpen", validators: [EventBusinessRules.requiresRegistrationDeadline] },
-    { to: "Draft", validators: [] }
-  ],
-  RegistrationOpen: [
-    { to: "RegistrationClosed", validators: [] },
-    { to: "Published", validators: [EventBusinessRules.zeroRegistrations] }
-  ],
-  RegistrationClosed: [
-    { to: "TeamFormationLocked", validators: [EventBusinessRules.minimumParticipantsMet] }
-  ],
-  TeamFormationLocked: [
-    { to: "SubmissionOpen", validators: [] }
-  ],
-  SubmissionOpen: [
-    { to: "SubmissionClosed", validators: [] },
-    { to: "TeamFormationLocked", validators: [EventBusinessRules.zeroSubmissions] }
-  ],
-  SubmissionClosed: [
-    { to: "JudgingRound1", validators: [EventBusinessRules.hasSubmissions] }
-  ],
-  JudgingRound1: [
-    { to: "JudgingRound2", validators: [] },
-    { to: "WinnerVerification", validators: [EventBusinessRules.allSubmissionsScored] }
-  ],
-  JudgingRound2: [
-    { to: "WinnerVerification", validators: [EventBusinessRules.allSubmissionsScored] }
-  ],
-  WinnerVerification: [
-    { to: "DisputeWindow", validators: [EventBusinessRules.kycSatisfied] }
-  ],
-  DisputeWindow: [
-    { to: "PrizeApproved", validators: [EventBusinessRules.reviewWindowElapsed, EventBusinessRules.zeroUnresolvedDisputes] }
-  ],
-  PrizeApproved: [
-    { to: "EscrowRelease", validators: [] }
-  ],
-  EscrowRelease: [
-    { to: "Completed", validators: [] }
+  Active: [
+    { to: "Completed", validators: [EventBusinessRules.allSubmissionsScored, EventBusinessRules.zeroUnresolvedDisputes, EventBusinessRules.kycSatisfied] },
+    { to: "Cancelled", validators: [] },
+    { to: "Archived", validators: [] }
   ],
   Completed: [
     { to: "Archived", validators: [] }
   ],
-  Suspended: [
-    { to: "Archived", validators: [] }
-  ],
   Cancelled: [
     { to: "Archived", validators: [] }
-  ]
+  ],
+  Archived: []
 };
 
 export const EventWorkflowEngine = {
@@ -78,14 +41,7 @@ export const EventWorkflowEngine = {
       return edge.validators.every(validator => validator(ctx) === null);
     });
     
-    const validStates = validEdges.map(edge => edge.to);
-    
-    // Cancelled and Suspended can typically be reached from any non-terminal state via admin override
-    if (!TERMINAL_STATES.has(from) && from !== "Suspended") {
-      validStates.push("Cancelled", "Suspended");
-    }
-    
-    return validStates;
+    return validEdges.map(edge => edge.to);
   },
   
   canTransition: (from: EventState, to: EventState, ctx: EventRuleContext) => {

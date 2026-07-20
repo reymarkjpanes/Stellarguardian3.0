@@ -6,10 +6,7 @@ import type { EventRuleContext } from "../../business-rules/event-rules";
 import type { EventState } from "@/types";
 
 const ALL_EVENT_STATES: EventState[] = [
-  "Draft", "Review", "Published", "RegistrationOpen", "RegistrationClosed",
-  "TeamFormationLocked", "SubmissionOpen", "SubmissionClosed",
-  "JudgingRound1", "JudgingRound2", "WinnerVerification", "DisputeWindow",
-  "PrizeApproved", "EscrowRelease", "Completed", "Suspended", "Cancelled", "Archived"
+  "Draft", "Active", "Completed", "Cancelled", "Archived"
 ];
 
 function arbEventState(): fc.Arbitrary<EventState> {
@@ -19,7 +16,7 @@ function arbEventState(): fc.Arbitrary<EventState> {
 function arbEventRuleContext(): fc.Arbitrary<EventRuleContext> {
   return fc.record({
     judgeCount: fc.nat({ max: 10 }),
-    registrationDeadline: fc.option(fc.date().map(d => d.toISOString()), { nil: undefined }),
+    registrationDeadline: fc.option(fc.date({min: new Date('2020-01-01'), max: new Date('2050-01-01')}).map(d => d.toISOString()), { nil: undefined }),
     teamSizeMin: fc.option(fc.integer({ min: 1, max: 10 }), { nil: undefined }),
     hasSubmissions: fc.boolean(),
     allSubmissionsScored: fc.boolean(),
@@ -34,19 +31,14 @@ function arbEventRuleContext(): fc.Arbitrary<EventRuleContext> {
 }
 
 describe("Property tests: Event Workflow Engine", () => {
-  it("Terminal states have no outbound transitions (except manual overrides)", () => {
+  it("Terminal states have no outbound transitions", () => {
     fc.assert(
       fc.property(arbEventRuleContext(), (ctx) => {
-        const terminalStates: EventState[] = ["Completed", "Cancelled", "Archived"];
+        const terminalStates: EventState[] = ["Archived"];
         
         for (const terminal of terminalStates) {
           const outbound = EventWorkflowEngine.getValidOutboundTransitions(terminal, ctx);
-          if (terminal === "Completed" || terminal === "Cancelled" || terminal === "Suspended") {
-            // Completed and Cancelled can go to Archived, but no business transitions
-            expect(outbound.filter(s => s !== "Archived" && s !== "Cancelled" && s !== "Suspended")).toEqual([]);
-          } else if (terminal === "Archived") {
-            expect(outbound).toEqual([]);
-          }
+          expect(outbound).toEqual([]);
         }
       }),
       fcConfig
@@ -71,26 +63,26 @@ describe("Property tests: Event Workflow Engine", () => {
     );
   });
 
-  it("Cannot transition to Review without judges", () => {
+  it("Cannot transition to Active without judges, deadline, and escrow", () => {
     fc.assert(
       fc.property(arbEventRuleContext(), (ctx) => {
-        if (ctx.judgeCount === 0) {
-          const result = EventWorkflowEngine.canTransition("Draft", "Review", ctx);
+        if (ctx.judgeCount === 0 || !ctx.registrationDeadline || !ctx.escrowFullyFundedOnChain) {
+          const result = EventWorkflowEngine.canTransition("Draft", "Active", ctx);
           expect(result.ok).toBe(false);
-          expect(result.errors.some(e => e.includes("judge"))).toBe(true);
+          if (ctx.judgeCount === 0) expect(result.errors.some(e => e.includes("judge"))).toBe(true);
+          if (!ctx.escrowFullyFundedOnChain) expect(result.errors.some(e => e.includes("escrow") || e.includes("fund"))).toBe(true);
         }
       }),
       fcConfig
     );
   });
   
-  it("Cannot transition to Published without escrow funding", () => {
+  it("Cannot transition to Completed without scoring, zero disputes, and KYC", () => {
     fc.assert(
       fc.property(arbEventRuleContext(), (ctx) => {
-        if (!ctx.escrowFullyFundedOnChain) {
-          const result = EventWorkflowEngine.canTransition("Review", "Published", ctx);
+        if (!ctx.allSubmissionsScored || ctx.unresolvedDisputes > 0 || !ctx.kycRequirementsSatisfied) {
+          const result = EventWorkflowEngine.canTransition("Active", "Completed", ctx);
           expect(result.ok).toBe(false);
-          expect(result.errors.some(e => e.includes("escrow") || e.includes("fund"))).toBe(true);
         }
       }),
       fcConfig

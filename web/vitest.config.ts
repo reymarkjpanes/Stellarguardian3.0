@@ -17,7 +17,7 @@ export default defineConfig({
     environment: "node",
     globals: true,
     include: ["**/*.{test,spec}.{ts,tsx}"],
-    exclude: ["node_modules", ".next", "supabase/migrations"],
+    exclude: ["node_modules", ".next", "supabase/migrations", "tests/e2e/**", "e2e/**"],
     coverage: {
       provider: "v8",
       reporter: ["text", "html"],

@@ -14,12 +14,14 @@ export const TeamSchema = z.object({
 });
 export type Team = z.infer<typeof TeamSchema>;
 
-export const TeamMemberSchema = z.object({
+export const TeamMembershipSchema = z.object({
+  id: UuidSchema,
   teamId: UuidSchema,
-  userId: UuidSchema,
+  eventMemberId: UuidSchema,
+  role: z.enum(["Captain", "Member"]),
   joinedAt: TimestampSchema,
 });
-export type TeamMember = z.infer<typeof TeamMemberSchema>;
+export type TeamMembership = z.infer<typeof TeamMembershipSchema>;
 
 /** Request body for creating a team (Req 10.1). */
 export const CreateTeamSchema = z.object({

@@ -15,11 +15,10 @@ export class SubmissionService {
     // Verify participant role
     const { data: membership } = await supabase
       .from("event_members")
-      .select("role, status")
+      .select("role")
       .eq("event_id", eventId)
       .eq("user_id", submitterId)
-      .eq("role", "Participant")
-      .eq("status", "accepted")
+      .ilike("role", "participant")
       .maybeSingle();
 
     if (!membership) {

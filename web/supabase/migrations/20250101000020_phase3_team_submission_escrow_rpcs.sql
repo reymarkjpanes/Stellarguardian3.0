@@ -13,10 +13,10 @@ ALTER TABLE team_join_requests DROP CONSTRAINT IF EXISTS team_join_requests_stat
 ALTER TABLE team_join_requests ADD CONSTRAINT team_join_requests_status_check 
   CHECK (status IN ('pending', 'accepted', 'rejected', 'cancelled', 'expired'));
 
--- submissions status: Draft, Submitted, Resubmitted, Final
+-- submissions status: Draft, Submitted, Final
 ALTER TABLE submissions DROP CONSTRAINT IF EXISTS submissions_status_check;
 ALTER TABLE submissions ADD CONSTRAINT submissions_status_check 
-  CHECK (status IN ('Draft', 'Submitted', 'Resubmitted', 'Final'));
+  CHECK (status IN ('Draft', 'Submitted', 'Final'));
 
 -- 3. RPC: Create Team with Captain
 CREATE OR REPLACE FUNCTION create_team_with_captain(
@@ -174,7 +174,7 @@ DECLARE
 BEGIN
   -- Check state
   SELECT state INTO v_event_state FROM events WHERE id = p_event_id;
-  IF v_event_state != 'SubmissionOpen' THEN
+  IF v_event_state != 'Active' THEN
     RAISE EXCEPTION 'Submissions are not open';
   END IF;
 
@@ -186,7 +186,7 @@ BEGIN
   IF v_existing_submission_id IS NOT NULL THEN
     v_submission_id := v_existing_submission_id;
     UPDATE submissions 
-    SET status = 'Resubmitted', current_version = current_version + 1, updated_at = NOW()
+    SET status = 'Submitted', current_version = current_version + 1, updated_at = NOW()
     WHERE id = v_submission_id
     RETURNING current_version INTO v_version_no;
   ELSE

@@ -53,11 +53,20 @@ export const EventSchema = z.object({
 });
 export type Event = z.infer<typeof EventSchema>;
 
+export { AvailabilitySchema } from "./enums";
+import { AvailabilitySchema } from "./enums";
+
 export const EventMemberSchema = z.object({
+  id: UuidSchema,
   eventId: UuidSchema,
   userId: UuidSchema,
   role: EventMemberRoleSchema,
-  status: z.string().min(1),
+  availability: AvailabilitySchema.default("Unavailable"),
+  // Include nested fields for UI typing
+  users: z.any().optional(),
+  profileMissing: z.array(z.string()).optional(),
+  inTeam: z.boolean().optional(),
+  teamId: z.string().nullable().optional(),
 });
 export type EventMember = z.infer<typeof EventMemberSchema>;
 

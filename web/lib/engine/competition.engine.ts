@@ -20,7 +20,7 @@ export class CompetitionEngine {
     captainId: string,
     teamName: string
   ): Promise<string> {
-    const teamId = await TeamService.createTeam(eventId, captainId, teamName);
+    const teamId = await TeamService.createTeam(eventId, captainId, { name: teamName, slug: teamName.toLowerCase().replace(/\\s+/g, '-') });
     
     await publishDomainEvent({
       type: "TeamCreated",
@@ -43,7 +43,24 @@ export class CompetitionEngine {
     action: "accept" | "reject",
     resolvedBy: string
   ): Promise<void> {
-    const targetUserId = await TeamService.resolveJoinRequest(eventId, teamId, requestId, action, resolvedBy);
+    const { createServiceClient } = await import("@/lib/supabase/service");
+    const supabase = createServiceClient();
+    
+    const { data: request } = await supabase
+      .from("team_join_requests")
+      .select("event_member_id")
+      .eq("id", requestId)
+      .single();
+      
+    if (!request) throw new Error("Request not found");
+    const targetUserId = request.event_member_id;
+
+    const { JoinRequestService } = await import("@/lib/services/join-request.service");
+    if (action === "accept") {
+      await JoinRequestService.approveRequest(requestId, resolvedBy);
+    } else {
+      await JoinRequestService.rejectRequest(requestId, resolvedBy);
+    }
     
     await publishDomainEvent({
       type: "TeamJoinRequestResolved",

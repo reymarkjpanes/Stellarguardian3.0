@@ -4,28 +4,29 @@
  */
 import { z } from "zod";
 import { TimestampSchema, UuidSchema } from "./common";
-
-export const InvitationScopeSchema = z.enum(["workspace", "team"]);
-export type InvitationScope = z.infer<typeof InvitationScopeSchema>;
+import { InvitationTypeSchema, InvitationStateSchema } from "./enums";
 
 export const InvitationSchema = z.object({
   id: UuidSchema,
-  scope: InvitationScopeSchema,
-  scopeId: UuidSchema,
+  type: InvitationTypeSchema,
+  targetId: UuidSchema,
   inviterId: UuidSchema,
-  inviteeEmail: z.email(),
-  token: z.string().min(1),
-  /** Workspace invitations expire at 7 days (Req 24.4). */
+  inviteeEmail: z.string().email(),
+  token: z.string().min(10),
+  status: InvitationStateSchema.default("Pending"),
+  payload: z.record(z.string(), z.any()).nullable().optional(),
   expiresAt: TimestampSchema,
   acceptedAt: TimestampSchema.nullable().optional(),
+  createdAt: TimestampSchema,
 });
 export type Invitation = z.infer<typeof InvitationSchema>;
 
 /** Request body for creating an invitation (Req 10.3, 24.4). */
 export const CreateInvitationSchema = z.object({
-  scope: InvitationScopeSchema,
-  scopeId: UuidSchema,
-  inviteeEmail: z.email(),
+  type: InvitationTypeSchema,
+  targetId: UuidSchema,
+  inviteeEmail: z.string().email(),
+  payload: z.record(z.string(), z.any()).optional(),
 });
 export type CreateInvitation = z.infer<typeof CreateInvitationSchema>;
 

@@ -12,6 +12,7 @@ import { useState } from "react";
 import { EventLifecycleStepper } from "@/components/events/event-lifecycle-stepper";
 import type { EventState } from "@/components/events/event-lifecycle-stepper";
 import { EventTrustSignals } from "@/components/events/event-trust-signals";
+import { EventActionCenter } from "@/components/events/overview/event-action-center";
 
 interface EventDetailClientProps {
   event: Record<string, unknown>;
@@ -93,6 +94,48 @@ export function EventDetailClient({ event, members, teams, isOrganizer, myMember
     }
   }
 
+  // Derived Action Center Props
+  const roleName = isOrganizer ? "Organizer" : myMembership ? myMembership.role : "Guest";
+  
+  const milestones = [
+    { id: "registered", label: "Registered for Event", completed: !!myMembership },
+    { id: "team", label: "Joined a Team", completed: teams.some(t => t.team_members?.some(m => m.user_id === userId)) },
+    { id: "wallet", label: "Wallet Connected", completed: true }, // mocked
+    { id: "repo", label: "Repository Added", completed: false }, // mocked
+    { id: "demo", label: "Demo Uploaded", completed: false }, // mocked
+    { id: "submitted", label: "Final Submitted", completed: false }, // mocked
+  ];
+
+  const quickActions = isOrganizer 
+    ? [
+        { id: "settings", label: "Event Settings", href: `/events/${event.id}/settings` },
+        { id: "members", label: "Manage Members", href: `/events/${event.id}/members` },
+        { id: "subs", label: "Review Submissions", href: `/events/${event.id}/submissions` },
+      ]
+    : myMembership 
+      ? [
+          { id: "team", label: "My Team", href: `/events/${event.id}/teams` },
+          { id: "sub", label: "Continue Submission", href: `/events/${event.id}/submissions`, primary: true },
+        ]
+      : [
+          { id: "apply", label: "Apply to Participate", onClick: handleApply, primary: true },
+        ];
+
+  const roleStats = isOrganizer 
+    ? [
+        { label: "Participants", value: members.length },
+        { label: "Teams Formed", value: teams.length },
+      ]
+    : [
+        { label: "Team Status", value: teams.some(t => t.team_members?.some(m => m.user_id === userId)) ? "Joined" : "No Team" },
+        { label: "Submission", value: "Not Started" },
+      ];
+
+  const recentActivities = [
+    ...teams.map(t => ({ id: `team-${t.id}`, timeAgo: "Recently", description: `Team ${t.name} was created.` })),
+    ...members.slice(0, 3).map(m => ({ id: `mem-${m.user_id}`, timeAgo: "Recently", description: `A new ${m.role.toLowerCase()} joined the event.` })),
+  ].slice(0, 5);
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -141,73 +184,36 @@ export function EventDetailClient({ event, members, teams, isOrganizer, myMember
       {/* Tab content */}
       <div className="min-h-[400px]">
         {activeTab === "overview" && (
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            <div className="lg:col-span-2 space-y-4">
-              {/* Lifecycle progress — organizers get the full stepper */}
-              {isOrganizer && (
-                <EventLifecycleStepper currentState={event.state as EventState} />
-              )}
-              <div className="rounded-lg border border-[var(--card-border)] p-5">
-                <h2 className="font-medium mb-2">Description</h2>
-                <p className="text-sm text-[var(--text-secondary)] whitespace-pre-wrap">{event.description as string}</p>
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <InfoCard label="Format" value={event.format as string} />
-                <InfoCard label="Network" value={event.network_mode as string} />
-                <InfoCard label="Team Size" value={`${event.team_size_min}–${event.team_size_max}`} />
-                <InfoCard label="Prize Pool" value={event.prize_pool_target ? `${event.prize_pool_target} XLM` : "Not set"} />
-              </div>
-            </div>
-            <div className="space-y-4">
-              {/* Participant join action */}
-              {!isOrganizer && (
-                <div className="rounded-lg border border-[var(--card-border)] p-5 text-center">
-                  <h3 className="font-medium mb-3">Participate</h3>
-                  {!myMembership && event.state === "RegistrationOpen" && (
-                    <button onClick={handleApply} disabled={actionLoading} className="w-full rounded-md bg-[var(--btn-primary-bg)] px-4 py-2 text-sm font-medium text-white hover:bg-[var(--btn-primary-hover)] disabled:opacity-50">
-                      {actionLoading ? "Applying…" : "Apply to Participate"}
-                    </button>
-                  )}
-                  {myMembership && (
-                    <div className="rounded-md bg-[var(--success-bg)] border border-[var(--success)] p-3">
-                      <p className="text-sm font-medium text-[var(--success)]">{myMembership.role} — {myMembership.status}</p>
-                    </div>
-                  )}
-                  {!myMembership && event.state !== "RegistrationOpen" && (
-                    <p className="text-sm text-[var(--text-muted)]">Registration is not open.</p>
-                  )}
-                </div>
-              )}
-
-              {/* Lifecycle compact view for non-organizers */}
-              {!isOrganizer && (
-                <EventLifecycleStepper currentState={event.state as EventState} compact />
-              )}
-
-              {/* Trust signals — participants see this to decide whether to join */}
-              <EventTrustSignals
-                eventId={event.id as string}
-                eventState={event.state as string}
-                prizePoolTarget={event.prize_pool_target as number | null}
-                judgeCount={judgeCount}
-                hasVerifiedOrganizer={hasVerifiedOrganizer}
-                reviewWindowHours={reviewWindowHours}
-                networkMode={(event.network_mode as "testnet" | "mainnet") ?? "testnet"}
-              />
-
-              <InfoCard label="Members" value={String(members.length)} />
-              <InfoCard label="Teams" value={String(teams.length)} />
-            </div>
-          </div>
+          <EventActionCenter
+            eventName={event.title as string}
+            currentPhase={event.state as string}
+            countdownText="Deadline to be announced"
+            heroPrimaryActionLabel={!myMembership ? "Apply to Participate" : "Continue Workspace"}
+            onHeroPrimaryAction={!myMembership ? handleApply : () => setActiveTab("teams")}
+            role={roleName}
+            milestones={milestones}
+            quickActions={quickActions}
+            roleStats={roleStats}
+            announcements={[]} // Mocked for now
+            activities={recentActivities}
+          />
         )}
 
         {activeTab === "members" && (
-          <MembersTab
-            members={members}
-            isOrganizer={isOrganizer}
-            eventId={event.id as string}
-            onRefresh={() => window.location.reload()}
-          />
+          <div className="space-y-4">
+            <div className="flex items-center justify-between">
+              <p className="text-sm text-[var(--text-secondary)]">View the community directory and manage members.</p>
+              <a href={`/events/${event.id}/members`} className="text-sm font-medium text-[var(--accent)] hover:underline">
+                Open Full View →
+              </a>
+            </div>
+            <a
+              href={`/events/${event.id}/members`}
+              className="block card p-8 text-center hover:border-[var(--accent)] transition-colors"
+            >
+              <p className="text-sm text-[var(--text-muted)]">Click to manage members</p>
+            </a>
+          </div>
         )}
 
         {activeTab === "teams" && (
@@ -369,97 +375,4 @@ function ActionButton({ label, onClick, disabled }: { label: string; onClick: ()
   );
 }
 
-/**
- * Members tab with approve/reject workflow for organizers.
- */
-function MembersTab({
-  members,
-  isOrganizer,
-  eventId,
-  onRefresh,
-}: {
-  members: Array<{ user_id: string; role: string; status: string }>;
-  isOrganizer: boolean;
-  eventId: string;
-  onRefresh: () => void;
-}) {
-  const [loading, setLoading] = useState<string | null>(null);
 
-  async function handleMemberAction(userId: string, action: "approve" | "reject") {
-    setLoading(`${userId}-${action}`);
-    try {
-      const res = await fetch(`/api/events/${eventId}/members`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ user_id: userId, action }),
-      });
-      if (res.ok) {
-        onRefresh();
-      }
-    } finally {
-      setLoading(null);
-    }
-  }
-
-  const pendingMembers = members.filter((m) => m.status === "pending");
-  const activeMembers = members.filter((m) => m.status !== "pending");
-
-  return (
-    <div className="space-y-6">
-      {/* Pending approvals */}
-      {isOrganizer && pendingMembers.length > 0 && (
-        <div className="space-y-3">
-          <h2 className="font-medium text-amber-700 dark:text-amber-300">
-            Pending Approvals ({pendingMembers.length})
-          </h2>
-          <div className="space-y-2">
-            {pendingMembers.map((m) => (
-              <div key={`${m.user_id}-${m.role}`} className="flex items-center justify-between rounded-lg border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-900/10 p-3">
-                <div className="flex items-center gap-2">
-                  <span className="text-sm font-mono text-[var(--text)]">{m.user_id.slice(0, 8)}…</span>
-                  <span className="rounded-full bg-neutral-100 dark:bg-neutral-800 px-2 py-0.5 text-xs">{m.role}</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <button
-                    onClick={() => handleMemberAction(m.user_id, "approve")}
-                    disabled={loading === `${m.user_id}-approve`}
-                    className="rounded-md bg-green-600 px-3 py-1 text-xs font-medium text-white hover:bg-green-700 disabled:opacity-50 transition-colors"
-                  >
-                    {loading === `${m.user_id}-approve` ? "…" : "Approve"}
-                  </button>
-                  <button
-                    onClick={() => handleMemberAction(m.user_id, "reject")}
-                    disabled={loading === `${m.user_id}-reject`}
-                    className="rounded-md border border-[var(--error)] px-3 py-1 text-xs font-medium text-[var(--error)] hover:bg-[var(--error-bg)] disabled:opacity-50 transition-colors"
-                  >
-                    {loading === `${m.user_id}-reject` ? "…" : "Reject"}
-                  </button>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* Active members */}
-      <div className="space-y-3">
-        <h2 className="font-medium">Members ({activeMembers.length})</h2>
-        {activeMembers.length === 0 && pendingMembers.length === 0 ? (
-          <p className="text-sm text-[var(--text-muted)]">No members yet.</p>
-        ) : (
-          <div className="space-y-2">
-            {activeMembers.map((m) => (
-              <div key={`${m.user_id}-${m.role}`} className="flex items-center justify-between rounded-lg border border-[var(--card-border)] p-3">
-                <span className="text-sm font-mono">{m.user_id.slice(0, 8)}…</span>
-                <div className="flex items-center gap-2">
-                  <span className="rounded-full bg-neutral-100 dark:bg-neutral-800 px-2 py-0.5 text-xs">{m.role}</span>
-                  <span className="rounded-full bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300 px-2 py-0.5 text-xs">{m.status}</span>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
-    </div>
-  );
-}

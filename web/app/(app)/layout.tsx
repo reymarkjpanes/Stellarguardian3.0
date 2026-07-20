@@ -1,5 +1,6 @@
 import { createServerClient } from "@/lib/supabase/server";
 import { AppNav } from "@/components/layout/app-nav";
+import { CommandPalette } from "@/components/ui/command-palette";
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const supabase = await createServerClient();
@@ -37,6 +38,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       <main id="main-content" className="flex-1 w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {children}
       </main>
+      <CommandPalette />
       <footer className="border-t border-[var(--border)] mt-auto">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 flex flex-col sm:flex-row justify-between items-center gap-4">
           <p className="text-sm text-[var(--text-muted)]">
