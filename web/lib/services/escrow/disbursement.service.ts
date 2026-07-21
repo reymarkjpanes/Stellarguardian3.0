@@ -46,11 +46,21 @@ export class DisbursementService {
     const onChainBalance = Number(await stellar.getBalance(escrow.stellar_public_key));
     const totalAllocated = allocations.reduce((sum, a) => sum + Number(a.amount), 0);
 
-    if (totalAllocated > onChainBalance) {
-      throw new ValidationError("Prize allocation exceeds the confirmed on-chain escrow balance.", {
+    // Stellar requires minimum account reserve (1 XLM base + fees per operation)
+    const STELLAR_BASE_RESERVE = 1; // XLM
+    const batchCount = Math.ceil(allocations.length / MAX_OPS_PER_TX);
+    const estimatedFees = 0.00001 * allocations.length; // base fee per operation
+    const minRetainedBalance = STELLAR_BASE_RESERVE + estimatedFees;
+    const maxDisbursable = onChainBalance - minRetainedBalance;
+
+    if (totalAllocated > maxDisbursable) {
+      throw new ValidationError("Prize allocation exceeds the disbursable escrow balance after Stellar reserves.", {
         onChainBalance: String(onChainBalance),
         attemptedTotal: String(totalAllocated),
-        deficit: String(totalAllocated - onChainBalance),
+        stellarReserve: String(minRetainedBalance),
+        maxDisbursable: String(maxDisbursable),
+        deficit: String(totalAllocated - maxDisbursable),
+        batchCount: String(batchCount),
       });
     }
   }
@@ -65,6 +75,37 @@ export class DisbursementService {
     const stellar = getStellarClient();
     const supabase = createServiceClient();
 
+    // --- Acquire disbursement lock (C1: double-spend prevention) ---
+    const { data: lockAcquired } = await supabase.rpc("begin_disbursement", {
+      p_event_id: eventId,
+      p_actor_id: actorId,
+    });
+
+    if (!lockAcquired) {
+      throw new ValidationError(
+        "Disbursement already in progress or escrow is not in a valid state for disbursement.",
+        { eventId, hint: "Wait for the current disbursement to complete, or check escrow state." },
+      );
+    }
+
+    try {
+      return await this._executeDisbursementInner(eventId, actorId, stellar, supabase);
+    } catch (error) {
+      // Abort: revert escrow state on failure
+      await supabase.rpc("abort_disbursement", { p_event_id: eventId });
+      throw error;
+    }
+  }
+
+  private static async _executeDisbursementInner(
+    eventId: string,
+    actorId: string,
+    stellar: ReturnType<typeof getStellarClient>,
+    supabase: ReturnType<typeof createServiceClient>,
+  ): Promise<{
+    paid: Array<{ recipientId: string; txHash: string; amount: string }>;
+    held: Array<{ recipientId: string; amount: string; reason: string }>;
+  }> {
     const { Networks } = await import("@stellar/stellar-sdk");
     const networkPassphrase =
       stellar.getNetworkMode() === "mainnet" ? Networks.PUBLIC : Networks.TESTNET;
@@ -229,6 +270,14 @@ export class DisbursementService {
       heldCount: held.length,
       actorId,
     });
+
+    // --- Complete disbursement lock: transition escrow to Released ---
+    if (paid.length > 0) {
+      await supabase.rpc("complete_disbursement", {
+        p_event_id: eventId,
+        p_actor_id: actorId,
+      });
+    }
 
     if (held.length > 0) {
       const { data: event } = await supabase

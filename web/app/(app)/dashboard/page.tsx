@@ -32,7 +32,7 @@ export default async function DashboardPage() {
 
   if (!user) redirect("/login");
 
-  // Fetch user data
+  // --- Fast shell data (2 queries) ---
   const [
     { data: profile },
     { data: rawEventMemberships },
@@ -54,9 +54,13 @@ export default async function DashboardPage() {
 
   // Fetch event details for memberships
   const eventIds = (rawEventMemberships ?? []).map((m) => m.event_id);
-  const { data: eventsData } = eventIds.length > 0
-    ? await supabase.from("events").select("id, title, state, prize_pool_target, review_window_hours").in("id", eventIds)
-    : { data: [] };
+  const { data: eventsData } =
+    eventIds.length > 0
+      ? await supabase
+          .from("events")
+          .select("id, title, state, prize_pool_target, review_window_hours")
+          .in("id", eventIds)
+      : { data: [] };
 
   const eventsMap = new Map((eventsData ?? []).map((e) => [e.id, e]));
 
@@ -76,54 +80,88 @@ export default async function DashboardPage() {
     .filter((m) => m.role === "Organizer")
     .map((m) => m.event_id);
 
-  // Parallel fetch of all enrichment data for organizer events
+  // --- Organizer enrichment: parallel fetch ---
   const [
     { data: pendingMembers },
     { data: judgeMembers },
     { data: userWallet },
     { data: escrowAccounts },
     { data: submissionsData },
-    { data: evaluationsData },
   ] = await Promise.all([
     organizerEventIds.length > 0
-      ? supabase.from("event_members").select("event_id").in("event_id", organizerEventIds).eq("status", "pending")
+      ? supabase
+          .from("event_members")
+          .select("event_id")
+          .in("event_id", organizerEventIds)
+          .eq("status", "pending")
       : Promise.resolve({ data: [] }),
     organizerEventIds.length > 0
-      ? supabase.from("event_members").select("event_id").in("event_id", organizerEventIds).eq("role", "Judge")
+      ? supabase
+          .from("event_members")
+          .select("event_id")
+          .in("event_id", organizerEventIds)
+          .eq("role", "Judge")
       : Promise.resolve({ data: [] }),
-    supabase.from("wallets").select("id").eq("user_id", user.id).eq("verification_status", "Verified").limit(1).maybeSingle(),
+    supabase
+      .from("wallets")
+      .select("id")
+      .eq("user_id", user.id)
+      .eq("verification_status", "Verified")
+      .limit(1)
+      .maybeSingle(),
     organizerEventIds.length > 0
-      ? supabase.from("escrow_accounts").select("event_id, state").in("event_id", organizerEventIds)
+      ? supabase
+          .from("escrow_accounts")
+          .select("event_id, state")
+          .in("event_id", organizerEventIds)
       : Promise.resolve({ data: [] }),
     organizerEventIds.length > 0
-      ? supabase.from("submissions").select("event_id").in("event_id", organizerEventIds)
-      : Promise.resolve({ data: [] }),
-    organizerEventIds.length > 0
-      ? supabase.from("evaluations").select("submission_id, submissions!inner(event_id)").in("submissions.event_id", organizerEventIds)
+      ? supabase
+          .from("submissions")
+          .select("id, event_id")
+          .in("event_id", organizerEventIds)
       : Promise.resolve({ data: [] }),
   ]);
 
-  // Build per-event counts
+  // Fix: evaluations query — fetch by submission_id instead of broken PostgREST join filter
+  const submissionIds = (submissionsData ?? []).map((s) => s.id);
+  const submissionEventMap = new Map(
+    (submissionsData ?? []).map((s) => [s.id, s.event_id]),
+  );
+
+  const { data: evaluationsData } =
+    submissionIds.length > 0
+      ? await supabase
+          .from("evaluations")
+          .select("submission_id")
+          .in("submission_id", submissionIds)
+      : { data: [] };
+
+  // --- Build per-event counts ---
   const pendingByEvent = new Map<string, number>();
   for (const m of pendingMembers ?? []) {
     pendingByEvent.set(m.event_id, (pendingByEvent.get(m.event_id) ?? 0) + 1);
   }
+
   const judgesByEvent = new Map<string, number>();
   for (const m of judgeMembers ?? []) {
     judgesByEvent.set(m.event_id, (judgesByEvent.get(m.event_id) ?? 0) + 1);
   }
+
   const escrowByEvent = new Map<string, string>();
   for (const e of escrowAccounts ?? []) {
     escrowByEvent.set(e.event_id, e.state);
   }
+
   const submissionsByEvent = new Map<string, number>();
   for (const s of submissionsData ?? []) {
     submissionsByEvent.set(s.event_id, (submissionsByEvent.get(s.event_id) ?? 0) + 1);
   }
-  // evaluationsData: join result, need to count by event_id from submissions
+
+  // Build eval count per event using the submission→event map
   const evalsByEvent = new Map<string, number>();
   for (const ev of evaluationsData ?? []) {
-    const eventId = (ev.submissions as unknown as { event_id: string } | null)?.event_id;
+    const eventId = submissionEventMap.get(ev.submission_id);
     if (eventId) evalsByEvent.set(eventId, (evalsByEvent.get(eventId) ?? 0) + 1);
   }
 
@@ -146,9 +184,10 @@ export default async function DashboardPage() {
 
   // Fetch workspace details
   const workspaceIds = (rawWorkspaceMemberships ?? []).map((m) => m.workspace_id);
-  const { data: workspacesData } = workspaceIds.length > 0
-    ? await supabase.from("workspaces").select("id, name, slug").in("id", workspaceIds)
-    : { data: [] };
+  const { data: workspacesData } =
+    workspaceIds.length > 0
+      ? await supabase.from("workspaces").select("id, name, slug").in("id", workspaceIds)
+      : { data: [] };
 
   const workspacesMap = new Map((workspacesData ?? []).map((w) => [w.id, w]));
 
@@ -188,7 +227,9 @@ export default async function DashboardPage() {
           <KpiCard label="Workspaces" value={String(workspaces.length)} />
           <KpiCard
             label="Active Events"
-            value={String(events.filter((e) => !terminalStates.has(e.event_state)).length)}
+            value={String(
+              events.filter((e) => !terminalStates.has(e.event_state)).length,
+            )}
           />
           <KpiCard
             label="Roles Held"
@@ -254,7 +295,9 @@ export default async function DashboardPage() {
 function KpiCard({ label, value }: { label: string; value: string }) {
   return (
     <div className="card p-4">
-      <p className="text-xs font-medium text-[var(--text-muted)] uppercase tracking-wide">{label}</p>
+      <p className="text-xs font-medium text-[var(--text-muted)] uppercase tracking-wide">
+        {label}
+      </p>
       <p className="mt-1 text-2xl font-semibold text-[var(--text)]">{value}</p>
     </div>
   );

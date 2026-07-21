@@ -12,7 +12,7 @@ export default async function OrganizerJudgingDashboardPage(props: {
 
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) {
-    redirect('/auth/login');
+    redirect('/login');
   }
 
   // 1. Verify Organizer Role
@@ -30,7 +30,7 @@ export default async function OrganizerJudgingDashboardPage(props: {
   // 2. Fetch Event Status & Version for optimistic concurrency
   const { data: event, error: eventError } = await supabase
     .from('events')
-    .select('status, version')
+    .select('state, version')
     .eq('id', eventId)
     .single();
 
@@ -45,7 +45,7 @@ export default async function OrganizerJudgingDashboardPage(props: {
     <OrganizerJudgingDashboardClient 
       eventId={eventId}
       expectedVersion={event.version}
-      isCompleted={event.status === 'Completed' || event.status === 'Archived'}
+      isCompleted={event.state === 'Completed' || event.state === 'Archived'}
       initialData={analyticsData}
     />
   );

@@ -56,14 +56,14 @@ describe('RankingEngine', () => {
     ];
 
     const results = engine.calculateRankings(evals);
-    expect(results[0].submissionId).toBe('sub-2'); // 15
-    expect(results[0].ranking).toBe(1);
+    expect(results[0]!.submissionId).toBe('sub-2'); // 15
+    expect(results[0]!.ranking).toBe(1);
     
-    expect(results[1].submissionId).toBe('sub-3'); // 12
-    expect(results[1].ranking).toBe(2);
+    expect(results[1]!.submissionId).toBe('sub-3'); // 12
+    expect(results[1]!.ranking).toBe(2);
     
-    expect(results[2].submissionId).toBe('sub-1'); // 10
-    expect(results[2].ranking).toBe(3);
+    expect(results[2]!.submissionId).toBe('sub-1'); // 10
+    expect(results[2]!.ranking).toBe(3);
   });
 
   it('should break ties using TieBreaker (highest weight wins)', () => {
@@ -74,12 +74,12 @@ describe('RankingEngine', () => {
     ];
 
     const results = engine.calculateRankings(evals);
-    expect(results[0].submissionId).toBe('sub-2'); 
-    expect(results[0].ranking).toBe(1);
-    expect(results[0].tieBreakerReason).toContain('Won tie-breaker');
+    expect(results[0]!.submissionId).toBe('sub-2'); 
+    expect(results[0]!.ranking).toBe(1);
+    expect(results[0]!.tieBreakerReason).toContain('Won tie-breaker');
     
-    expect(results[1].submissionId).toBe('sub-1');
-    expect(results[1].ranking).toBe(2);
+    expect(results[1]!.submissionId).toBe('sub-1');
+    expect(results[1]!.ranking).toBe(2);
   });
 
   it('should leave unresolved ties with same ranking', () => {
@@ -89,9 +89,9 @@ describe('RankingEngine', () => {
     ];
 
     const results = engine.calculateRankings(evals);
-    expect(results[0].ranking).toBe(1);
-    expect(results[1].ranking).toBe(1); // Unresolved tie
-    expect(results[0].tieBreakerReason).toContain('Unresolved tie');
-    expect(results[1].tieBreakerReason).toContain('Unresolved tie');
+    expect(results[0]!.ranking).toBe(1);
+    expect(results[1]!.ranking).toBe(1); // Unresolved tie
+    expect(results[0]!.tieBreakerReason).toContain('Unresolved tie');
+    expect(results[1]!.tieBreakerReason).toContain('Unresolved tie');
   });
 });

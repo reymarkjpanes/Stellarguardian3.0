@@ -74,7 +74,7 @@ beforeEach(() => {
   vi.resetAllMocks();
   vi.mocked(getStellarClient).mockReturnValue(mockStellar as any);
   // Ensure notification mock always resolves (reset wipes return values)
-  vi.mocked(notification.createNotification).mockResolvedValue(undefined);
+  vi.mocked(notification.createNotification).mockResolvedValue("" as any);
   // Restore stellar mock return values after reset
   mockStellar.getNetworkMode.mockReturnValue("testnet");
   mockStellar.getBalance.mockResolvedValue("1000");
@@ -93,6 +93,7 @@ describe("DisbursementService — KMS signing gate (Task 0.2)", () => {
     ];
 
     vi.mocked(createServiceClient).mockReturnValue({
+      rpc: vi.fn().mockResolvedValue({ data: true }),
       from: vi.fn().mockImplementation((table: string) => {
         if (table === "escrow_accounts") return makeFullChain({ data: ESCROW_DATA });
         if (table === "winners") {
@@ -120,6 +121,7 @@ describe("DisbursementService — KMS signing gate (Task 0.2)", () => {
 
   it("calls decryptSecret with the stored encrypted_secret_key", async () => {
     vi.mocked(createServiceClient).mockReturnValue({
+      rpc: vi.fn().mockResolvedValue({ data: true }),
       from: vi.fn().mockImplementation((table: string) => {
         if (table === "escrow_accounts") return makeFullChain({ data: ESCROW_DATA });
         if (table === "winners") {
@@ -147,6 +149,7 @@ describe("DisbursementService — KMS signing gate (Task 0.2)", () => {
 
   it("returns empty result immediately when no pending winners — KMS not called", async () => {
     vi.mocked(createServiceClient).mockReturnValue({
+      rpc: vi.fn().mockResolvedValue({ data: true }),
       from: vi.fn().mockImplementation((table: string) => {
         if (table === "escrow_accounts") return makeFullChain({ data: ESCROW_DATA });
         if (table === "winners") return makeWinnersChain([]); // empty

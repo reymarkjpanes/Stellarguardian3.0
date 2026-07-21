@@ -30,7 +30,7 @@ export async function createTeam(params: {
     .single();
 
   if (!event) throw new NotFoundError("Event not found.");
-  if (!["TeamFormation", "RegistrationOpen", "RegistrationClosed"].includes(event.state)) {
+  if (!["TeamFormationLocked", "RegistrationOpen", "RegistrationClosed"].includes(event.state)) {
     throw new BadRequestError("Teams can only be created during team formation.");
   }
 

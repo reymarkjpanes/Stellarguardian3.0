@@ -31,7 +31,7 @@ describe("Property tests: Escrow Financial Logic", () => {
     vi.mocked(getStellarClient).mockReturnValue(mockStellar as any);
   });
 
-  it("validatePrizeAllocation correctly identifies when total exceeds on-chain balance", async () => {
+  it("validatePrizeAllocation correctly identifies when total exceeds disbursable balance (after reserves)", async () => {
     await fc.assert(
       fc.asyncProperty(
         fc.nat({ max: 100000000 }), // onChainBalance
@@ -43,7 +43,12 @@ describe("Property tests: Escrow Financial Logic", () => {
           const totalAllocated = allocs.reduce((sum, a) => sum + a, 0);
           const allocations = allocs.map((a, i) => ({ recipientId: `u${i}`, amount: String(a) }));
 
-          if (totalAllocated > balance) {
+          // Reserve: 1 XLM base + 0.00001 per operation
+          const STELLAR_BASE_RESERVE = 1;
+          const estimatedFees = 0.00001 * allocs.length;
+          const maxDisbursable = balance - STELLAR_BASE_RESERVE - estimatedFees;
+
+          if (totalAllocated > maxDisbursable) {
             await expect(
               DisbursementService.validatePrizeAllocation("event-1", allocations)
             ).rejects.toThrow();

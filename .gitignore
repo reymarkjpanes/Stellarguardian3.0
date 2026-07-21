@@ -8,8 +8,15 @@ coverage/
 !.env.example
 database.sqlite*
 
+# Rust build artifacts
+contracts/*/target/
+
 # Playwright MCP snapshots (auto-generated, not source code)
 .playwright-mcp/
+
+# Playwright test artifacts
+web/playwright-report/
+web/test-results/
 
 # Kiro local settings (contains env var references — safe but personal)
 # Uncomment the next line if you don't want to share MCP config with team:

@@ -1,7 +1,10 @@
 type EventHandler<T = unknown> = (payload: T) => void | Promise<void>;
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 class DomainEventBus {
-  private handlers: Map<string, EventHandler[]> = new Map();
+  // Internal storage uses `any` to avoid contravariant generic constraint errors.
+  // Type safety is enforced at the `subscribe` / `publish` call sites.
+  private handlers: Map<string, EventHandler<any>[]> = new Map();
 
   subscribe<T>(eventName: string, handler: EventHandler<T>) {
     if (!this.handlers.has(eventName)) {

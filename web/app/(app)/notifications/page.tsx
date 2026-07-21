@@ -1,18 +1,16 @@
 "use client";
 
 /**
- * Notifications page (Req 16.1, 28).
+ * Notifications center page.
+ *
+ * Displays all notifications for the current user with read/unread state,
+ * category badges, and mark-as-read functionality.
+ *
+ * Design: Card list with category color coding. System font. CSS variables.
+ * No pagination needed initially (limit 50 most recent).
  */
-import { useEffect, useState } from "react";
+import { useState, useEffect } from "react";
 import { createBrowserClient } from "@/lib/supabase/client";
-
-interface NotificationRaw {
-  id: string;
-  category: string;
-  payload: { title?: string; body?: string; action_url?: string };
-  read_at: string | null;
-  created_at: string;
-}
 
 interface Notification {
   id: string;
@@ -20,170 +18,159 @@ interface Notification {
   title: string;
   body: string;
   read: boolean;
-  action_url: string | null;
+  event_id: string | null;
   created_at: string;
 }
+
+const CATEGORY_COLORS: Record<string, string> = {
+  escrow: "var(--accent)",
+  disbursement: "var(--success)",
+  dispute: "var(--warning)",
+  team: "var(--text-secondary)",
+  event: "var(--accent)",
+  system: "var(--text-muted)",
+};
 
 export default function NotificationsPage() {
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    let channel: ReturnType<ReturnType<typeof createBrowserClient>["channel"]> | null = null;
-
-    async function load() {
-      try {
-        const res = await fetch("/api/notifications");
-        if (res.ok) {
-          const { data } = await res.json();
-          const formatted = (data as NotificationRaw[]).map((n) => ({
-            id: n.id,
-            category: n.category,
-            title: n.payload?.title || "Notification",
-            body: n.payload?.body || "",
-            read: n.read_at !== null,
-            action_url: n.payload?.action_url || null,
-            created_at: n.created_at,
-          }));
-          setNotifications(formatted);
-        }
-      } catch (err) {
-        console.error("Failed to load notifications:", err);
-      } finally {
-        setLoading(false);
-      }
-
-      // Setup realtime via Supabase client
-      const supabase = createBrowserClient();
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
-
-      channel = supabase
-        .channel("notifications-realtime")
-        .on(
-          "postgres_changes",
-          { event: "INSERT", schema: "public", table: "notifications", filter: `user_id=eq.${user.id}` },
-          (payload) => {
-            const n = payload.new as NotificationRaw;
-            const formatted: Notification = {
-              id: n.id,
-              category: n.category,
-              title: n.payload?.title || "Notification",
-              body: n.payload?.body || "",
-              read: n.read_at !== null,
-              action_url: n.payload?.action_url || null,
-              created_at: n.created_at,
-            };
-            setNotifications((prev) => [formatted, ...prev]);
-          },
-        )
-        .subscribe();
-    }
-    
-    load();
-
-    return () => {
-      if (channel) {
-        const supabase = createBrowserClient();
-        supabase.removeChannel(channel);
-      }
-    };
+    loadNotifications();
   }, []);
 
-  async function markRead(id: string) {
-    try {
-      const res = await fetch("/api/notifications", {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ notification_ids: [id] }),
-      });
-      if (res.ok) {
-        setNotifications((prev) => prev.map((n) => n.id === id ? { ...n, read: true } : n));
-      }
-    } catch (err) {
-      console.error("Failed to mark notification as read", err);
-    }
+  async function loadNotifications() {
+    const supabase = createBrowserClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return;
+
+    const { data } = await supabase
+      .from("notifications")
+      .select("id, category, title, body, read, event_id, created_at")
+      .eq("user_id", user.id)
+      .order("created_at", { ascending: false })
+      .limit(50);
+
+    setNotifications(data ?? []);
+    setLoading(false);
+  }
+
+  async function markAsRead(id: string) {
+    const supabase = createBrowserClient();
+    await supabase.from("notifications").update({ read: true }).eq("id", id);
+    setNotifications((prev) =>
+      prev.map((n) => (n.id === id ? { ...n, read: true } : n)),
+    );
   }
 
   async function markAllRead() {
-    const unreadIds = notifications.filter(n => !n.read).map(n => n.id);
-    if (unreadIds.length === 0) return;
-
-    try {
-      const res = await fetch("/api/notifications", {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ notification_ids: unreadIds }),
-      });
-      if (res.ok) {
-        setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
-      }
-    } catch (err) {
-      console.error("Failed to mark all notifications as read", err);
-    }
+    const supabase = createBrowserClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return;
+    await supabase
+      .from("notifications")
+      .update({ read: true })
+      .eq("user_id", user.id)
+      .eq("read", false);
+    setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
   }
 
   const unreadCount = notifications.filter((n) => !n.read).length;
 
-  const typeIcons: Record<string, string> = {
-    dispute: "⚖️", disbursement: "💸", security: "🔒", escrow: "🏦",
-    team: "👥", submission: "📄", evaluation: "⭐", event_update: "📢",
-    milestone: "🎯", invitation: "✉️", system: "🔔",
-  };
-
   if (loading) {
     return (
-      <div className="max-w-2xl mx-auto py-12 text-center">
-        <div className="inline-block h-6 w-6 animate-spin rounded-full border-2 border-neutral-300 border-t-neutral-900" />
+      <div className="max-w-2xl mx-auto py-12 flex justify-center">
+        <div className="h-6 w-6 animate-spin rounded-full border-2 border-[var(--border)] border-t-[var(--accent)]" />
       </div>
     );
   }
 
   return (
-    <div className="max-w-2xl mx-auto">
-      <div className="flex items-center justify-between mb-6">
-        <div className="flex items-center gap-3">
-          <h1 className="text-xl font-semibold">Notifications</h1>
+    <div className="max-w-2xl mx-auto space-y-6">
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-semibold tracking-tight text-[var(--text)]">Notifications</h1>
           {unreadCount > 0 && (
-            <span className="bg-neutral-900 text-white text-xs font-bold rounded-full px-2 py-0.5">
-              {unreadCount}
-            </span>
+            <p className="text-sm text-[var(--text-muted)] mt-1">
+              {unreadCount} unread
+            </p>
           )}
         </div>
         {unreadCount > 0 && (
-          <button onClick={markAllRead} className="text-sm font-medium text-neutral-600 hover:text-neutral-900">
-            Mark all read
+          <button
+            onClick={markAllRead}
+            className="text-sm font-medium text-[var(--accent)] hover:underline"
+          >
+            Mark all as read
           </button>
         )}
       </div>
 
       {notifications.length === 0 ? (
-        <div className="text-center py-16">
-          <p className="text-4xl mb-3">📭</p>
-          <h2 className="font-medium text-neutral-700 mb-1">No notifications yet</h2>
-          <p className="text-sm text-neutral-500">Event updates and alerts will appear here.</p>
+        <div className="card p-12 text-center">
+          <p className="text-[var(--text-muted)]">No notifications yet.</p>
+          <p className="text-xs text-[var(--text-muted)] mt-1">
+            You'll receive updates about events, teams, and prizes here.
+          </p>
         </div>
       ) : (
         <div className="space-y-2">
           {notifications.map((n) => (
             <div
               key={n.id}
-              onClick={() => { if (!n.read) markRead(n.id); if (n.action_url) window.location.href = n.action_url; }}
-              className={`rounded-lg border p-4 cursor-pointer transition-colors ${
-                !n.read ? "bg-neutral-50 border-neutral-300" : "bg-white border-neutral-200 hover:bg-neutral-50"
-              }`}
+              className={`card p-4 transition-colors ${!n.read ? "border-l-2" : ""}`}
+              style={{
+                borderLeftColor: !n.read
+                  ? (CATEGORY_COLORS[n.category] ?? "var(--accent)")
+                  : undefined,
+              }}
             >
-              <div className="flex items-start gap-3">
-                <span className="text-lg shrink-0">{typeIcons[n.category] ?? "🔔"}</span>
+              <div className="flex items-start justify-between gap-3">
                 <div className="flex-1 min-w-0">
-                  <p className={`text-sm font-medium ${!n.read ? "text-neutral-900" : "text-neutral-700"}`}>{n.title}</p>
-                  <p className="text-sm text-neutral-500 mt-0.5 line-clamp-2">{n.body}</p>
-                  <p className="text-xs text-neutral-400 mt-1">
-                    {new Date(n.created_at).toLocaleDateString(undefined, { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}
+                  <div className="flex items-center gap-2">
+                    <span
+                      className="inline-block rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide"
+                      style={{
+                        backgroundColor: `color-mix(in srgb, ${CATEGORY_COLORS[n.category] ?? "var(--text-muted)"} 15%, transparent)`,
+                        color: CATEGORY_COLORS[n.category] ?? "var(--text-muted)",
+                      }}
+                    >
+                      {n.category}
+                    </span>
+                    {!n.read && (
+                      <span className="h-2 w-2 rounded-full bg-[var(--accent)]" />
+                    )}
+                  </div>
+                  <p className={`text-sm mt-1 ${n.read ? "text-[var(--text-secondary)]" : "text-[var(--text)] font-medium"}`}>
+                    {n.title}
+                  </p>
+                  <p className="text-xs text-[var(--text-muted)] mt-0.5 line-clamp-2">
+                    {n.body}
+                  </p>
+                  <p className="text-[10px] text-[var(--text-muted)] mt-2">
+                    {new Date(n.created_at).toLocaleString()}
                   </p>
                 </div>
-                {!n.read && <span className="mt-1 h-2 w-2 rounded-full bg-neutral-900 shrink-0" />}
+
+                {!n.read && (
+                  <button
+                    onClick={() => markAsRead(n.id)}
+                    className="shrink-0 text-xs text-[var(--text-muted)] hover:text-[var(--text)] transition-colors"
+                    title="Mark as read"
+                  >
+                    ✓
+                  </button>
+                )}
               </div>
+
+              {n.event_id && (
+                <a
+                  href={`/events/${n.event_id}`}
+                  className="inline-block mt-2 text-xs text-[var(--accent)] hover:underline"
+                >
+                  View event →
+                </a>
+              )}
             </div>
           ))}
         </div>

@@ -1,21 +1,22 @@
 /**
- * GET /api/cron/reconcile — Periodic escrow balance reconciliation (Task 3.3).
+ * Cron: Escrow reconciliation (ADR-001, Req 26.4-26.7).
  *
- * Runs every 15 minutes via Vercel Cron (see vercel.json).
- * For each active (non-terminal) escrow account, calls VerificationService.reconcileEscrow().
- * Inconsistencies are flagged and the organizer is notified by the service.
+ * Runs every 30 minutes. For each active escrow account, compares:
+ * 1. On-chain Horizon balance vs DB expected_balance
+ * 2. Soroban contract state vs DB escrow state
  *
- * Protected by CRON_SECRET bearer token.
+ * Sets `inconsistent = true` on divergence, blocking automated transitions.
+ * Alerts organizers via notification.
+ *
+ * Authentication: Requires Bearer CRON_SECRET in Authorization header.
  */
-import { NextResponse, type NextRequest } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { createServiceClient } from "@/lib/supabase/service";
+import { verifyCronAuth } from "@/lib/cron-auth";
 import { VerificationService } from "@/lib/services/escrow/verification.service";
 import { logger } from "@/lib/logger";
 
-export const dynamic = "force-dynamic";
-
-/** Escrow states that are non-terminal and require ongoing reconciliation. */
-const ACTIVE_STATES = [
+const ACTIVE_ESCROW_STATES = [
   "PendingFunding",
   "PartiallyFunded",
   "FullyFunded",
@@ -23,58 +24,41 @@ const ACTIVE_STATES = [
   "PendingRelease",
 ];
 
-export async function GET(request: NextRequest) {
-  const authHeader = request.headers.get("authorization");
-  const cronSecret = process.env.CRON_SECRET;
-
-  if (cronSecret && authHeader !== `Bearer ${cronSecret}`) {
-    return NextResponse.json(
-      { error: { code: "UNAUTHORIZED", message: "Invalid cron secret." } },
-      { status: 401 },
-    );
-  }
+export async function POST(request: NextRequest) {
+  const authError = verifyCronAuth(request);
+  if (authError) return authError;
 
   const supabase = createServiceClient();
-  const startedAt = Date.now();
+  const results: Array<{ eventId: string; consistent: boolean }> = [];
+  let errors = 0;
 
   // Fetch all active escrow accounts
-  const { data: escrows, error } = await supabase
+  const { data: escrows } = await supabase
     .from("escrow_accounts")
-    .select("id, event_id, state")
-    .in("state", ACTIVE_STATES);
-
-  if (error) {
-    logger.error("[reconcile-cron] Failed to fetch escrow accounts", { error: error.message });
-    return NextResponse.json(
-      { error: { code: "DB_ERROR", message: error.message } },
-      { status: 500 },
-    );
-  }
-
-  let checked = 0;
-  let inconsistent = 0;
-  let failed = 0;
+    .select("event_id")
+    .in("state", ACTIVE_ESCROW_STATES);
 
   for (const escrow of escrows ?? []) {
     try {
       const result = await VerificationService.reconcileEscrow(escrow.event_id);
-      checked++;
-      if (!result.consistent) inconsistent++;
+      results.push({ eventId: escrow.event_id, consistent: result.consistent });
     } catch (err) {
-      logger.error("[reconcile-cron] Reconciliation failed", {
-        escrowId: escrow.id,
+      logger.error("[cron/reconcile] Failed to reconcile escrow", {
         eventId: escrow.event_id,
         error: String(err),
       });
-      failed++;
+      errors++;
     }
   }
 
-  const durationMs = Date.now() - startedAt;
-
-  logger.info("[reconcile-cron] Complete", { checked, inconsistent, failed, durationMs });
+  const inconsistentCount = results.filter((r) => !r.consistent).length;
 
   return NextResponse.json({
-    data: { checked, inconsistent, failed, durationMs },
+    success: true,
+    total: results.length,
+    consistent: results.length - inconsistentCount,
+    inconsistent: inconsistentCount,
+    errors,
+    timestamp: new Date().toISOString(),
   });
 }

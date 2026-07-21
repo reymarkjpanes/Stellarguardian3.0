@@ -6,7 +6,7 @@
  * Email/password login via the Supabase browser client with automatic
  * token refresh handled by @supabase/ssr cookie persistence.
  */
-import { useState, type FormEvent } from "react";
+import { useState } from "react";
 import { createBrowserClient } from "@/lib/supabase/client";
 
 export default function LoginPage() {
@@ -15,7 +15,7 @@ export default function LoginPage() {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
-  async function handleSubmit(e: FormEvent) {
+  async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     setError(null);
     setLoading(true);
@@ -43,11 +43,11 @@ export default function LoginPage() {
   }
 
   return (
-    <main className="min-h-screen flex items-center justify-center px-4 bg-neutral-50">
+    <main className="min-h-screen flex items-center justify-center px-4 bg-[var(--bg)]">
       <div className="w-full max-w-sm space-y-6">
         <div className="text-center space-y-2">
-          <h1 className="text-2xl font-semibold tracking-tight text-neutral-900">Welcome back</h1>
-          <p className="text-sm text-neutral-500">
+          <h1 className="text-2xl font-semibold tracking-tight text-[var(--text)]">Welcome back</h1>
+          <p className="text-sm text-[var(--text-muted)]">
             Sign in to your Stellar Guardian account
           </p>
         </div>
@@ -56,14 +56,14 @@ export default function LoginPage() {
           {error && (
             <div
               role="alert"
-              className="rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700"
+              className="rounded-md border border-[var(--error)] bg-[var(--error-bg)] px-4 py-3 text-sm text-[var(--error)]"
             >
               {error}
             </div>
           )}
 
           <div className="space-y-2">
-            <label htmlFor="email" className="block text-sm font-medium">
+            <label htmlFor="email" className="block text-sm font-medium text-[var(--text-secondary)]">
               Email
             </label>
             <input
@@ -73,17 +73,17 @@ export default function LoginPage() {
               autoComplete="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              className="w-full rounded-md border border-neutral-300 px-3 py-2 text-sm placeholder:text-neutral-400 focus:border-neutral-900 focus:outline-none focus:ring-1 focus:ring-neutral-900"
+              className="w-full rounded-md border border-[var(--border)] bg-[var(--input-bg)] px-3 py-2 text-sm text-[var(--text)] placeholder:text-[var(--text-muted)] focus:border-[var(--accent)] focus:outline-none focus:ring-1 focus:ring-[var(--accent)]"
               placeholder="you@example.com"
             />
           </div>
 
           <div className="space-y-2">
             <div className="flex items-center justify-between">
-              <label htmlFor="password" className="block text-sm font-medium">
+              <label htmlFor="password" className="block text-sm font-medium text-[var(--text-secondary)]">
                 Password
               </label>
-              <a href="/forgot-password" className="text-xs text-neutral-500 hover:text-neutral-900 hover:underline">
+              <a href="/forgot-password" className="text-xs text-[var(--text-muted)] hover:text-[var(--text)] hover:underline">
                 Forgot password?
               </a>
             </div>
@@ -94,7 +94,7 @@ export default function LoginPage() {
               autoComplete="current-password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              className="w-full rounded-md border border-neutral-300 px-3 py-2 text-sm placeholder:text-neutral-400 focus:border-neutral-900 focus:outline-none focus:ring-1 focus:ring-neutral-900"
+              className="w-full rounded-md border border-[var(--border)] bg-[var(--input-bg)] px-3 py-2 text-sm text-[var(--text)] placeholder:text-[var(--text-muted)] focus:border-[var(--accent)] focus:outline-none focus:ring-1 focus:ring-[var(--accent)]"
               placeholder="••••••••"
             />
           </div>
@@ -102,15 +102,15 @@ export default function LoginPage() {
           <button
             type="submit"
             disabled={loading}
-            className="w-full rounded-md bg-neutral-900 px-4 py-2 text-sm font-medium text-white hover:bg-neutral-800 focus:outline-none focus:ring-2 focus:ring-neutral-900 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed"
+            className="w-full rounded-md bg-[var(--btn-primary-bg)] px-4 py-2 text-sm font-medium text-[var(--btn-primary-text)] hover:bg-[var(--btn-primary-hover)] focus:outline-none focus:ring-2 focus:ring-[var(--accent)] focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
           >
             {loading ? "Signing in…" : "Sign in"}
           </button>
         </form>
 
-        <p className="text-center text-sm text-neutral-500">
+        <p className="text-center text-sm text-[var(--text-muted)]">
           Don&apos;t have an account?{" "}
-          <a href="/signup" className="font-medium text-neutral-900 hover:underline">
+          <a href="/signup" className="font-medium text-[var(--accent)] hover:underline">
             Sign up
           </a>
         </p>

@@ -13,7 +13,7 @@ export default async function JudgingWorkspacePage(props: {
   // 1. Get the current user
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) {
-    redirect('/auth/login');
+    redirect('/login');
   }
 
   // 2. Fetch the Evaluation Assignment

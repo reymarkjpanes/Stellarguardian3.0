@@ -40,6 +40,7 @@ interface FormData {
   prize_pool_target: string;
   network_mode: string;
   review_window_hours: string;
+  prize_split_policy: string;
 }
 
 const INITIAL: FormData = {
@@ -55,6 +56,7 @@ const INITIAL: FormData = {
   prize_pool_target: "",
   network_mode: "testnet",
   review_window_hours: "72",
+  prize_split_policy: "captain_receives",
 };
 
 const STEPS = [
@@ -191,6 +193,7 @@ export default function CreateEventPage() {
           prize_pool_target: form.prize_pool_target ? Number(form.prize_pool_target) : null,
           network_mode: form.network_mode,
           review_window_hours: Number(form.review_window_hours),
+          prize_split_policy: form.prize_split_policy,
           tags: form.tags,
         }),
       });
@@ -289,6 +292,22 @@ export default function CreateEventPage() {
               </div>
               <p className="text-[10px] text-[var(--text-muted)] mt-1.5">Step {step} of 4</p>
             </div>
+
+            {/* Discard draft */}
+            <button
+              type="button"
+              onClick={() => {
+                if (confirm("Discard this draft? All progress will be lost.")) {
+                  localStorage.removeItem(`sg-draft:${DRAFT_KEY}`);
+                  setForm(INITIAL);
+                  setStep(1);
+                  setFieldError(null);
+                }
+              }}
+              className="mt-3 w-full text-xs text-[var(--text-muted)] hover:text-[var(--error)] transition-colors"
+            >
+              Discard draft
+            </button>
           </div>
         </aside>
 
@@ -590,6 +609,25 @@ export default function CreateEventPage() {
                         prize disbursement becomes available (24–168 hours).
                       </p>
                     </div>
+
+                    <div>
+                      <label htmlFor="split" className={labelCls}>
+                        Team prize split policy
+                      </label>
+                      <select
+                        id="split"
+                        value={form.prize_split_policy}
+                        onChange={(e) => update("prize_split_policy", e.target.value)}
+                        className={inputCls}
+                      >
+                        <option value="captain_receives">Captain receives full amount</option>
+                        <option value="equal_split">Split equally among team members</option>
+                        <option value="custom">Custom allocation (set during winner assignment)</option>
+                      </select>
+                      <p className="text-xs text-[var(--text-muted)] mt-1">
+                        Determines how prizes are distributed when a team wins.
+                      </p>
+                    </div>
                   </div>
                 )}
 
@@ -628,6 +666,7 @@ export default function CreateEventPage() {
                         },
                         { label: "Network", value: form.network_mode },
                         { label: "Review window", value: `${form.review_window_hours} hours` },
+                        { label: "Prize split", value: form.prize_split_policy === "captain_receives" ? "Captain receives" : form.prize_split_policy === "equal_split" ? "Equal split" : "Custom" },
                         {
                           label: "Tags",
                           value: form.tags.length > 0 ? form.tags.join(", ") : "None",

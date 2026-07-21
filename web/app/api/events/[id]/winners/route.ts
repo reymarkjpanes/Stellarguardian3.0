@@ -61,7 +61,7 @@ export async function GET(
 
 /**
  * POST /api/events/[id]/winners — Assign winners.
- * Only organizers can assign winners, and only when event is in WinnersFinalized state.
+ * Only organizers can assign winners when the event is in a judging or verification state.
  */
 export async function POST(
   request: NextRequest,
@@ -102,7 +102,7 @@ export async function POST(
       .eq("id", eventId)
       .single();
 
-    const allowedStates = ["Judging", "ReviewObjectionWindow", "WinnersFinalized"];
+    const allowedStates = ["JudgingRound1", "JudgingRound2", "DisputeWindow", "WinnerVerification"];
     if (!event || !allowedStates.includes(event.state)) {
       return Response.json(
         { error: { code: "CONFLICT", message: `Cannot assign winners in state: ${event?.state ?? "unknown"}.` } },

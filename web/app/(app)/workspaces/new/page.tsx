@@ -1,142 +1,207 @@
 "use client";
 
 /**
- * Create workspace page (Req 24.1).
+ * Workspace creation page.
+ *
+ * Simple single-step form — workspaces are lightweight containers.
+ * Fields: name (required), slug (auto-generated, editable), description (optional).
+ * After creation: redirect to workspace events view.
+ *
+ * Design: card form matching the platform's established patterns.
+ * CSS variables throughout. System font. Single accent.
  */
-import { useState, type FormEvent } from "react";
+import { useState, useEffect } from "react";
 import { createBrowserClient } from "@/lib/supabase/client";
+
+function slugify(text: string): string {
+  return text
+    .toLowerCase()
+    .trim()
+    .replace(/[^\w\s-]/g, "")
+    .replace(/[\s_]+/g, "-")
+    .replace(/-+/g, "-")
+    .slice(0, 40);
+}
 
 export default function CreateWorkspacePage() {
   const [name, setName] = useState("");
   const [slug, setSlug] = useState("");
+  const [slugTouched, setSlugTouched] = useState(false);
   const [description, setDescription] = useState("");
   const [error, setError] = useState<string | null>(null);
-  const [loading, setLoading] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
 
-  function generateSlug(input: string) {
-    return input
-      .toLowerCase()
-      .replace(/[^a-z0-9]+/g, "-")
-      .replace(/^-|-$/g, "")
-      .slice(0, 60);
-  }
-
-  function handleNameChange(value: string) {
-    setName(value);
-    if (!slug || slug === generateSlug(name)) {
-      setSlug(generateSlug(value));
+  // Auto-generate slug from name (unless user has manually edited)
+  useEffect(() => {
+    if (!slugTouched) {
+      setSlug(slugify(name));
     }
-  }
+  }, [name, slugTouched]);
 
-  async function handleSubmit(e: FormEvent) {
+  async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     setError(null);
-    setLoading(true);
+
+    if (!name.trim() || name.trim().length < 2) {
+      setError("Workspace name must be at least 2 characters.");
+      return;
+    }
+    if (!slug.trim() || slug.trim().length < 2) {
+      setError("Slug must be at least 2 characters.");
+      return;
+    }
+
+    setSubmitting(true);
 
     try {
-      const res = await fetch("/api/workspaces", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          name,
-          slug,
-          description: description || undefined,
-        }),
-      });
-
-      if (!res.ok) {
-        let errorMessage = "Failed to create workspace.";
-        try {
-          const errorData = await res.json();
-          errorMessage = errorData.error?.message || errorMessage;
-          if (errorData.error?.code === "CONFLICT") {
-            errorMessage = "A workspace with this slug already exists. Choose a different name.";
-          }
-        } catch {
-          // Keep default error
-        }
-        setError(errorMessage);
+      const supabase = createBrowserClient();
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      if (!user) {
+        setError("You must be logged in.");
+        setSubmitting(false);
         return;
       }
 
-      window.location.href = "/dashboard";
-    } catch (err) {
-      setError(`An unexpected error occurred: ${err instanceof Error ? err.message : "Unknown error"}`);
-    } finally {
-      setLoading(false);
+      // Create workspace
+      const { data: workspace, error: wsError } = await supabase
+        .from("workspaces")
+        .insert({
+          name: name.trim(),
+          slug: slug.trim(),
+          description: description.trim() || null,
+          owner_id: user.id,
+        })
+        .select("id, slug")
+        .single();
+
+      if (wsError) {
+        if (wsError.code === "23505") {
+          setError("A workspace with this slug already exists. Choose a different name.");
+        } else {
+          setError(wsError.message);
+        }
+        setSubmitting(false);
+        return;
+      }
+
+      // Add creator as Owner member
+      await supabase.from("workspace_members").insert({
+        workspace_id: workspace.id,
+        user_id: user.id,
+        role: "Owner",
+      });
+
+      // Redirect to the new workspace (or dashboard)
+      window.location.href = `/dashboard`;
+    } catch {
+      setError("Network error. Please try again.");
+      setSubmitting(false);
     }
   }
+
+  const inputCls =
+    "w-full rounded-md border border-[var(--border)] bg-[var(--input-bg)] px-3 py-2 text-sm text-[var(--text)] placeholder:text-[var(--text-muted)] focus:border-[var(--accent)] focus:outline-none focus:ring-1 focus:ring-[var(--accent)]";
+  const labelCls = "block text-sm font-medium text-[var(--text-secondary)] mb-1";
 
   return (
     <main className="max-w-lg mx-auto px-4 py-12">
       <div className="space-y-6">
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Create a workspace</h1>
-          <p className="mt-1 text-sm text-neutral-500">
-            A workspace groups your events and team together.
+          <h1 className="text-2xl font-semibold tracking-tight text-[var(--text)]">
+            Create a workspace
+          </h1>
+          <p className="text-sm text-[var(--text-muted)] mt-1">
+            Workspaces organize your events and team under one roof.
           </p>
         </div>
 
-        <form onSubmit={handleSubmit} className="space-y-4">
+        <form onSubmit={handleSubmit} className="card p-6 space-y-5">
           {error && (
-            <div role="alert" className="rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+            <div
+              role="alert"
+              className="rounded-md border border-[var(--error)] bg-[var(--error-bg)] px-4 py-3 text-sm text-[var(--error)]"
+            >
               {error}
             </div>
           )}
 
-          <div className="space-y-2">
-            <label htmlFor="name" className="block text-sm font-medium">Workspace name</label>
+          <div>
+            <label htmlFor="ws-name" className={labelCls}>
+              Workspace name <span className="text-[var(--error)]">*</span>
+            </label>
             <input
-              id="name"
+              id="ws-name"
               type="text"
               required
+              minLength={2}
+              maxLength={60}
               value={name}
-              onChange={(e) => handleNameChange(e.target.value)}
-              className="w-full rounded-md border border-neutral-300 px-3 py-2 text-sm placeholder:text-neutral-400 focus:border-neutral-900 focus:outline-none focus:ring-1 focus:ring-neutral-900"
-              placeholder="My Hackathon Org"
+              onChange={(e) => setName(e.target.value)}
+              className={inputCls}
+              placeholder="Stellar Hackathon Team"
             />
           </div>
 
-          <div className="space-y-2">
-            <label htmlFor="slug" className="block text-sm font-medium">URL slug</label>
-            <div className="flex items-center gap-1 text-sm text-neutral-500">
-              <span>stellarguardian.io/workspaces/</span>
+          <div>
+            <label htmlFor="ws-slug" className={labelCls}>
+              URL slug <span className="text-[var(--error)]">*</span>
+            </label>
+            <div className="flex items-center gap-2">
+              <span className="text-sm text-[var(--text-muted)]">/workspaces/</span>
               <input
-                id="slug"
+                id="ws-slug"
                 type="text"
                 required
-                pattern="^[a-z0-9]+(-[a-z0-9]+)*$"
+                minLength={2}
+                maxLength={40}
+                pattern="[a-z0-9-]+"
+                title="Lowercase letters, numbers, and hyphens only"
                 value={slug}
-                onChange={(e) => setSlug(e.target.value)}
-                className="flex-1 rounded-md border border-neutral-300 px-3 py-2 text-sm font-mono placeholder:text-neutral-400 focus:border-neutral-900 focus:outline-none focus:ring-1 focus:ring-neutral-900"
-                placeholder="my-org"
+                onChange={(e) => {
+                  setSlug(e.target.value);
+                  setSlugTouched(true);
+                }}
+                className={inputCls}
+                placeholder="stellar-hackathon-team"
               />
             </div>
+            <p className="text-xs text-[var(--text-muted)] mt-1">
+              Lowercase letters, numbers, and hyphens only.
+            </p>
           </div>
 
-          <div className="space-y-2">
-            <label htmlFor="description" className="block text-sm font-medium">
-              Description <span className="text-neutral-400">(optional)</span>
+          <div>
+            <label htmlFor="ws-desc" className={labelCls}>
+              Description <span className="font-normal text-[var(--text-muted)]">(optional)</span>
             </label>
             <textarea
-              id="description"
+              id="ws-desc"
+              rows={3}
+              maxLength={500}
               value={description}
               onChange={(e) => setDescription(e.target.value)}
-              rows={3}
-              className="w-full rounded-md border border-neutral-300 px-3 py-2 text-sm placeholder:text-neutral-400 focus:border-neutral-900 focus:outline-none focus:ring-1 focus:ring-neutral-900"
-              placeholder="What does this workspace organize?"
+              className={inputCls}
+              placeholder="What is this workspace for?"
             />
           </div>
 
-          <button
-            type="submit"
-            disabled={loading}
-            className="w-full rounded-md bg-neutral-900 px-4 py-2.5 text-sm font-medium text-white hover:bg-neutral-800 focus:outline-none focus:ring-2 focus:ring-neutral-900 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            {loading ? "Creating…" : "Create workspace"}
-          </button>
+          <div className="flex items-center justify-between pt-2 border-t border-[var(--border)]">
+            <a
+              href="/dashboard"
+              className="text-sm text-[var(--text-muted)] hover:text-[var(--text)] transition-colors"
+            >
+              Cancel
+            </a>
+            <button
+              type="submit"
+              disabled={submitting}
+              className="rounded-md bg-[var(--btn-primary-bg)] px-5 py-2 text-sm font-medium text-[var(--btn-primary-text)] hover:bg-[var(--btn-primary-hover)] disabled:opacity-50 transition-colors"
+            >
+              {submitting ? "Creating…" : "Create Workspace"}
+            </button>
+          </div>
         </form>
       </div>
     </main>

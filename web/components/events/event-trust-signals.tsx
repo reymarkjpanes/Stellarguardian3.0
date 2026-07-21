@@ -51,7 +51,7 @@ export function EventTrustSignals({
 
   // Only fetch escrow balance if event is past Draft/Published
   const escrowRelevant = ![
-    "Draft", "Published", "RegistrationOpen", "RegistrationClosed", "TeamFormation"
+    "Draft", "Published", "RegistrationOpen", "RegistrationClosed", "TeamFormationLocked"
   ].includes(eventState);
 
   useEffect(() => {

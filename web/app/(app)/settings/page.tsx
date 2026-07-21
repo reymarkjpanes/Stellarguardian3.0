@@ -47,14 +47,13 @@ export default function SettingsPage() {
   async function removeWallet(walletId: string) {
     setRemovingId(walletId);
     try {
-      const supabase = createBrowserClient();
-      const { error } = await supabase
-        .from("wallets")
-        .delete()
-        .eq("id", walletId);
-
-      if (error) {
-        alert(`Failed to remove wallet: ${error.message}`);
+      // Find the public_key for this wallet ID
+      const wallet = wallets.find((w) => w.id === walletId);
+      if (!wallet) return;
+      const res = await fetch(`/api/wallets/${wallet.public_key}`, { method: "DELETE" });
+      if (!res.ok) {
+        const { error: apiErr } = await res.json();
+        alert(apiErr?.message ?? "Failed to remove wallet.");
       } else {
         setWallets((prev) => prev.filter((w) => w.id !== walletId));
       }
@@ -118,6 +117,16 @@ export default function SettingsPage() {
           </div>
         )}
 
+        {/* Send XLM */}
+        {wallets.length > 0 && (
+          <div className="pt-2 border-t border-[var(--border)]">
+            <p className="text-xs text-[var(--text-muted)] uppercase tracking-wide font-medium mb-3">
+              Send XLM (Testnet)
+            </p>
+            <SendXlmForm senderPublicKey={wallets[0]!.public_key} />
+          </div>
+        )}
+
         {/* Connect new wallet — only show if no wallet connected, or user explicitly wants another */}
         {wallets.length === 0 && (
           <WalletConnect
@@ -154,6 +163,17 @@ export default function SettingsPage() {
             />
           </div>
         )}
+      </section>
+
+      {/* Security — MFA */}
+      <section className="card p-5 space-y-4">
+        <div>
+          <h2 className="font-medium text-[var(--text)]">Two-Factor Authentication</h2>
+          <p className="text-sm text-[var(--text-muted)] mt-1">
+            Add an extra layer of security. Required for mainnet financial operations.
+          </p>
+        </div>
+        <MfaSection />
       </section>
 
       {/* Account Actions */}
@@ -269,6 +289,182 @@ function WalletItem({
 }
 
 /**
+ * SendXlmForm — send a native XLM payment on Stellar Testnet.
+ *
+ * Flow: enter destination + amount → Freighter signs → Horizon broadcasts →
+ * show tx hash with Stellar Expert link, or error message.
+ */
+function SendXlmForm({ senderPublicKey }: { senderPublicKey: string }) {
+  const [destination, setDestination] = useState("");
+  const [amount, setAmount] = useState("");
+  const [step, setStep] = useState<"idle" | "signing" | "submitting" | "success" | "error">("idle");
+  const [txHash, setTxHash] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  async function handleSend(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    setStep("signing");
+    setError(null);
+    setTxHash(null);
+
+    try {
+      // 1. Check Freighter is available
+      const { FreighterAdapter } = await import("@/lib/wallet/freighter");
+      const adapter = new FreighterAdapter();
+      const available = await adapter.isAvailable();
+      if (!available) {
+        throw new Error("Freighter extension is not installed or locked. Please unlock it and try again.");
+      }
+
+      // 2. Build the transaction client-side using Stellar SDK
+      const {
+        Horizon,
+        TransactionBuilder,
+        Operation,
+        Asset,
+        Networks,
+        BASE_FEE,
+      } = await import("@stellar/stellar-sdk");
+
+      const server = new Horizon.Server("https://horizon-testnet.stellar.org");
+      const sourceAccount = await server.loadAccount(senderPublicKey);
+
+      const tx = new TransactionBuilder(sourceAccount, {
+        fee: BASE_FEE,
+        networkPassphrase: Networks.TESTNET,
+      })
+        .addOperation(
+          Operation.payment({
+            destination,
+            asset: Asset.native(),
+            amount,
+          }),
+        )
+        .setTimeout(30)
+        .build();
+
+      // 3. Sign with Freighter
+      const signedXdr = await adapter.signTransaction(tx.toXDR(), "testnet");
+
+      // 4. Submit via our backend route (avoids CORS on Horizon directly)
+      setStep("submitting");
+      const res = await fetch("/api/stellar/submit", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ signed_xdr: signedXdr }),
+      });
+
+      const json = await res.json();
+
+      if (!res.ok || !json.successful) {
+        throw new Error(json.error ?? `Transaction failed. Hash: ${json.hash ?? "unknown"}`);
+      }
+
+      setTxHash(json.hash);
+      setStep("success");
+      setDestination("");
+      setAmount("");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Transaction failed.");
+      setStep("error");
+    }
+  }
+
+  function reset() {
+    setStep("idle");
+    setError(null);
+    setTxHash(null);
+  }
+
+  return (
+    <div className="space-y-4">
+      {step === "idle" || step === "error" ? (
+        <form onSubmit={handleSend} className="space-y-3">
+          <div>
+            <label htmlFor="send-destination" className="block text-xs font-medium text-[var(--text-secondary)] mb-1">
+              Destination address
+            </label>
+            <input
+              id="send-destination"
+              type="text"
+              value={destination}
+              onChange={(e) => setDestination(e.target.value)}
+              required
+              placeholder="G…"
+              pattern="G[A-Z2-7]{55}"
+              title="Must be a valid Stellar public key (starts with G)"
+              className="w-full rounded-md border border-[var(--border)] bg-[var(--input-bg)] px-3 py-2 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-[var(--accent)]"
+            />
+          </div>
+          <div>
+            <label htmlFor="send-amount" className="block text-xs font-medium text-[var(--text-secondary)] mb-1">
+              Amount (XLM)
+            </label>
+            <input
+              id="send-amount"
+              type="number"
+              value={amount}
+              onChange={(e) => setAmount(e.target.value)}
+              required
+              min="0.0000001"
+              step="any"
+              placeholder="0.00"
+              className="w-full rounded-md border border-[var(--border)] bg-[var(--input-bg)] px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--accent)]"
+            />
+          </div>
+
+          {error && (
+            <div className="rounded-md border border-[color-mix(in_srgb,var(--error)_40%,transparent)] bg-[var(--error-bg)] px-3 py-2 text-xs text-[var(--error)]">
+              {error}
+            </div>
+          )}
+
+          <button
+            type="submit"
+            className="w-full rounded-md border border-[var(--border)] px-4 py-2 text-sm font-medium text-[var(--text)] hover:bg-[var(--bg-muted)] transition-colors"
+          >
+            Send with Freighter
+          </button>
+        </form>
+      ) : step === "signing" ? (
+        <div className="rounded-md bg-[var(--bg-muted)] px-4 py-4 flex items-center gap-3 text-sm text-[var(--text-muted)]">
+          <div className="h-4 w-4 shrink-0 animate-spin rounded-full border-2 border-[var(--border)] border-t-[var(--accent)]" />
+          Waiting for Freighter approval…
+        </div>
+      ) : step === "submitting" ? (
+        <div className="rounded-md bg-[var(--bg-muted)] px-4 py-4 flex items-center gap-3 text-sm text-[var(--text-muted)]">
+          <div className="h-4 w-4 shrink-0 animate-spin rounded-full border-2 border-[var(--border)] border-t-[var(--accent)]" />
+          Broadcasting to Stellar Testnet…
+        </div>
+      ) : step === "success" && txHash ? (
+        <div className="rounded-md border border-[color-mix(in_srgb,var(--success)_40%,transparent)] bg-[var(--success-bg)] px-4 py-4 space-y-2">
+          <div className="flex items-center gap-2 text-sm font-medium text-[var(--success)]">
+            <span>✓</span>
+            Transaction confirmed
+          </div>
+          <p className="text-xs text-[var(--text-muted)]">Transaction hash:</p>
+          <p className="font-mono text-xs text-[var(--text)] break-all">{txHash}</p>
+          <a
+            href={`https://stellar.expert/explorer/testnet/tx/${txHash}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-block text-xs text-[var(--accent)] hover:underline"
+          >
+            View on Stellar Expert →
+          </a>
+          <button
+            onClick={reset}
+            className="block mt-1 text-xs text-[var(--text-muted)] hover:text-[var(--text)]"
+          >
+            Send another
+          </button>
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+/**
  * Profile edit form — allows updating display name via PATCH /api/users/me.
  */
 function ProfileEditForm({
@@ -376,5 +572,199 @@ function ProfileEditForm({
         </button>
       </div>
     </form>
+  );
+}
+
+/**
+ * MFA enrollment and status section.
+ * Uses Supabase Auth MFA APIs to list factors, enroll TOTP, and verify.
+ */
+function MfaSection() {
+  const [status, setStatus] = useState<"loading" | "none" | "enrolled" | "enrolling" | "verifying">("loading");
+  const [qrUri, setQrUri] = useState<string | null>(null);
+  const [factorId, setFactorId] = useState<string | null>(null);
+  const [verifyCode, setVerifyCode] = useState("");
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    checkMfaStatus();
+  }, []);
+
+  async function checkMfaStatus() {
+    const supabase = createBrowserClient();
+    const { data, error: mfaError } = await supabase.auth.mfa.listFactors();
+    if (mfaError || !data) {
+      setStatus("none");
+      return;
+    }
+    if (data.totp.length > 0 && data.totp.some((f) => f.status === "verified")) {
+      setStatus("enrolled");
+    } else {
+      setStatus("none");
+    }
+  }
+
+  async function startEnrollment() {
+    setError(null);
+    setStatus("enrolling");
+    const supabase = createBrowserClient();
+    const { data, error: enrollError } = await supabase.auth.mfa.enroll({
+      factorType: "totp",
+      friendlyName: "Stellar Guardian TOTP",
+    });
+    if (enrollError || !data) {
+      setError(enrollError?.message ?? "Failed to start MFA enrollment.");
+      setStatus("none");
+      return;
+    }
+    setQrUri(data.totp.uri);
+    setFactorId(data.id);
+    setStatus("verifying");
+  }
+
+  async function verifyEnrollment() {
+    if (!factorId || verifyCode.length !== 6) return;
+    setError(null);
+    const supabase = createBrowserClient();
+
+    // Challenge then verify
+    const { data: challenge, error: chalError } = await supabase.auth.mfa.challenge({ factorId });
+    if (chalError || !challenge) {
+      setError(chalError?.message ?? "Challenge failed.");
+      return;
+    }
+
+    const { error: verifyError } = await supabase.auth.mfa.verify({
+      factorId,
+      challengeId: challenge.id,
+      code: verifyCode,
+    });
+
+    if (verifyError) {
+      setError(verifyError.message);
+      return;
+    }
+
+    setStatus("enrolled");
+    setQrUri(null);
+    setFactorId(null);
+    setVerifyCode("");
+  }
+
+  async function unenroll() {
+    const supabase = createBrowserClient();
+    const { data } = await supabase.auth.mfa.listFactors();
+    if (!data) return;
+    for (const factor of data.totp) {
+      await supabase.auth.mfa.unenroll({ factorId: factor.id });
+    }
+    setStatus("none");
+  }
+
+  if (status === "loading") {
+    return (
+      <div className="flex items-center gap-2 text-sm text-[var(--text-muted)]">
+        <div className="h-4 w-4 animate-spin rounded-full border-2 border-[var(--border)] border-t-[var(--accent)]" />
+        Checking MFA status…
+      </div>
+    );
+  }
+
+  if (status === "enrolled") {
+    return (
+      <div className="space-y-3">
+        <div className="flex items-center gap-2">
+          <span className="h-2.5 w-2.5 rounded-full bg-[var(--success)]" />
+          <span className="text-sm font-medium text-[var(--success)]">MFA enabled</span>
+        </div>
+        <p className="text-xs text-[var(--text-muted)]">
+          Your account is protected with TOTP two-factor authentication.
+        </p>
+        <button
+          onClick={unenroll}
+          className="text-xs text-[var(--error)] hover:underline"
+        >
+          Disable MFA
+        </button>
+      </div>
+    );
+  }
+
+  if (status === "verifying" && qrUri) {
+    return (
+      <div className="space-y-4">
+        <div>
+          <p className="text-sm text-[var(--text-secondary)]">
+            Scan this QR code with your authenticator app (Google Authenticator, Authy, 1Password):
+          </p>
+        </div>
+        <div className="flex justify-center rounded-lg bg-white p-4">
+          {/* QR code rendered as a data URI — the TOTP URI encodes the secret */}
+          <div className="text-center space-y-2">
+            <img
+              src={`https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(qrUri)}`}
+              alt="TOTP QR Code"
+              className="mx-auto"
+              width={200}
+              height={200}
+            />
+            <p className="text-[10px] text-neutral-500 font-mono break-all max-w-[240px]">
+              {qrUri.split("secret=")[1]?.split("&")[0] ?? ""}
+            </p>
+          </div>
+        </div>
+        <div>
+          <label htmlFor="totp-code" className="block text-sm font-medium text-[var(--text-secondary)] mb-1">
+            Enter the 6-digit code from your app
+          </label>
+          <input
+            id="totp-code"
+            type="text"
+            inputMode="numeric"
+            pattern="[0-9]{6}"
+            maxLength={6}
+            value={verifyCode}
+            onChange={(e) => setVerifyCode(e.target.value.replace(/\D/g, ""))}
+            className="w-full rounded-md border border-[var(--border)] bg-[var(--input-bg)] px-3 py-2 text-sm font-mono tracking-widest text-center focus:outline-none focus:ring-2 focus:ring-[var(--accent)]"
+            placeholder="000000"
+          />
+        </div>
+        {error && (
+          <p className="text-sm text-[var(--error)]">{error}</p>
+        )}
+        <div className="flex gap-3">
+          <button
+            onClick={verifyEnrollment}
+            disabled={verifyCode.length !== 6}
+            className="btn-primary px-4 py-2 text-sm font-medium rounded-md disabled:opacity-50"
+          >
+            Verify & Enable
+          </button>
+          <button
+            onClick={() => { setStatus("none"); setQrUri(null); setError(null); }}
+            className="text-sm text-[var(--text-muted)] hover:text-[var(--text)]"
+          >
+            Cancel
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // status === "none"
+  return (
+    <div className="space-y-3">
+      <div className="flex items-center gap-2">
+        <span className="h-2.5 w-2.5 rounded-full bg-[var(--text-muted)]" />
+        <span className="text-sm text-[var(--text-muted)]">Not enabled</span>
+      </div>
+      {error && <p className="text-sm text-[var(--error)]">{error}</p>}
+      <button
+        onClick={startEnrollment}
+        className="rounded-md border border-[var(--border)] px-4 py-2 text-sm font-medium text-[var(--text)] hover:bg-[var(--bg-muted)] transition-colors"
+      >
+        Enable Two-Factor Authentication
+      </button>
+    </div>
   );
 }

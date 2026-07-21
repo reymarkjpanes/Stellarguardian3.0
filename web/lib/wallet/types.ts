@@ -24,7 +24,7 @@ export interface WalletAdapter {
   getPublicKey(): Promise<string>;
   getNetwork(): Promise<NetworkMode>;
   signTransaction(xdr: string, network: NetworkMode): Promise<string>;
-  signMessage(message: string): Promise<string>;
+  signMessage(message: string, network?: NetworkMode): Promise<string>;
 }
 
 export interface WalletState {

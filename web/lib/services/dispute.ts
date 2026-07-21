@@ -40,7 +40,7 @@ export async function createDispute(params: {
 
   if (!event) throw new NotFoundError("Event not found.");
 
-  if (event.state !== "ReviewObjectionWindow") {
+  if (event.state !== "DisputeWindow") {
     throw new BadRequestError(
       "Disputes can only be filed during the Review (Objection Window).",
       { currentState: event.state },
@@ -72,6 +72,9 @@ export async function createDispute(params: {
       state: "Open",
       title: params.title,
       description: params.description,
+      deadline: new Date(
+        Date.now() + (event.review_window_hours ?? 72) * 60 * 60 * 1000,
+      ).toISOString(),
     })
     .select("id, state")
     .single();

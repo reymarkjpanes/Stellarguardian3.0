@@ -56,7 +56,7 @@ describe("AllocationService", () => {
 
       expect(result.allocationId).toBe("new-allocation-id");
       expect(result.events).toHaveLength(1);
-      expect(result.events[0].type).toBe("PrizeAllocated");
+      expect(result.events[0]!.type).toBe("PrizeAllocated");
     });
 
     it("throws error if rpc fails (e.g. budget exceeded)", async () => {
@@ -90,7 +90,7 @@ describe("AllocationService", () => {
       });
 
       expect(events).toHaveLength(1);
-      expect(events[0].type).toBe("PrizeAllocationLocked");
+      expect(events[0]!.type).toBe("PrizeAllocationLocked");
       expect((events[0] as any).lockedBy).toBe("test-user-id");
     });
   });

@@ -12,7 +12,7 @@ export default async function OrganizerPrizeDashboardPage(props: {
 
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) {
-    redirect('/auth/login');
+    redirect('/login');
   }
 
   // 1. Verify Organizer Role
@@ -27,15 +27,26 @@ export default async function OrganizerPrizeDashboardPage(props: {
     redirect(`/events/${eventId}`);
   }
 
-  // 2. Event Must be Finalized
+  // 2. Event Must be in a state where prize allocation is relevant.
+  // Prize dashboard is accessible after judging completes (winners exist)
+  // and through the disbursement lifecycle.
   const { data: event, error: eventError } = await supabase
     .from('events')
-    .select('status, version')
+    .select('state, version')
     .eq('id', eventId)
     .single();
 
-  if (eventError || !event || (event.status !== 'Completed' && event.status !== 'Archived')) {
-    // Redirect back to judging if not finalized
+  const PRIZE_ACCESSIBLE_STATES = new Set([
+    'WinnerVerification',
+    'DisputeWindow',
+    'PrizeApproved',
+    'EscrowRelease',
+    'Completed',
+    'Archived',
+  ]);
+
+  if (eventError || !event || !PRIZE_ACCESSIBLE_STATES.has(event.state)) {
+    // Redirect to judging if event hasn't reached the prize allocation phase yet
     redirect(`/events/${eventId}/judging`);
   }
 

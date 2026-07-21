@@ -1,10 +1,11 @@
+"use client";
+
 /**
  * Event Templates — localStorage-based template save/load (L4).
  *
  * Organizers can save event configurations as templates and load them
  * when creating new events. Templates are stored client-side.
  */
-"use client";
 
 export interface EventTemplate {
   id: string;

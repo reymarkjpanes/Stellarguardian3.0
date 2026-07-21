@@ -45,7 +45,7 @@ function deriveTasksForEvent(event: EventSummary): Task[] {
 
   // Blocking: pending member approvals
   if (event.pendingMemberCount > 0 && [
-    "RegistrationOpen", "RegistrationClosed", "TeamFormation"
+    "RegistrationOpen", "RegistrationClosed", "TeamFormationLocked"
   ].includes(event.state)) {
     tasks.push({
       id: `approve-${event.id}`,
@@ -74,7 +74,7 @@ function deriveTasksForEvent(event: EventSummary): Task[] {
   }
 
   // Blocking: escrow needs funding
-  if (event.state === "OrganizerFundsEscrow") {
+  if (event.state === "PrizeApproved") {
     tasks.push({
       id: `fund-${event.id}`,
       eventId: event.id,
@@ -88,7 +88,7 @@ function deriveTasksForEvent(event: EventSummary): Task[] {
   }
 
   // Urgent: judging phase with unscored submissions
-  if (event.state === "Judging" && event.submissionCount > 0 && event.evaluationCount < event.submissionCount) {
+  if (event.state === "JudgingRound1" && event.submissionCount > 0 && event.evaluationCount < event.submissionCount) {
     const unscored = event.submissionCount - event.evaluationCount;
     tasks.push({
       id: `score-${event.id}`,
@@ -102,8 +102,8 @@ function deriveTasksForEvent(event: EventSummary): Task[] {
     });
   }
 
-  // Urgent: winners finalized, needs escrow
-  if (event.state === "WinnersFinalized") {
+  // Urgent: winners verified, needs escrow
+  if (event.state === "WinnerVerification") {
     tasks.push({
       id: `initiate-escrow-${event.id}`,
       eventId: event.id,
@@ -117,7 +117,7 @@ function deriveTasksForEvent(event: EventSummary): Task[] {
   }
 
   // Urgent: prizes ready to disburse
-  if (event.state === "PrizeDistribution") {
+  if (event.state === "EscrowRelease") {
     tasks.push({
       id: `disburse-${event.id}`,
       eventId: event.id,

@@ -1,16 +1,16 @@
 {
   "crons": [
     {
-      "path": "/api/cron",
-      "schedule": "*/15 * * * *"
+      "path": "/api/cron/transitions",
+      "schedule": "*/5 * * * *"
+    },
+    {
+      "path": "/api/cron/process-events",
+      "schedule": "* * * * *"
     },
     {
       "path": "/api/cron/reconcile",
-      "schedule": "*/15 * * * *"
-    },
-    {
-      "path": "/api/cron/cleanup-idempotency",
-      "schedule": "0 * * * *"
+      "schedule": "*/30 * * * *"
     }
   ]
 }

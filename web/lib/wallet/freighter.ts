@@ -68,9 +68,14 @@ export class FreighterAdapter implements WalletAdapter {
     return result.signedTxXdr;
   }
 
-  async signMessage(message: string): Promise<string> {
+  async signMessage(message: string, network?: NetworkMode): Promise<string> {
+    const networkPassphrase =
+      network === "mainnet"
+        ? "Public Global Stellar Network ; September 2015"
+        : "Test SDF Network ; September 2015";
+
     const result = await signMessage(message, {
-      networkPassphrase: "Test SDF Network ; September 2015",
+      networkPassphrase,
     });
     if (result.signedMessage === null) {
       throw new Error("User rejected message signing.");

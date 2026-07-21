@@ -30,7 +30,7 @@ export const POST = apiHandler({ requireAuth: true, schema: JoinRequestSchema },
     .eq("id", eventId)
     .single();
 
-  if (!event || event.state !== "TeamFormation") {
+  if (!event || event.state !== "TeamFormationLocked") {
     return Response.json(
       { error: { code: "CONFLICT", message: "Team joining is only available during TeamFormation phase." } },
       { status: 409 },

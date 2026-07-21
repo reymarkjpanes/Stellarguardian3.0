@@ -90,7 +90,7 @@ export async function POST(
     .eq("id", id)
     .single();
 
-  if (!event || event.state !== "Judging") {
+  if (!event || event.state !== "JudgingRound1") {
     return NextResponse.json(
       { error: { code: "INVALID_STATE", message: "Event is not in Judging state." } },
       { status: 422 },
