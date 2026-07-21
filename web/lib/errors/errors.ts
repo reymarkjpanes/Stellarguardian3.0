@@ -122,8 +122,21 @@ export class BusinessRuleError extends AppError {
   readonly code = "BUSINESS_RULE_VIOLATION";
   readonly httpStatus = 422;
 
+  constructor(message = "A business rule was violated.", details?: Record<string, unknown>) {
+    super(message, details);
+  }
+}
+
+/**
+ * 409 - A concurrent update detected a version mismatch.
+ * The client must re-fetch and retry with the new version (Task 1.4, Req 13.4).
+ */
+export class VersionConflictError extends AppError {
+  readonly code = "VERSION_CONFLICT";
+  readonly httpStatus = 409;
+
   constructor(
-    message = "A business rule was violated.",
+    message = "The resource was modified by another request. Refresh and retry.",
     details?: Record<string, unknown>,
   ) {
     super(message, details);

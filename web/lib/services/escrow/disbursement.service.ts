@@ -5,8 +5,27 @@ import { EscrowRepository } from "@/lib/repositories/escrow.repository";
 import { publishDomainEvent } from "@/lib/events/publisher";
 import { createNotification } from "@/lib/services/notification";
 import { ValidationError } from "@/lib/errors";
+import { decryptSecret } from "@/lib/services/kms";
+import { logger } from "@/lib/logger";
 
 const MAX_OPS_PER_TX = 100;
+
+/**
+ * Signs an unsigned transaction XDR with the escrow keypair.
+ * SECURITY: Decrypts the escrow secret via KMS, signs in-process, never logs the key.
+ */
+async function signXdr(
+  unsignedXdr: string,
+  encryptedSecretKey: string,
+  networkPassphrase: string,
+): Promise<string> {
+  const { Keypair, TransactionBuilder } = await import("@stellar/stellar-sdk");
+  const secret = await decryptSecret(String(encryptedSecretKey));
+  const keypair = Keypair.fromSecret(secret);
+  const tx = TransactionBuilder.fromXDR(unsignedXdr, networkPassphrase);
+  tx.sign(keypair);
+  return tx.toXDR();
+}
 
 export class DisbursementService {
   static async validatePrizeAllocation(
@@ -28,14 +47,11 @@ export class DisbursementService {
     const totalAllocated = allocations.reduce((sum, a) => sum + Number(a.amount), 0);
 
     if (totalAllocated > onChainBalance) {
-      throw new ValidationError(
-        "Prize allocation exceeds the confirmed on-chain escrow balance.",
-        {
-          onChainBalance: String(onChainBalance),
-          attemptedTotal: String(totalAllocated),
-          deficit: String(totalAllocated - onChainBalance),
-        },
-      );
+      throw new ValidationError("Prize allocation exceeds the confirmed on-chain escrow balance.", {
+        onChainBalance: String(onChainBalance),
+        attemptedTotal: String(totalAllocated),
+        deficit: String(totalAllocated - onChainBalance),
+      });
     }
   }
 
@@ -48,6 +64,10 @@ export class DisbursementService {
   }> {
     const stellar = getStellarClient();
     const supabase = createServiceClient();
+
+    const { Networks } = await import("@stellar/stellar-sdk");
+    const networkPassphrase =
+      stellar.getNetworkMode() === "mainnet" ? Networks.PUBLIC : Networks.TESTNET;
 
     const { data: escrow } = await supabase
       .from("escrow_accounts")
@@ -79,7 +99,12 @@ export class DisbursementService {
 
     const verifiedWalletMap = new Map((wallets ?? []).map((w) => [w.user_id, w.public_key]));
 
-    const verifiedPayments: Array<{ winnerId: string; recipientId: string; destination: string; amount: string }> = [];
+    const verifiedPayments: Array<{
+      winnerId: string;
+      recipientId: string;
+      destination: string;
+      amount: string;
+    }> = [];
 
     for (const winner of winners) {
       const walletKey = verifiedWalletMap.get(winner.recipient_id);
@@ -99,34 +124,92 @@ export class DisbursementService {
       }
     }
 
-    // Process payments via Stellar
-    const successfulPayments: Array<{ winnerId: string; recipientId: string; destination: string; amount: string; txHash: string }> = [];
-    
+    // Process payments via Stellar — build, sign with escrow key, submit (Task 0.2)
+    const successfulPayments: Array<{
+      winnerId: string;
+      recipientId: string;
+      destination: string;
+      amount: string;
+      txHash: string;
+    }> = [];
+
+    // Decrypt escrow key once — fail fast if KMS is unavailable (Task 0.2)
+    let escrowSecret: string;
+    try {
+      escrowSecret = await decryptSecret(String(escrow.encrypted_secret_key));
+    } catch (err) {
+      logger.error("[disbursement] KMS decryption failed — cannot proceed", {
+        eventId,
+        error: String(err),
+      });
+      // Notify organizer and abort; do not mark winners as failed (retryable)
+      const { data: event } = await supabase
+        .from("events")
+        .select("organizer_id")
+        .eq("id", eventId)
+        .single();
+      if (event) {
+        await createNotification({
+          userId: event.organizer_id,
+          category: "escrow",
+          title: "Disbursement failed — KMS error",
+          body: "Escrow key decryption failed. Contact platform support.",
+          eventId,
+        });
+      }
+      throw new Error("KMS decryption failed; disbursement aborted.");
+    }
+
     for (let i = 0; i < verifiedPayments.length; i += MAX_OPS_PER_TX) {
       const batch = verifiedPayments.slice(i, i + MAX_OPS_PER_TX);
       const payments = batch.map((p) => ({ destination: p.destination, amount: p.amount }));
 
       try {
-        const xdr = await stellar.buildPaymentBatch(escrow.stellar_public_key, payments);
-        const { hash, successful } = await stellar.submitSignedTx(xdr);
+        // Build unsigned XDR
+        const unsignedXdr = await stellar.buildPaymentBatch(escrow.stellar_public_key, payments);
+        // Sign with the escrow keypair (Task 0.2 fix)
+        const { Keypair, TransactionBuilder } = await import("@stellar/stellar-sdk");
+        const keypair = Keypair.fromSecret(escrowSecret);
+        const tx = TransactionBuilder.fromXDR(unsignedXdr, networkPassphrase);
+        tx.sign(keypair);
+        const signedXdr = tx.toXDR();
+
+        const { hash, successful } = await stellar.submitSignedTx(signedXdr);
 
         if (successful) {
           batch.forEach((p) => {
             successfulPayments.push({ ...p, txHash: hash });
             paid.push({ recipientId: p.recipientId, txHash: hash, amount: p.amount });
           });
+        } else {
+          batch.forEach((p) => {
+            held.push({
+              recipientId: p.recipientId,
+              amount: p.amount,
+              reason: "Transaction submitted but not successful",
+            });
+          });
         }
       } catch (error) {
-        console.error("[escrow] Disbursement batch failed:", error);
+        logger.error("[escrow] Disbursement batch failed", { eventId, error: String(error) });
         batch.forEach((p) => {
-          held.push({ recipientId: p.recipientId, amount: p.amount, reason: "Batch transaction failed" });
+          held.push({
+            recipientId: p.recipientId,
+            amount: p.amount,
+            reason: "Batch transaction failed",
+          });
         });
       }
     }
 
     // Persist via RPC
     if (successfulPayments.length > 0) {
-      await EscrowRepository.disbursePrizes(eventId, escrow.id, successfulPayments, stellar.getNetworkMode());
+      await EscrowRepository.disbursePrizes(
+        eventId,
+        escrow.id,
+        successfulPayments,
+        stellar.getNetworkMode(),
+      );
     }
 
     // Update held winners
@@ -148,7 +231,11 @@ export class DisbursementService {
     });
 
     if (held.length > 0) {
-      const { data: event } = await supabase.from("events").select("organizer_id").eq("id", eventId).single();
+      const { data: event } = await supabase
+        .from("events")
+        .select("organizer_id")
+        .eq("id", eventId)
+        .single();
       if (event) {
         await createNotification({
           userId: event.organizer_id,

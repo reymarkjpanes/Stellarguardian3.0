@@ -5,6 +5,7 @@ import { EscrowRepository } from "@/lib/repositories/escrow.repository";
 import { publishDomainEvent } from "@/lib/events/publisher";
 import { createNotification } from "@/lib/services/notification";
 import { writeAuditRecord } from "@/lib/services/audit";
+import { encryptSecret } from "@/lib/services/kms";
 
 export class FundingService {
   static async createEscrowAccount(
@@ -16,7 +17,7 @@ export class FundingService {
     const publicKey = keypair.publicKey();
     const secretKey = keypair.secret();
 
-    const encryptedSecret = Buffer.from(secretKey).toString("base64");
+    const encryptedSecret = await encryptSecret(secretKey);
 
     const supabase = createServiceClient();
     const { error } = await supabase.from("escrow_accounts").insert({
@@ -74,7 +75,13 @@ export class FundingService {
 
     const balance = await stellar.getBalance(escrow.stellar_public_key);
 
-    const result = await EscrowRepository.fundEscrow(eventId, txHash, actorId, fundingWallet, balance);
+    const result = await EscrowRepository.fundEscrow(
+      eventId,
+      txHash,
+      actorId,
+      fundingWallet,
+      balance,
+    );
 
     await publishDomainEvent({
       type: "FundingCompleted",

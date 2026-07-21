@@ -39,9 +39,7 @@ const SOROBAN_RPC_URL = process.env.SOROBAN_RPC_URL ?? "https://soroban-testnet.
 const ESCROW_CONTRACT_ID = process.env.ESCROW_CONTRACT_ID ?? "";
 const STELLAR_NETWORK = process.env.STELLAR_NETWORK ?? "testnet";
 
-const NETWORK_PASSPHRASE = STELLAR_NETWORK === "mainnet"
-  ? Networks.PUBLIC
-  : Networks.TESTNET;
+const NETWORK_PASSPHRASE = STELLAR_NETWORK === "mainnet" ? Networks.PUBLIC : Networks.TESTNET;
 
 /**
  * Get the Soroban RPC server instance.
@@ -112,7 +110,9 @@ export async function initializeEscrow(params: {
     const result = await server.sendTransaction(assembled);
 
     if (result.status === "ERROR") {
-      throw new Error(`Transaction submission failed: ${result.errorResult?.toXDR("base64") ?? "unknown"}`);
+      throw new Error(
+        `Transaction submission failed: ${result.errorResult?.toXDR("base64") ?? "unknown"}`,
+      );
     }
 
     // Poll for completion
@@ -248,12 +248,7 @@ export async function executeSorobanRefund(params: {
       fee: "1000000",
       networkPassphrase: NETWORK_PASSPHRASE,
     })
-      .addOperation(
-        contract.call(
-          "refund",
-          new Address(params.organizerPublicKey).toScVal(),
-        ),
-      )
+      .addOperation(contract.call("refund", new Address(params.organizerPublicKey).toScVal()))
       .setTimeout(300)
       .build();
 
@@ -289,11 +284,15 @@ export async function queryEscrowState(contractId?: string): Promise<{
   try {
     const server = getRpcServer();
     const contract = getEscrowContract(contractId);
-    const keypair = Keypair.random(); // Temporary keypair for simulation-only query
-    const sourceAccount = await server.getAccount(keypair.publicKey()).catch(() => null);
+    const { scValToNative } = await import("@stellar/stellar-sdk");
 
-    if (!sourceAccount) {
-      // Use a simulated read call instead
+    // Use a well-funded testnet account for simulation, or fall back to a fresh keypair
+    const keypair = Keypair.random();
+    let sourceAccount: Awaited<ReturnType<typeof server.getAccount>>;
+    try {
+      sourceAccount = await server.getAccount(keypair.publicKey());
+    } catch {
+      // Account not funded — cannot simulate
       return null;
     }
 
@@ -321,15 +320,31 @@ export async function queryEscrowState(contractId?: string): Promise<{
     const stateSim = await server.simulateTransaction(stateTx);
     if (SorobanRpc.Api.isSimulationError(stateSim)) return null;
 
-    // Parse results from simulation
+    // Query isLocked
+    const lockTx = new TransactionBuilder(sourceAccount, {
+      fee: "100",
+      networkPassphrase: NETWORK_PASSPHRASE,
+    })
+      .addOperation(contract.call("is_locked"))
+      .setTimeout(30)
+      .build();
+
+    const lockSim = await server.simulateTransaction(lockTx);
+
+    // Parse ScVal results via scValToNative (Task 3.4 fix)
     const balanceResult = (balanceSim as SorobanRpc.Api.SimulateTransactionSuccessResponse).result;
     const stateResult = (stateSim as SorobanRpc.Api.SimulateTransactionSuccessResponse).result;
+    const lockResult = !SorobanRpc.Api.isSimulationError(lockSim)
+      ? (lockSim as SorobanRpc.Api.SimulateTransactionSuccessResponse).result
+      : undefined;
 
-    return {
-      balance: balanceResult?.retval ? BigInt(0) : BigInt(0), // Parse from ScVal
-      state: stateResult?.retval ? 0 : 0, // Parse from ScVal
-      isLocked: false,
-    };
+    const balance = balanceResult?.retval ? BigInt(scValToNative(balanceResult.retval)) : BigInt(0);
+
+    const state = stateResult?.retval ? Number(scValToNative(stateResult.retval)) : 0;
+
+    const isLocked = lockResult?.retval ? Boolean(scValToNative(lockResult.retval)) : false;
+
+    return { balance, state, isLocked };
   } catch (err) {
     logger.error("Soroban state query failed", { error: String(err) });
     return null;

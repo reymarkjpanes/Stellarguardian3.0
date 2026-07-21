@@ -5,7 +5,6 @@
  * `import { canTransition, canEscrowTransition, canDisputeTransition } from "@/lib/state-machine"`.
  */
 
-
 export {
   canEscrowTransition,
   validEscrowOutboundStates,
@@ -22,3 +21,12 @@ export {
   DISPUTE_TERMINAL,
   type DisputeTransitionResult,
 } from "./dispute";
+
+export {
+  canEventTransition,
+  validEventOutboundStates,
+  isEventTerminal,
+  EVENT_TERMINAL,
+  type TransitionResult as EventTransitionResult,
+  type EventTransitionContext,
+} from "./event";

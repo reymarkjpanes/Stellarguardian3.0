@@ -1,4 +1,4 @@
-type EventHandler<T = any> = (payload: T) => void | Promise<void>;
+type EventHandler<T = unknown> = (payload: T) => void | Promise<void>;
 
 class DomainEventBus {
   private handlers: Map<string, EventHandler[]> = new Map();
@@ -14,17 +14,19 @@ class DomainEventBus {
     const eventHandlers = this.handlers.get(eventName);
     if (!eventHandlers) return;
 
-    // Fire all handlers asynchronously (non-blocking)
-    // We don't await them sequentially because side-effects shouldn't block the main thread
-    Promise.allSettled(
-      eventHandlers.map(async (handler) => {
-        try {
-          await handler(payload);
-        } catch (error) {
-          console.error(`[DomainEventBus] Error in handler for event ${eventName}:`, error);
-        }
-      })
+    // Await all handlers; log individual failures without blocking the caller
+    const results = await Promise.allSettled(
+      eventHandlers.map(async (handler) => handler(payload)),
     );
+
+    results.forEach((result, i) => {
+      if (result.status === "rejected") {
+        console.error(
+          `[DomainEventBus] Handler ${i} failed for event "${eventName}":`,
+          result.reason,
+        );
+      }
+    });
   }
 }
 

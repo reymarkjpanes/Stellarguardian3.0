@@ -1,66 +1,65 @@
-import { randomUUID } from 'crypto';
+import { randomUUID } from "crypto";
 
-export type EvaluationLifecycleState =
-  | 'Assigned'
-  | 'Draft'
-  | 'Submitted'
-  | 'Flagged'
-  | 'Finalized';
+export type EvaluationLifecycleState = "Assigned" | "Draft" | "Submitted" | "Flagged" | "Finalized";
 
 export type EvaluationEvent =
-  | { type: 'EVALUATION_ASSIGNED' }
-  | { type: 'EVALUATION_DRAFT_SAVED' }
-  | { type: 'EVALUATION_SUBMITTED' }
-  | { type: 'CONFLICT_DECLARED' }
-  | { type: 'EVALUATION_FLAGGED' }
-  | { type: 'EVALUATION_FINALIZED' };
+  | { type: "EVALUATION_ASSIGNED" }
+  | { type: "EVALUATION_DRAFT_SAVED" }
+  | { type: "EVALUATION_SUBMITTED" }
+  | { type: "CONFLICT_DECLARED" }
+  | { type: "EVALUATION_FLAGGED" }
+  | { type: "EVALUATION_FINALIZED" };
 
 export class EvaluationStateMachine {
-  constructor(public currentState: EvaluationLifecycleState = 'Assigned') {}
+  constructor(public currentState: EvaluationLifecycleState = "Assigned") {}
 
   transition(event: EvaluationEvent): EvaluationLifecycleState {
     let nextState = this.currentState;
-    
+
     switch (this.currentState) {
-      case 'Assigned':
-        if (event.type === 'EVALUATION_DRAFT_SAVED') nextState = 'Draft';
-        if (event.type === 'CONFLICT_DECLARED') nextState = 'Flagged';
+      case "Assigned":
+        if (event.type === "EVALUATION_DRAFT_SAVED") nextState = "Draft";
+        if (event.type === "CONFLICT_DECLARED") nextState = "Flagged";
         break;
 
-      case 'Draft':
-        if (event.type === 'EVALUATION_DRAFT_SAVED') nextState = 'Draft';
-        if (event.type === 'EVALUATION_SUBMITTED') nextState = 'Submitted';
-        if (event.type === 'CONFLICT_DECLARED') nextState = 'Flagged';
+      case "Draft":
+        if (event.type === "EVALUATION_DRAFT_SAVED") nextState = "Draft";
+        if (event.type === "EVALUATION_SUBMITTED") nextState = "Submitted";
+        if (event.type === "CONFLICT_DECLARED") nextState = "Flagged";
         break;
 
-      case 'Submitted':
-        if (event.type === 'EVALUATION_DRAFT_SAVED') nextState = 'Submitted'; // Editing after submission (if allowed)
-        if (event.type === 'EVALUATION_SUBMITTED') nextState = 'Submitted';
-        if (event.type === 'EVALUATION_FLAGGED') nextState = 'Flagged';
-        if (event.type === 'EVALUATION_FINALIZED') nextState = 'Finalized';
+      case "Submitted":
+        if (event.type === "EVALUATION_DRAFT_SAVED") nextState = "Submitted"; // Editing after submission (if allowed)
+        if (event.type === "EVALUATION_SUBMITTED") nextState = "Submitted";
+        if (event.type === "EVALUATION_FLAGGED") nextState = "Flagged";
+        if (event.type === "EVALUATION_FINALIZED") nextState = "Finalized";
         break;
 
-      case 'Flagged':
+      case "Flagged":
         // Once flagged for conflict/review, usually organizers must resolve it.
         // It could go back to Assigned or Finalized depending on Organizer action,
         // but for Judges, it is effectively locked.
-        if (event.type === 'EVALUATION_FINALIZED') nextState = 'Finalized';
+        if (event.type === "EVALUATION_FINALIZED") nextState = "Finalized";
         break;
 
-      case 'Finalized':
-        // Terminal state
-        break;
+      case "Finalized":
+        // Terminal state — no transitions allowed ever
+        throw new Error(
+          `Invalid transition from ${this.currentState} using event ${event.type}: Finalized is a terminal state`,
+        );
     }
 
     if (nextState !== this.currentState) {
       this.currentState = nextState;
       return nextState;
-    } else if (event.type === 'EVALUATION_DRAFT_SAVED' || event.type === 'EVALUATION_SUBMITTED') {
-       return nextState; // allow self-transitions explicitly defined
+    } else if (
+      (event.type === "EVALUATION_DRAFT_SAVED" && this.currentState === "Draft") ||
+      (event.type === "EVALUATION_SUBMITTED" && this.currentState === "Submitted")
+    ) {
+      // Allow explicit self-transitions on defined states only
+      return nextState;
     }
 
-    throw new Error(
-      `Invalid transition from ${this.currentState} using event ${event.type}`
-    );
+    throw new Error(`Invalid transition from ${this.currentState} using event ${event.type}`);
   }
 }

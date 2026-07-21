@@ -3,6 +3,14 @@
     {
       "path": "/api/cron",
       "schedule": "*/15 * * * *"
+    },
+    {
+      "path": "/api/cron/reconcile",
+      "schedule": "*/15 * * * *"
+    },
+    {
+      "path": "/api/cron/cleanup-idempotency",
+      "schedule": "0 * * * *"
     }
   ]
 }

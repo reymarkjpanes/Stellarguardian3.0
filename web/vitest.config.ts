@@ -18,6 +18,10 @@ export default defineConfig({
     globals: true,
     include: ["**/*.{test,spec}.{ts,tsx}"],
     exclude: ["node_modules", ".next", "supabase/migrations", "tests/e2e/**", "e2e/**"],
+    // Each test file runs in its own context — prevents vi.mock() leaking between files.
+    pool: "forks",
+    // Increase timeout: some escrow/Stellar tests are slow due to module loading overhead.
+    testTimeout: 15000,
     coverage: {
       provider: "v8",
       reporter: ["text", "html"],

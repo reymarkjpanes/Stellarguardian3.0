@@ -19,6 +19,7 @@ export type AuditAction =
   | "escrow.disburse"
   | "escrow.refund"
   | "escrow.reconciliation"
+  | "escrow.settle"
   | "wallet.challenge_issued"
   | "wallet.verified"
   | "wallet.verification_failed"
@@ -172,9 +173,7 @@ export async function exportAuditRecords(
   if (format === "csv") {
     if (records.length === 0) return "";
     const headers = Object.keys(records[0]);
-    const rows = records.map((r) =>
-      headers.map((h) => JSON.stringify(r[h] ?? "")).join(","),
-    );
+    const rows = records.map((r) => headers.map((h) => JSON.stringify(r[h] ?? "")).join(","));
     return [headers.join(","), ...rows].join("\n");
   }
 

@@ -23,7 +23,7 @@
         "--caps",
         "vision,pdf"
       ],
-      "disabled": false,
+      "disabled": true,
       "autoApprove": [
         "browser_navigate",
         "browser_snapshot",
@@ -89,7 +89,7 @@
         "c:/Users/Reymark/Documents/Antigravity-Project/stellar-guardian-3.0/docs",
         "c:/Users/Reymark/Documents/Antigravity-Project/stellar-guardian-3.0/web"
       ],
-      "disabled": false,
+      "disabled": true,
       "autoApprove": [
         "read_file",
         "write_file",
@@ -98,7 +98,8 @@
         "move_file",
         "search_files",
         "get_file_info",
-        "list_allowed_directories"
+        "list_allowed_directories",
+        "edit_file"
       ]
     }
   }

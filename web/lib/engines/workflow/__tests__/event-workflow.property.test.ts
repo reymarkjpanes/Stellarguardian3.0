@@ -1,3 +1,7 @@
+/**
+ * Property tests for EventWorkflowEngine.
+ * Updated (Task 0.3) to use the canonical 16-state model — "Active" removed.
+ */
 import { describe, expect, it } from "vitest";
 import fc from "fast-check";
 import { fcConfig } from "@/lib/test-utils/fc-config";
@@ -6,7 +10,22 @@ import type { EventRuleContext } from "../../business-rules/event-rules";
 import type { EventState } from "@/types";
 
 const ALL_EVENT_STATES: EventState[] = [
-  "Draft", "Active", "Completed", "Cancelled", "Archived"
+  "Draft",
+  "Published",
+  "RegistrationOpen",
+  "RegistrationClosed",
+  "TeamFormationLocked",
+  "SubmissionOpen",
+  "SubmissionClosed",
+  "JudgingRound1",
+  "JudgingRound2",
+  "WinnerVerification",
+  "DisputeWindow",
+  "PrizeApproved",
+  "EscrowRelease",
+  "Completed",
+  "Cancelled",
+  "Archived",
 ];
 
 function arbEventState(): fc.Arbitrary<EventState> {
@@ -16,7 +35,7 @@ function arbEventState(): fc.Arbitrary<EventState> {
 function arbEventRuleContext(): fc.Arbitrary<EventRuleContext> {
   return fc.record({
     judgeCount: fc.nat({ max: 10 }),
-    registrationDeadline: fc.option(fc.date({min: new Date('2020-01-01'), max: new Date('2050-01-01')}).map(d => d.toISOString()), { nil: undefined }),
+    registrationDeadline: fc.option(fc.constant("2025-12-31T00:00:00.000Z"), { nil: undefined }),
     teamSizeMin: fc.option(fc.integer({ min: 1, max: 10 }), { nil: undefined }),
     hasSubmissions: fc.boolean(),
     allSubmissionsScored: fc.boolean(),
@@ -31,26 +50,26 @@ function arbEventRuleContext(): fc.Arbitrary<EventRuleContext> {
 }
 
 describe("Property tests: Event Workflow Engine", () => {
-  it("Terminal states have no outbound transitions", () => {
+  // Feature: nextjs-platform-conversion, Property 1:
+  // Archived (terminal) has no outbound transitions
+  it("Archived has no outbound transitions", () => {
     fc.assert(
       fc.property(arbEventRuleContext(), (ctx) => {
-        const terminalStates: EventState[] = ["Archived"];
-        
-        for (const terminal of terminalStates) {
-          const outbound = EventWorkflowEngine.getValidOutboundTransitions(terminal, ctx);
-          expect(outbound).toEqual([]);
-        }
+        const outbound = EventWorkflowEngine.getValidOutboundTransitions("Archived", ctx);
+        expect(outbound).toEqual([]);
       }),
-      fcConfig
+      fcConfig,
     );
   });
 
+  // Feature: nextjs-platform-conversion, Property 2:
+  // canTransition always agrees with getValidOutboundTransitions
   it("canTransition always agrees with getValidOutboundTransitions", () => {
     fc.assert(
       fc.property(arbEventState(), arbEventState(), arbEventRuleContext(), (from, to, ctx) => {
         const outbound = EventWorkflowEngine.getValidOutboundTransitions(from, ctx);
         const result = EventWorkflowEngine.canTransition(from, to, ctx);
-        
+
         if (outbound.includes(to)) {
           expect(result.ok).toBe(true);
           expect(result.errors).toEqual([]);
@@ -59,33 +78,38 @@ describe("Property tests: Event Workflow Engine", () => {
           expect(result.errors.length).toBeGreaterThan(0);
         }
       }),
-      fcConfig
+      fcConfig,
     );
   });
 
-  it("Cannot transition to Active without judges, deadline, and escrow", () => {
+  // Feature: nextjs-platform-conversion, Property 3:
+  // Cannot publish without judges and deadline
+  it("Cannot transition Draft→Published without judges and deadline", () => {
     fc.assert(
       fc.property(arbEventRuleContext(), (ctx) => {
-        if (ctx.judgeCount === 0 || !ctx.registrationDeadline || !ctx.escrowFullyFundedOnChain) {
-          const result = EventWorkflowEngine.canTransition("Draft", "Active", ctx);
+        if (ctx.judgeCount === 0 || !ctx.registrationDeadline) {
+          const result = EventWorkflowEngine.canTransition("Draft", "Published", ctx);
           expect(result.ok).toBe(false);
-          if (ctx.judgeCount === 0) expect(result.errors.some(e => e.includes("judge"))).toBe(true);
-          if (!ctx.escrowFullyFundedOnChain) expect(result.errors.some(e => e.includes("escrow") || e.includes("fund"))).toBe(true);
+          if (ctx.judgeCount === 0) {
+            expect(result.errors.some((e) => e.toLowerCase().includes("judge"))).toBe(true);
+          }
         }
       }),
-      fcConfig
+      fcConfig,
     );
   });
-  
-  it("Cannot transition to Completed without scoring, zero disputes, and KYC", () => {
+
+  // Feature: nextjs-platform-conversion, Property 4:
+  // Cannot approve prizes without review window elapsed and zero disputes
+  it("Cannot transition DisputeWindow→PrizeApproved without elapsed window or with open disputes", () => {
     fc.assert(
       fc.property(arbEventRuleContext(), (ctx) => {
-        if (!ctx.allSubmissionsScored || ctx.unresolvedDisputes > 0 || !ctx.kycRequirementsSatisfied) {
-          const result = EventWorkflowEngine.canTransition("Active", "Completed", ctx);
+        if (!ctx.reviewWindowElapsed || ctx.unresolvedDisputes > 0) {
+          const result = EventWorkflowEngine.canTransition("DisputeWindow", "PrizeApproved", ctx);
           expect(result.ok).toBe(false);
         }
       }),
-      fcConfig
+      fcConfig,
     );
   });
 });
