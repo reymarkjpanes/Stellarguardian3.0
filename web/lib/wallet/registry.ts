@@ -6,15 +6,17 @@
  * `getAvailableAdapters()` rather than directly importing specific adapters.
  */
 import { FreighterAdapter } from "./freighter";
+import { XBullAdapter } from "./xbull";
 import type { WalletAdapter, WalletProvider } from "./types";
 
-const adapters: Map<WalletProvider, WalletAdapter> = new Map([
+const adapters: Map<WalletProvider, WalletAdapter> = new Map<WalletProvider, WalletAdapter>([
   ["Freighter", new FreighterAdapter()],
+  ["xBull", new XBullAdapter()],
 ]);
 
 /**
  * Register an additional wallet adapter. Used by future adapter
- * implementations (Albedo, xBull, Rabet) to plug into the system.
+ * implementations (Albedo, Rabet) to plug into the system.
  */
 export function registerAdapter(adapter: WalletAdapter): void {
   adapters.set(adapter.provider, adapter);

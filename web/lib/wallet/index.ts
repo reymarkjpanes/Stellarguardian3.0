@@ -3,4 +3,5 @@
  */
 export * from "./types";
 export * from "./freighter";
+export * from "./xbull";
 export * from "./registry";

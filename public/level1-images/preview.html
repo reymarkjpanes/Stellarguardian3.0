@@ -1,0 +1,15 @@
+<!DOCTYPE html>
+<html>
+<body style="background:#111;color:#fff;font-family:sans-serif;padding:20px">
+<h2>Screenshot Preview</h2>
+<div id="imgs"></div>
+<script>
+for(let i=1;i<=12;i++){
+  const d=document.createElement('div');
+  d.style.marginBottom='20px';
+  d.innerHTML=`<p style="margin:4px 0;font-weight:bold;font-size:14px">📸 ${i}.png</p><img src="${i}.png" style="max-width:100%;border:1px solid #444">`;
+  document.getElementById('imgs').appendChild(d);
+}
+</script>
+</body>
+</html>

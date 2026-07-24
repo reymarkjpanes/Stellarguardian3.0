@@ -23,7 +23,7 @@
         "--caps",
         "vision,pdf"
       ],
-      "disabled": true,
+      "disabled": false,
       "autoApprove": [
         "browser_navigate",
         "browser_snapshot",
@@ -32,7 +32,9 @@
         "browser_type",
         "browser_tab_list",
         "browser_tab_new",
-        "browser_tab_close"
+        "browser_tab_close",
+        "browser_tabs",
+        "browser_find"
       ]
     },
     "browser-tools": {
