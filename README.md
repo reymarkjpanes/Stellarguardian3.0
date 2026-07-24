@@ -556,7 +556,7 @@ The following steps walk through the full end-to-end flow you can reproduce loca
 
 ---
 
-## Screenshots
+## Screenshots Level 1
 
 ![Screenshot](public/level1-images/1.png)
 
