@@ -32,6 +32,7 @@ Stellar Guardian 3.0 is a full-stack platform for running hackathons, competitiv
 - [Running the App](#running-the-app)
 - [Scripts Reference](#scripts-reference)
 - [Project Structure](#project-structure)
+- [Screenshots](#screenshots)
 - [Stellar Builder Challenge](#stellar-builder-challenge)
 - [Security](#security)
 - [License](#license)
@@ -330,6 +331,27 @@ stellar-guardian-3.0/
 ├── .kiro/                            # Kiro specs and steering rules
 └── package.json                      # Root script proxy
 ```
+
+---
+
+## Screenshots
+
+A walkthrough of the platform from authentication to on-chain prize disbursement.
+
+| # | Screen |
+|---|--------|
+| 1 | ![Screenshot 1](public/level1-images/1.png) |
+| 2 | ![Screenshot 2](public/level1-images/2.png) |
+| 3 | ![Screenshot 3](public/level1-images/3.png) |
+| 4 | ![Screenshot 4](public/level1-images/4.png) |
+| 5 | ![Screenshot 5](public/level1-images/5.png) |
+| 6 | ![Screenshot 6](public/level1-images/6.png) |
+| 7 | ![Screenshot 7](public/level1-images/7.png) |
+| 8 | ![Screenshot 8](public/level1-images/8.png) |
+| 9 | ![Screenshot 9](public/level1-images/9.png) |
+| 10 | ![Screenshot 10](public/level1-images/10.png) |
+| 11 | ![Screenshot 11](public/level1-images/11.png) |
+| 12 | ![Screenshot 12](public/level1-images/12.png) |
 
 ---
 

@@ -27,7 +27,9 @@ export default function SettingsPage() {
 
   async function loadData() {
     const supabase = createBrowserClient();
-    const { data: { user: authUser } } = await supabase.auth.getUser();
+    const {
+      data: { user: authUser },
+    } = await supabase.auth.getUser();
     if (!authUser) return;
 
     setUser({
@@ -86,7 +88,12 @@ export default function SettingsPage() {
       {/* Profile */}
       <section className="card p-5 space-y-4">
         <h2 className="font-medium text-[var(--text)]">Profile</h2>
-        <ProfileEditForm userId={user.id} initialName={user.name} email={user.email} onUpdate={(name) => setUser({ ...user, name })} />
+        <ProfileEditForm
+          userId={user.id}
+          initialName={user.name}
+          email={user.email}
+          onUpdate={(name) => setUser({ ...user, name })}
+        />
       </section>
 
       {/* Connected Wallets */}
@@ -129,10 +136,7 @@ export default function SettingsPage() {
 
         {/* Connect new wallet — only show if no wallet connected, or user explicitly wants another */}
         {wallets.length === 0 && (
-          <WalletConnect
-            expectedNetwork="testnet"
-            onVerified={() => loadData()}
-          />
+          <WalletConnect expectedNetwork="testnet" onVerified={() => loadData()} />
         )}
 
         {wallets.length > 0 && !showAddWallet && (
@@ -159,7 +163,10 @@ export default function SettingsPage() {
             </div>
             <WalletConnect
               expectedNetwork="testnet"
-              onVerified={() => { loadData(); setShowAddWallet(false); }}
+              onVerified={() => {
+                loadData();
+                setShowAddWallet(false);
+              }}
             />
           </div>
         )}
@@ -279,8 +286,8 @@ function WalletItem({
       {confirmRemoveId === w.id && (
         <div className="mt-3 rounded-md bg-[var(--warning-bg)] border border-[color-mix(in_srgb,var(--warning)_30%,transparent)] px-3 py-2">
           <p className="text-xs text-[var(--warning)]">
-            Are you sure? Removing this wallet will disconnect it from your account. You won't be
-            able to receive prizes at this address until you reconnect.
+            Are you sure? Removing this wallet will disconnect it from your account. You won&apos;t
+            be able to receive prizes at this address until you reconnect.
           </p>
         </div>
       )}
@@ -313,18 +320,14 @@ function SendXlmForm({ senderPublicKey }: { senderPublicKey: string }) {
       const adapter = new FreighterAdapter();
       const available = await adapter.isAvailable();
       if (!available) {
-        throw new Error("Freighter extension is not installed or locked. Please unlock it and try again.");
+        throw new Error(
+          "Freighter extension is not installed or locked. Please unlock it and try again.",
+        );
       }
 
       // 2. Build the transaction client-side using Stellar SDK
-      const {
-        Horizon,
-        TransactionBuilder,
-        Operation,
-        Asset,
-        Networks,
-        BASE_FEE,
-      } = await import("@stellar/stellar-sdk");
+      const { Horizon, TransactionBuilder, Operation, Asset, Networks, BASE_FEE } =
+        await import("@stellar/stellar-sdk");
 
       const server = new Horizon.Server("https://horizon-testnet.stellar.org");
       const sourceAccount = await server.loadAccount(senderPublicKey);
@@ -340,7 +343,10 @@ function SendXlmForm({ senderPublicKey }: { senderPublicKey: string }) {
             amount,
           }),
         )
-        .setTimeout(30)
+        // 180s gives the user enough time to review and approve in Freighter
+        // without the transaction expiring before it reaches Horizon.
+        // (30s was too short — caused tx_too_late on sign + submit round-trip)
+        .setTimeout(180)
         .build();
 
       // 3. Sign with Freighter
@@ -381,7 +387,10 @@ function SendXlmForm({ senderPublicKey }: { senderPublicKey: string }) {
       {step === "idle" || step === "error" ? (
         <form onSubmit={handleSend} className="space-y-3">
           <div>
-            <label htmlFor="send-destination" className="block text-xs font-medium text-[var(--text-secondary)] mb-1">
+            <label
+              htmlFor="send-destination"
+              className="block text-xs font-medium text-[var(--text-secondary)] mb-1"
+            >
               Destination address
             </label>
             <input
@@ -397,7 +406,10 @@ function SendXlmForm({ senderPublicKey }: { senderPublicKey: string }) {
             />
           </div>
           <div>
-            <label htmlFor="send-amount" className="block text-xs font-medium text-[var(--text-secondary)] mb-1">
+            <label
+              htmlFor="send-amount"
+              className="block text-xs font-medium text-[var(--text-secondary)] mb-1"
+            >
               Amount (XLM)
             </label>
             <input
@@ -535,7 +547,10 @@ function ProfileEditForm({
   return (
     <form onSubmit={handleSave} className="space-y-4">
       <div>
-        <label htmlFor="display-name" className="block text-sm font-medium text-[var(--text-secondary)] mb-1">
+        <label
+          htmlFor="display-name"
+          className="block text-sm font-medium text-[var(--text-secondary)] mb-1"
+        >
           Display name
         </label>
         <input
@@ -565,7 +580,10 @@ function ProfileEditForm({
         </button>
         <button
           type="button"
-          onClick={() => { setEditing(false); setName(initialName); }}
+          onClick={() => {
+            setEditing(false);
+            setName(initialName);
+          }}
           className="text-sm text-[var(--text-muted)] hover:text-[var(--text)]"
         >
           Cancel
@@ -580,29 +598,30 @@ function ProfileEditForm({
  * Uses Supabase Auth MFA APIs to list factors, enroll TOTP, and verify.
  */
 function MfaSection() {
-  const [status, setStatus] = useState<"loading" | "none" | "enrolled" | "enrolling" | "verifying">("loading");
+  const [status, setStatus] = useState<"loading" | "none" | "enrolled" | "enrolling" | "verifying">(
+    "loading",
+  );
   const [qrUri, setQrUri] = useState<string | null>(null);
   const [factorId, setFactorId] = useState<string | null>(null);
   const [verifyCode, setVerifyCode] = useState("");
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
+    async function checkMfaStatus() {
+      const supabase = createBrowserClient();
+      const { data, error: mfaError } = await supabase.auth.mfa.listFactors();
+      if (mfaError || !data) {
+        setStatus("none");
+        return;
+      }
+      if (data.totp.length > 0 && data.totp.some((f) => f.status === "verified")) {
+        setStatus("enrolled");
+      } else {
+        setStatus("none");
+      }
+    }
     checkMfaStatus();
   }, []);
-
-  async function checkMfaStatus() {
-    const supabase = createBrowserClient();
-    const { data, error: mfaError } = await supabase.auth.mfa.listFactors();
-    if (mfaError || !data) {
-      setStatus("none");
-      return;
-    }
-    if (data.totp.length > 0 && data.totp.some((f) => f.status === "verified")) {
-      setStatus("enrolled");
-    } else {
-      setStatus("none");
-    }
-  }
 
   async function startEnrollment() {
     setError(null);
@@ -680,10 +699,7 @@ function MfaSection() {
         <p className="text-xs text-[var(--text-muted)]">
           Your account is protected with TOTP two-factor authentication.
         </p>
-        <button
-          onClick={unenroll}
-          className="text-xs text-[var(--error)] hover:underline"
-        >
+        <button onClick={unenroll} className="text-xs text-[var(--error)] hover:underline">
           Disable MFA
         </button>
       </div>
@@ -714,7 +730,10 @@ function MfaSection() {
           </div>
         </div>
         <div>
-          <label htmlFor="totp-code" className="block text-sm font-medium text-[var(--text-secondary)] mb-1">
+          <label
+            htmlFor="totp-code"
+            className="block text-sm font-medium text-[var(--text-secondary)] mb-1"
+          >
             Enter the 6-digit code from your app
           </label>
           <input
@@ -729,9 +748,7 @@ function MfaSection() {
             placeholder="000000"
           />
         </div>
-        {error && (
-          <p className="text-sm text-[var(--error)]">{error}</p>
-        )}
+        {error && <p className="text-sm text-[var(--error)]">{error}</p>}
         <div className="flex gap-3">
           <button
             onClick={verifyEnrollment}
@@ -741,7 +758,11 @@ function MfaSection() {
             Verify & Enable
           </button>
           <button
-            onClick={() => { setStatus("none"); setQrUri(null); setError(null); }}
+            onClick={() => {
+              setStatus("none");
+              setQrUri(null);
+              setError(null);
+            }}
             className="text-sm text-[var(--text-muted)] hover:text-[var(--text)]"
           >
             Cancel
