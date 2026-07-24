@@ -347,3 +347,360 @@ impl EscrowContract {
         env.storage().instance().get(&DataKey::EventId).unwrap()
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use soroban_sdk::{
+        testutils::Address as _,
+        token, vec, Bytes, Env,
+    };
+
+    // ── helpers ──────────────────────────────────────────────────────────────
+
+    /// Deploy a mock SEP-41 token and return its contract address.
+    fn create_token(env: &Env, admin: &Address) -> Address {
+        let token_id = env.register_stellar_asset_contract_v2(admin.clone());
+        token_id.address()
+    }
+
+    /// Mint `amount` stroops of the token to `recipient`.
+    fn mint_token(env: &Env, token_addr: &Address, admin: &Address, recipient: &Address, amount: i128) {
+        let token_admin = token::StellarAssetClient::new(env, token_addr);
+        token_admin.mint(recipient, &amount);
+        // Clear the auth so subsequent require_auth checks start clean.
+        let _ = env.auths();
+    }
+
+    struct TestSetup {
+        env: Env,
+        contract_id: Address,
+        admin: Address,
+        organizer: Address,
+        token_addr: Address,
+    }
+
+    fn setup() -> TestSetup {
+        let env = Env::default();
+        env.mock_all_auths();
+
+        let admin = Address::generate(&env);
+        let organizer = Address::generate(&env);
+
+        let token_addr = create_token(&env, &admin);
+        // Give organizer 1_000_000_000 stroops (100 XLM)
+        mint_token(&env, &token_addr, &admin, &organizer, 1_000_000_000);
+
+        let contract_id = env.register_contract(None, EscrowContract);
+
+        TestSetup { env, contract_id, admin, organizer, token_addr }
+    }
+
+    fn default_event_id(env: &Env) -> Bytes {
+        Bytes::from_slice(env, b"test-event-uuid-001")
+    }
+
+    // ── initialize ───────────────────────────────────────────────────────────
+
+    #[test]
+    fn test_initialize_stores_all_fields() {
+        let TestSetup { env, contract_id, admin, organizer, token_addr } = setup();
+        let client = EscrowContractClient::new(&env, &contract_id);
+
+        let target: i128 = 500_000_000; // 50 XLM
+        client.initialize(&admin, &organizer, &default_event_id(&env), &target, &token_addr);
+
+        assert_eq!(client.get_target(), target);
+        assert_eq!(client.get_balance(), 0);
+        assert_eq!(client.get_state(), EscrowState::PendingFunding as u32);
+        assert!(!client.is_locked());
+        assert_eq!(client.get_organizer(), organizer);
+    }
+
+    #[test]
+    #[should_panic(expected = "Already initialized")]
+    fn test_initialize_panics_if_called_twice() {
+        let TestSetup { env, contract_id, admin, organizer, token_addr } = setup();
+        let client = EscrowContractClient::new(&env, &contract_id);
+
+        let event_id = default_event_id(&env);
+        client.initialize(&admin, &organizer, &event_id, &500_000_000, &token_addr);
+        // Second call must panic
+        client.initialize(&admin, &organizer, &event_id, &500_000_000, &token_addr);
+    }
+
+    // ── deposit ──────────────────────────────────────────────────────────────
+
+    #[test]
+    fn test_deposit_partial_sets_partially_funded() {
+        let TestSetup { env, contract_id, admin, organizer, token_addr } = setup();
+        let client = EscrowContractClient::new(&env, &contract_id);
+
+        let target: i128 = 500_000_000;
+        client.initialize(&admin, &organizer, &default_event_id(&env), &target, &token_addr);
+
+        let deposit_amount: i128 = 200_000_000; // below target
+        client.deposit(&organizer, &deposit_amount);
+
+        assert_eq!(client.get_balance(), deposit_amount);
+        assert_eq!(client.get_state(), EscrowState::PartiallyFunded as u32);
+    }
+
+    #[test]
+    fn test_deposit_full_sets_fully_funded() {
+        let TestSetup { env, contract_id, admin, organizer, token_addr } = setup();
+        let client = EscrowContractClient::new(&env, &contract_id);
+
+        let target: i128 = 500_000_000;
+        client.initialize(&admin, &organizer, &default_event_id(&env), &target, &token_addr);
+
+        client.deposit(&organizer, &target); // exact target
+
+        assert_eq!(client.get_balance(), target);
+        assert_eq!(client.get_state(), EscrowState::FullyFunded as u32);
+    }
+
+    #[test]
+    fn test_deposit_accumulates_across_multiple_calls() {
+        let TestSetup { env, contract_id, admin, organizer, token_addr } = setup();
+        let client = EscrowContractClient::new(&env, &contract_id);
+
+        let target: i128 = 500_000_000;
+        client.initialize(&admin, &organizer, &default_event_id(&env), &target, &token_addr);
+
+        client.deposit(&organizer, &200_000_000);
+        client.deposit(&organizer, &300_000_000); // now at target
+
+        assert_eq!(client.get_balance(), 500_000_000);
+        assert_eq!(client.get_state(), EscrowState::FullyFunded as u32);
+    }
+
+    #[test]
+    #[should_panic(expected = "Only organizer can deposit")]
+    fn test_deposit_rejects_non_organizer() {
+        let TestSetup { env, contract_id, admin, organizer, token_addr } = setup();
+        let client = EscrowContractClient::new(&env, &contract_id);
+
+        client.initialize(&admin, &organizer, &default_event_id(&env), &500_000_000, &token_addr);
+
+        let stranger = Address::generate(&env);
+        mint_token(&env, &token_addr, &admin, &stranger, 100_000_000);
+        client.deposit(&stranger, &100_000_000);
+    }
+
+    // ── admin_deposit (sponsor flow) ─────────────────────────────────────────
+
+    #[test]
+    fn test_admin_deposit_from_sponsor() {
+        let TestSetup { env, contract_id, admin, organizer, token_addr } = setup();
+        let client = EscrowContractClient::new(&env, &contract_id);
+
+        client.initialize(&admin, &organizer, &default_event_id(&env), &500_000_000, &token_addr);
+
+        let sponsor = Address::generate(&env);
+        mint_token(&env, &token_addr, &admin, &sponsor, 300_000_000);
+
+        client.admin_deposit(&sponsor, &300_000_000);
+
+        assert_eq!(client.get_balance(), 300_000_000);
+        assert_eq!(client.get_state(), EscrowState::PartiallyFunded as u32);
+    }
+
+    // ── lock ─────────────────────────────────────────────────────────────────
+
+    #[test]
+    fn test_lock_transitions_to_locked() {
+        let TestSetup { env, contract_id, admin, organizer, token_addr } = setup();
+        let client = EscrowContractClient::new(&env, &contract_id);
+
+        let target: i128 = 500_000_000;
+        client.initialize(&admin, &organizer, &default_event_id(&env), &target, &token_addr);
+        client.deposit(&organizer, &target);
+        client.lock();
+
+        assert_eq!(client.get_state(), EscrowState::Locked as u32);
+        assert!(client.is_locked());
+    }
+
+    #[test]
+    #[should_panic(expected = "Must be fully funded to lock")]
+    fn test_lock_panics_if_not_fully_funded() {
+        let TestSetup { env, contract_id, admin, organizer, token_addr } = setup();
+        let client = EscrowContractClient::new(&env, &contract_id);
+
+        client.initialize(&admin, &organizer, &default_event_id(&env), &500_000_000, &token_addr);
+        client.deposit(&organizer, &100_000_000); // only partial
+        client.lock(); // must panic
+    }
+
+    // ── disburse (single-batch, transitions to Released) ─────────────────────
+
+    #[test]
+    fn test_disburse_pays_winners_and_releases() {
+        let TestSetup { env, contract_id, admin, organizer, token_addr } = setup();
+        let client = EscrowContractClient::new(&env, &contract_id);
+
+        let target: i128 = 500_000_000;
+        client.initialize(&admin, &organizer, &default_event_id(&env), &target, &token_addr);
+        client.deposit(&organizer, &target);
+        client.lock();
+
+        let winner1 = Address::generate(&env);
+        let winner2 = Address::generate(&env);
+        let recipients = vec![&env, winner1.clone(), winner2.clone()];
+        let amounts = vec![&env, 300_000_000i128, 200_000_000i128];
+
+        client.disburse(&recipients, &amounts);
+
+        assert_eq!(client.get_state(), EscrowState::Released as u32);
+        assert_eq!(client.get_balance(), 0);
+        assert_eq!(client.get_disbursed_total(), 500_000_000);
+
+        // Verify token balances
+        let token_client = token::Client::new(&env, &token_addr);
+        assert_eq!(token_client.balance(&winner1), 300_000_000);
+        assert_eq!(token_client.balance(&winner2), 200_000_000);
+    }
+
+    #[test]
+    #[should_panic(expected = "Must be locked to disburse")]
+    fn test_disburse_panics_if_not_locked() {
+        let TestSetup { env, contract_id, admin, organizer, token_addr } = setup();
+        let client = EscrowContractClient::new(&env, &contract_id);
+
+        let target: i128 = 500_000_000;
+        client.initialize(&admin, &organizer, &default_event_id(&env), &target, &token_addr);
+        client.deposit(&organizer, &target);
+        // skip lock()
+        let winner = Address::generate(&env);
+        client.disburse(&vec![&env, winner], &vec![&env, 100_000_000i128]);
+    }
+
+    // ── disburse_batch + finalize (multi-batch flow) ─────────────────────────
+
+    #[test]
+    fn test_disburse_batch_stays_locked_until_finalize() {
+        let TestSetup { env, contract_id, admin, organizer, token_addr } = setup();
+        let client = EscrowContractClient::new(&env, &contract_id);
+
+        let target: i128 = 500_000_000;
+        client.initialize(&admin, &organizer, &default_event_id(&env), &target, &token_addr);
+        client.deposit(&organizer, &target);
+        client.lock();
+
+        let winner1 = Address::generate(&env);
+        let winner2 = Address::generate(&env);
+
+        // First batch
+        client.disburse_batch(
+            &vec![&env, winner1.clone()],
+            &vec![&env, 300_000_000i128],
+        );
+        // State must still be Locked
+        assert_eq!(client.get_state(), EscrowState::Locked as u32);
+        assert_eq!(client.get_balance(), 200_000_000);
+
+        // Second batch
+        client.disburse_batch(
+            &vec![&env, winner2.clone()],
+            &vec![&env, 200_000_000i128],
+        );
+        assert_eq!(client.get_balance(), 0);
+        assert_eq!(client.get_disbursed_total(), 500_000_000);
+
+        // finalize transitions to Released
+        client.finalize();
+        assert_eq!(client.get_state(), EscrowState::Released as u32);
+    }
+
+    // ── refund ───────────────────────────────────────────────────────────────
+
+    #[test]
+    fn test_refund_returns_balance_to_organizer_and_sets_refunded() {
+        let TestSetup { env, contract_id, admin, organizer, token_addr } = setup();
+        let client = EscrowContractClient::new(&env, &contract_id);
+
+        let target: i128 = 500_000_000;
+        client.initialize(&admin, &organizer, &default_event_id(&env), &target, &token_addr);
+
+        let deposit_amount: i128 = 300_000_000;
+        client.deposit(&organizer, &deposit_amount);
+
+        let token_client = token::Client::new(&env, &token_addr);
+        let before_refund = token_client.balance(&organizer);
+
+        client.refund();
+
+        assert_eq!(client.get_state(), EscrowState::Refunded as u32);
+        assert_eq!(client.get_balance(), 0);
+        // Organizer got funds back
+        let after_refund = token_client.balance(&organizer);
+        assert_eq!(after_refund - before_refund, deposit_amount);
+    }
+
+    #[test]
+    #[should_panic(expected = "Cannot refund in current state")]
+    fn test_refund_panics_if_already_released() {
+        let TestSetup { env, contract_id, admin, organizer, token_addr } = setup();
+        let client = EscrowContractClient::new(&env, &contract_id);
+
+        let target: i128 = 500_000_000;
+        client.initialize(&admin, &organizer, &default_event_id(&env), &target, &token_addr);
+        client.deposit(&organizer, &target);
+        client.lock();
+        let winner = Address::generate(&env);
+        client.disburse(&vec![&env, winner], &vec![&env, target]);
+        // Already Released — refund must panic
+        client.refund();
+    }
+
+    // ── read-only queries ─────────────────────────────────────────────────────
+
+    #[test]
+    fn test_read_queries_return_correct_values() {
+        let TestSetup { env, contract_id, admin, organizer, token_addr } = setup();
+        let client = EscrowContractClient::new(&env, &contract_id);
+
+        let target: i128 = 500_000_000;
+        let event_id = default_event_id(&env);
+        client.initialize(&admin, &organizer, &event_id, &target, &token_addr);
+
+        assert_eq!(client.get_target(), target);
+        assert_eq!(client.get_balance(), 0);
+        assert_eq!(client.get_disbursed_total(), 0);
+        assert_eq!(client.get_state(), EscrowState::PendingFunding as u32);
+        assert!(!client.is_locked());
+        assert_eq!(client.get_organizer(), organizer);
+        assert_eq!(client.get_event_id(), event_id);
+    }
+
+    // ── conservation of funds property ───────────────────────────────────────
+
+    #[test]
+    fn test_conservation_of_funds() {
+        // net disbursed == funded amount after full cycle
+        let TestSetup { env, contract_id, admin, organizer, token_addr } = setup();
+        let client = EscrowContractClient::new(&env, &contract_id);
+
+        let target: i128 = 600_000_000;
+        client.initialize(&admin, &organizer, &default_event_id(&env), &target, &token_addr);
+        client.deposit(&organizer, &target);
+        client.lock();
+
+        let w1 = Address::generate(&env);
+        let w2 = Address::generate(&env);
+        let w3 = Address::generate(&env);
+        let amounts = vec![&env, 300_000_000i128, 200_000_000i128, 100_000_000i128];
+        let recipients = vec![&env, w1.clone(), w2.clone(), w3.clone()];
+
+        client.disburse(&recipients, &amounts);
+
+        let token_client = token::Client::new(&env, &token_addr);
+        let total_received =
+            token_client.balance(&w1) + token_client.balance(&w2) + token_client.balance(&w3);
+
+        assert_eq!(total_received, target);
+        assert_eq!(client.get_disbursed_total(), target);
+        assert_eq!(client.get_balance(), 0);
+    }
+}

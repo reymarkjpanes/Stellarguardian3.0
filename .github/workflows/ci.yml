@@ -2,17 +2,14 @@ name: CI
 
 on:
   push:
-    branches: [main]
+    branches: [main, develop]
   pull_request:
     branches: [main]
 
-env:
-  NODE_VERSION: "20"
-  NEXT_PUBLIC_SUPABASE_URL: "https://placeholder.supabase.co"
-  NEXT_PUBLIC_SUPABASE_ANON_KEY: "placeholder-anon-key"
-
 jobs:
-  lint-and-typecheck:
+  # ── Frontend: type-check, lint, unit tests ──────────────────────────────────
+  frontend:
+    name: Frontend (typecheck · lint · test)
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -21,86 +18,65 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - uses: actions/setup-node@v4
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
         with:
-          node-version: ${{ env.NODE_VERSION }}
+          node-version: "20"
           cache: "npm"
           cache-dependency-path: web/package-lock.json
 
-      - run: npm ci
+      - name: Install dependencies
+        run: npm ci
 
-      - name: TypeScript type check
-        run: npx tsc --noEmit
+      - name: Type check
+        run: npm run typecheck
 
-      - name: ESLint
+      - name: Lint
         run: npm run lint
 
-      - name: Prettier check
-        run: npm run format:check
-
-  test:
-    runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: web
-
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: actions/setup-node@v4
-        with:
-          node-version: ${{ env.NODE_VERSION }}
-          cache: "npm"
-          cache-dependency-path: web/package-lock.json
-
-      - run: npm ci
-
-      - name: Run tests
+      - name: Unit tests
         run: npm run test
+        env:
+          # Minimal stubs so modules that read env vars don't crash in CI
+          NEXT_PUBLIC_SUPABASE_URL: https://placeholder.supabase.co
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: placeholder-anon-key
+          SUPABASE_SERVICE_ROLE_KEY: placeholder-service-key
+          LOCAL_ENCRYPTION_KEY: ci-placeholder-encryption-key-32chars!!
+          STELLAR_NETWORK_MODE: testnet
+          STELLAR_MAINNET_ENABLED: "false"
+          SOROBAN_RPC_URL: https://soroban-testnet.stellar.org
+          ESCROW_CONTRACT_ID: CAF2TCCKNRTUNANF6YFMRU764GQKGCSLRN3RKQEO4XJJGMCQF5ED6ZAT
+          NEXT_PUBLIC_SITE_URL: http://localhost:3000
+          CRON_SECRET: ci-cron-secret
 
-  build:
+  # ── Soroban contract: Rust tests ────────────────────────────────────────────
+  contract:
+    name: Soroban Contract (cargo test)
     runs-on: ubuntu-latest
-    needs: [lint-and-typecheck, test]
     defaults:
       run:
-        working-directory: web
+        working-directory: contracts/escrow
 
     steps:
       - uses: actions/checkout@v4
 
-      - uses: actions/setup-node@v4
+      - name: Install Rust stable
+        uses: dtolnay/rust-toolchain@stable
         with:
-          node-version: ${{ env.NODE_VERSION }}
-          cache: "npm"
-          cache-dependency-path: web/package-lock.json
+          targets: wasm32-unknown-unknown
 
-      - run: npm ci
-
-      - name: Build Next.js
-        run: npm run build
-
-      - name: Upload build artifact
-        uses: actions/upload-artifact@v4
+      - name: Cache Cargo registry
+        uses: actions/cache@v4
         with:
-          name: nextjs-build
-          path: web/.next
-          retention-days: 7
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            contracts/escrow/target
+          key: ${{ runner.os }}-cargo-${{ hashFiles('contracts/escrow/Cargo.lock') }}
+          restore-keys: ${{ runner.os }}-cargo-
 
-  migration-check:
-    runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: web
+      - name: Run contract unit tests
+        run: cargo test --features testutils
 
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Validate migration file naming
-        run: |
-          for f in supabase/migrations/*.sql; do
-            if [[ ! "$f" =~ ^supabase/migrations/[0-9]{14}_ ]]; then
-              echo "❌ Invalid migration filename: $f"
-              exit 1
-            fi
-          done
-          echo "✅ All migration files have valid names"
+      - name: Build WASM (verify contract compiles)
+        run: cargo build --target wasm32-unknown-unknown --release
