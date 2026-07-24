@@ -22,9 +22,18 @@ Stellar Guardian 3.0 is a full-stack platform for running hackathons, competitiv
 
 ## Table of Contents
 
+- [Problem](#problem)
+- [Solution](#solution)
+- [Target Users](#target-users)
+- [Why Stellar](#why-stellar)
 - [Features](#features)
 - [Architecture](#architecture)
 - [Tech Stack](#tech-stack)
+- [Smart Contract](#smart-contract)
+- [Contract Functions](#contract-functions)
+- [Escrow Status Lifecycle](#escrow-status-lifecycle)
+- [Contract Properties](#contract-properties)
+- [Stellar Features Used](#stellar-features-used)
 - [Prerequisites](#prerequisites)
 - [Local Setup](#local-setup)
 - [Environment Variables](#environment-variables)
@@ -33,10 +42,54 @@ Stellar Guardian 3.0 is a full-stack platform for running hackathons, competitiv
 - [Scripts Reference](#scripts-reference)
 - [Project Structure](#project-structure)
 - [Demo Video](#demo-video)
+- [Demo Flow](#demo-flow)
+- [Important Usage Notes](#important-usage-notes)
 - [Screenshots](#screenshots)
 - [Stellar Builder Challenge](#stellar-builder-challenge)
 - [Security](#security)
 - [License](#license)
+
+---
+
+## Problem
+
+Running hackathons, bounties, and grant programmes at scale comes with a trust problem. Organisers hold prize funds on their own accounts or through centralised payment processors — participants have no on-chain guarantee that funds actually exist or will be disbursed fairly. Disputes are resolved manually, payouts can be delayed or withheld, and there is no transparent audit trail.
+
+---
+
+## Solution
+
+Stellar Guardian 3.0 eliminates the trust gap by holding prize pools in a **Soroban smart contract escrow** — not on the platform's balance sheet. Funds are locked on-chain when an event is funded, and released automatically to ranked winners when judging is finalised. Every state transition — from event creation through to disbursement — is recorded on-chain and verifiable by anyone.
+
+- Organisers can only deposit, not withdraw once funded
+- Winners receive exact ranked amounts with no manual intervention
+- Platform fees are transparently snapshotted at job creation time
+- Disputes trigger a separate on-chain resolution state machine
+
+---
+
+## Target Users
+
+| Role | What they do on the platform |
+|---|---|
+| **Organiser** | Creates events, sets prize pools, funds the escrow contract, selects winners |
+| **Participant** | Registers for events, forms teams, submits projects |
+| **Judge** | Reviews submissions against rubrics, scores entries |
+| **Sponsor** | Contributes to prize pools, monitors event progress |
+| **Admin** | Manages platform configuration, resolves disputes, oversees escrow health |
+
+---
+
+## Why Stellar
+
+| Need | Why Stellar delivers it |
+|---|---|
+| Fast settlement | Transactions finalise in 3–5 seconds — no waiting for block confirmations |
+| Low fees | Nominal fees (fractions of a cent) make even micro-prize distributions viable |
+| Smart contracts | Soroban provides a safe, resource-metered contract environment for escrow logic |
+| Native assets | XLM as a first-class payment asset — no wrapping or bridging required |
+| Wallet UX | Freighter gives users a familiar browser-extension signing experience |
+| Transparency | Every contract interaction is verifiable on Stellar Expert |
 
 ---
 
@@ -144,13 +197,90 @@ The codebase has two coexisting layers (see `ARCHITECTURE_AUDIT.md` for full det
 
 ---
 
+## Smart Contract
+
+The escrow logic runs on a **Soroban smart contract** deployed to Stellar Testnet.
+
+### Contract ID (Deployed on Stellar Testnet)
+
+```
+CAR33UWAUPQPFDSKUJK6WAVS33SA2EEES3ZXZKB7GXSNOS7YUQ6LZISS
+```
+
+| Explorer | Link |
+|---|---|
+| Stellar Lab | [View on Stellar Lab](https://lab.stellar.org/contract/CAR33UWAUPQPFDSKUJK6WAVS33SA2EEES3ZXZKB7GXSNOS7YUQ6LZISS?network=testnet) |
+| Stellar Expert | [View on Stellar Expert](https://stellar.expert/explorer/testnet/contract/CAR33UWAUPQPFDSKUJK6WAVS33SA2EEES3ZXZKB7GXSNOS7YUQ6LZISS) |
+
+---
+
+## Contract Functions
+
+| Function | Caller | Description |
+|---|---|---|
+| `initialize(admin, fee_bps)` | Admin | One-time setup, sets platform fee |
+| `create_job(job_id, client, freelancer, amount, token)` | Platform (ops) | Registers escrow job on-chain |
+| `fund_job(job_id, caller, amount)` | Client | Locks XLM into the contract |
+| `submit_milestone(job_id, milestone_id, caller)` | Freelancer | Marks milestone as submitted |
+| `approve_milestone(job_id, milestone_id, caller)` | Client | Releases payment to freelancer |
+| `get_job(job_id)` | Anyone | Read-only: returns full job state |
+| `get_fee()` | Anyone | Read-only: returns current fee rate |
+| `get_admin()` | Anyone | Read-only: returns admin address |
+| `update_platform_fee(new_fee)` | Admin | Updates global fee (does not affect live jobs) |
+
+---
+
+## Escrow Status Lifecycle
+
+```
+Open ──────→ Funded ──────→ InProgress ──────→ Completed
+(create_job)  (fund_job)   (submit_milestone)  (approve_milestone)
+                                               ├─ Net amount → Freelancer
+                                               └─ Platform fee → Admin
+```
+
+---
+
+## Contract Properties
+
+| Property | Description |
+|---|---|
+| Conservation of funds | `net_to_freelancer + platform_fee == funded_amount` always |
+| Fee snapshot | Fee rate is locked at `create_job` — changing global fee does not affect live jobs |
+| Authorization | Each action requires the correct party's wallet signature (`require_auth()`) |
+| No panics | All functions return `Result<T, ContractError>` |
+| Events | Every state change emits an on-chain event |
+
+---
+
+## Stellar Features Used
+
+| Feature | Usage |
+|---|---|
+| Soroban smart contracts | Escrow logic — lock funds, milestone tracking, auto-release |
+| XLM (native asset) | Payment settlement via SEP-41 token interface |
+| `require_auth()` | Wallet-based authorization for every state-changing action |
+| On-chain events | Audit trail for job creation, funding, submission, approval |
+| Persistent storage | Per-job state keyed by `job_id` |
+
+---
+
 ## Prerequisites
+
+**For the frontend:**
 
 - **Node.js** 20 or later
 - **npm** 10 or later
 - **Supabase project** — [create one free](https://supabase.com/dashboard)
-- **Freighter browser extension** — required for wallet interactions ([install](https://www.freighter.app/))
+- **Freighter browser extension** — required for wallet interactions ([install](https://www.freighter.app/)), set to Testnet
 - **Stellar Testnet account** — fund one at the [Stellar Friendbot](https://friendbot.stellar.org)
+- **Testnet XLM** — needed for gas fees on all transactions
+
+**For the smart contract (if redeploying):**
+
+- **Rust** (latest stable) + `wasm32v1-none` target
+- **Stellar CLI** v25+
+- Stellar testnet account funded via Friendbot
 
 ---
 
@@ -340,6 +470,37 @@ stellar-guardian-3.0/
 ### Level 1 — Video Demo
 
 ▶️ [Watch on Google Drive](https://drive.google.com/file/d/1K4lYCkc9Mw61nKVQJ3V5mIvA76o81oo2/view?usp=sharing)
+
+---
+
+## Demo Flow
+
+The following steps walk through the full end-to-end flow you can reproduce locally or watch in the video above.
+
+1. **Sign up / Log in** — Create an account and verify your email
+2. **Connect Freighter wallet** — Link your Stellar Testnet wallet from the Settings page
+3. **Create an event** — Fill in event details, set prize pool, and publish
+4. **Register a team** — Join as a participant, create or join a team
+5. **Submit a project** — Upload submission with description and links
+6. **Judging phase** — Judges score submissions against the configured rubric
+7. **Select winners** — Organiser finalises ranked winners from the leaderboard
+8. **Fund escrow** — Organiser signs a Soroban `deposit` transaction via Freighter to lock prize funds on-chain
+9. **Disburse prizes** — Platform signs a batch payout transaction; each ranked winner receives their XLM directly to their wallet
+10. **Verify on-chain** — Every step is verifiable on [Stellar Expert](https://stellar.expert/explorer/testnet/contract/CAR33UWAUPQPFDSKUJK6WAVS33SA2EEES3ZXZKB7GXSNOS7YUQ6LZISS)
+
+---
+
+## Important Usage Notes
+
+> These notes apply when running on **Stellar Testnet**.
+
+- **Freighter must be set to Testnet** before connecting. Submitting a Mainnet-signed transaction will be rejected by the cross-network guard.
+- **Keep at least 1 XLM reserve** in your wallet at all times — Stellar requires a minimum balance for account activation.
+- **Transaction timeout** — the signing window is 180 seconds. If Freighter takes longer than that, the transaction will expire and you will need to retry.
+- **Testnet resets** — Stellar Testnet resets periodically. If the contract ID stops responding, the contract may need to be redeployed and `ESCROW_CONTRACT_ID` updated.
+- **Soroban simulation** — all contract calls are simulated first to calculate resource fees. If simulation fails, check that the contract is still live on testnet.
+- **Email (Resend)** — invitation and notification emails are optional. The app works without a Resend key; emails will silently not send.
+- **Rate limiting** — API routes are rate-limited. Running load tests against a local instance without Redis will fall back to in-memory limiting.
 
 ---
 
