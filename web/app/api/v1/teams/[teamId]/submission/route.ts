@@ -2,28 +2,35 @@ import { NextRequest, NextResponse } from "next/server";
 import { GetSubmissionHubQueryHandler } from "@/src/domains/submissions/application/queries/GetSubmissionHubQueryHandler";
 import { createServerClient } from "@/lib/supabase/server";
 
-export async function GET(
-  request: NextRequest,
-  context: { params: Promise<{ teamId: string }> }
-) {
+export async function GET(request: NextRequest, context: { params: Promise<{ teamId: string }> }) {
   try {
     const { teamId } = await context.params;
     const supabase = await createServerClient();
-    const { data: { user } } = await supabase.auth.getUser();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
     if (!user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
     // A real implementation would query the team to get the eventId
-    const { data: team } = await supabase.from("teams").select("event_id").eq("id", teamId).single();
+    const { data: team } = await supabase
+      .from("teams")
+      .select("event_id, captain_id")
+      .eq("id", teamId)
+      .single();
     if (!team) return NextResponse.json({ error: "Team not found" }, { status: 404 });
 
     const query = new GetSubmissionHubQueryHandler();
     const result = await query.execute(team.event_id, teamId);
 
-    return NextResponse.json({ success: true, data: result });
-  } catch (error: any) {
-    return NextResponse.json({ success: false, error: error.message }, { status: 500 });
+    return NextResponse.json({
+      success: true,
+      data: { ...result, isCaptain: team.captain_id === user.id },
+    });
+  } catch (error: unknown) {
+    const msg = error instanceof Error ? error.message : "Internal error";
+    return NextResponse.json({ success: false, error: msg }, { status: 500 });
   }
 }
 
@@ -31,12 +38,14 @@ import { UpdateDraftUseCase } from "@/src/domains/submissions/application/comman
 
 export async function PATCH(
   request: NextRequest,
-  context: { params: Promise<{ teamId: string }> }
+  context: { params: Promise<{ teamId: string }> },
 ) {
   try {
     const { teamId } = await context.params;
     const supabase = await createServerClient();
-    const { data: { user } } = await supabase.auth.getUser();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
     if (!user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
@@ -48,7 +57,8 @@ export async function PATCH(
     const result = await command.execute(eventId, teamId, user.id, requirementId, assetData);
 
     return NextResponse.json({ success: true, data: result });
-  } catch (error: any) {
-    return NextResponse.json({ success: false, error: error.message }, { status: 400 });
+  } catch (error: unknown) {
+    const msg = error instanceof Error ? error.message : "Internal error";
+    return NextResponse.json({ success: false, error: msg }, { status: 400 });
   }
 }

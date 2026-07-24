@@ -6,21 +6,43 @@ interface SubmissionHeaderProps {
   eventName: string;
   status: ConnectionStatus;
   version: number;
-  deadline: Date;
+  deadline: Date | null;
 }
 
-export function SubmissionHeader({ teamName, eventName, status, version, deadline }: SubmissionHeaderProps) {
+export function SubmissionHeader({
+  teamName,
+  eventName,
+  status,
+  version,
+  deadline,
+}: SubmissionHeaderProps) {
   const getStatusBadge = () => {
     switch (status) {
-      case "SAVING": return <span className="text-amber-500 flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse"></span> Saving...</span>;
-      case "SAVED": return <span className="text-green-500 flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-green-500"></span> Saved to cloud</span>;
-      case "OFFLINE": return <span className="text-gray-500 flex items-center gap-1">Offline - Changes queued</span>;
-      case "ERROR": return <span className="text-red-500 flex items-center gap-1">Sync Error</span>;
-      default: return <span className="text-gray-500">Ready</span>;
+      case "SAVING":
+        return (
+          <span className="text-amber-500 flex items-center gap-1">
+            <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse"></span> Saving...
+          </span>
+        );
+      case "SAVED":
+        return (
+          <span className="text-green-500 flex items-center gap-1">
+            <span className="w-2 h-2 rounded-full bg-green-500"></span> Saved to cloud
+          </span>
+        );
+      case "OFFLINE":
+        return (
+          <span className="text-gray-500 flex items-center gap-1">Offline - Changes queued</span>
+        );
+      case "ERROR":
+        return <span className="text-red-500 flex items-center gap-1">Sync Error</span>;
+      default:
+        return <span className="text-gray-500">Ready</span>;
     }
   };
 
   const getTimeLeft = () => {
+    if (!deadline) return "No deadline set";
     const now = new Date();
     const diffMs = deadline.getTime() - now.getTime();
     if (diffMs <= 0) return "Deadline passed";
@@ -35,14 +57,10 @@ export function SubmissionHeader({ teamName, eventName, status, version, deadlin
         <h1 className="text-xl font-semibold text-gray-900">{teamName}</h1>
         <p className="text-sm text-gray-500">Submitting to {eventName}</p>
       </div>
-      
+
       <div className="flex items-center gap-6 text-sm font-medium">
-        <div className="hidden md:flex items-center gap-2">
-          {getStatusBadge()}
-        </div>
-        <div className="text-gray-400">
-          v{version}
-        </div>
+        <div className="hidden md:flex items-center gap-2">{getStatusBadge()}</div>
+        <div className="text-gray-400">v{version}</div>
         <div className="bg-gray-100 px-3 py-1 rounded-md text-gray-700 font-mono">
           {getTimeLeft()}
         </div>

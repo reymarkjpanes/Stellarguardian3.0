@@ -10,14 +10,18 @@
  * Design: Matches login page structure — centered card, CSS variables,
  * system font, single accent, no decoration. Dark mode via vars.
  */
-import { useState } from "react";
+import { useState, useCallback } from "react";
 import { createBrowserClient } from "@/lib/supabase/client";
+import { TurnstileWidget } from "@/components/auth/turnstile-widget";
 
 type FlowStep = "form" | "success";
 
 export default function SignupPage() {
   const [step, setStep] = useState<FlowStep>("form");
   const [displayName, setDisplayName] = useState("");
+  const [_captchaToken, setCaptchaToken] = useState<string | null>(null);
+  const onCaptchaVerify = useCallback((token: string) => setCaptchaToken(token), []);
+  const onCaptchaExpire = useCallback(() => setCaptchaToken(null), []);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -83,13 +87,13 @@ export default function SignupPage() {
               Check your email
             </h1>
             <p className="text-sm text-[var(--text-muted)]">
-              We sent a confirmation link to <strong className="text-[var(--text)]">{email}</strong>.
-              Click the link to activate your account.
+              We sent a confirmation link to <strong className="text-[var(--text)]">{email}</strong>
+              . Click the link to activate your account.
             </p>
           </div>
           <div className="pt-4 space-y-3">
             <p className="text-xs text-[var(--text-muted)]">
-              Didn't receive it? Check your spam folder or try again.
+              Didn&apos;t receive it? Check your spam folder or try again.
             </p>
             <a
               href="/login"
@@ -126,7 +130,10 @@ export default function SignupPage() {
           )}
 
           <div className="space-y-2">
-            <label htmlFor="display-name" className="block text-sm font-medium text-[var(--text-secondary)]">
+            <label
+              htmlFor="display-name"
+              className="block text-sm font-medium text-[var(--text-secondary)]"
+            >
               Display name
             </label>
             <input
@@ -144,7 +151,10 @@ export default function SignupPage() {
           </div>
 
           <div className="space-y-2">
-            <label htmlFor="email" className="block text-sm font-medium text-[var(--text-secondary)]">
+            <label
+              htmlFor="email"
+              className="block text-sm font-medium text-[var(--text-secondary)]"
+            >
               Email
             </label>
             <input
@@ -160,7 +170,10 @@ export default function SignupPage() {
           </div>
 
           <div className="space-y-2">
-            <label htmlFor="password" className="block text-sm font-medium text-[var(--text-secondary)]">
+            <label
+              htmlFor="password"
+              className="block text-sm font-medium text-[var(--text-secondary)]"
+            >
               Password
             </label>
             <input
@@ -177,7 +190,10 @@ export default function SignupPage() {
           </div>
 
           <div className="space-y-2">
-            <label htmlFor="confirm-password" className="block text-sm font-medium text-[var(--text-secondary)]">
+            <label
+              htmlFor="confirm-password"
+              className="block text-sm font-medium text-[var(--text-secondary)]"
+            >
               Confirm password
             </label>
             <input
@@ -202,15 +218,27 @@ export default function SignupPage() {
             />
             <label htmlFor="terms" className="text-xs text-[var(--text-muted)] leading-relaxed">
               I agree to the{" "}
-              <a href="/terms" className="text-[var(--accent)] hover:underline" target="_blank" rel="noopener noreferrer">
+              <a
+                href="/terms"
+                className="text-[var(--accent)] hover:underline"
+                target="_blank"
+                rel="noopener noreferrer"
+              >
                 Terms of Service
               </a>{" "}
               and{" "}
-              <a href="/privacy" className="text-[var(--accent)] hover:underline" target="_blank" rel="noopener noreferrer">
+              <a
+                href="/privacy"
+                className="text-[var(--accent)] hover:underline"
+                target="_blank"
+                rel="noopener noreferrer"
+              >
                 Privacy Policy
               </a>
             </label>
           </div>
+
+          <TurnstileWidget onVerify={onCaptchaVerify} onExpire={onCaptchaExpire} />
 
           <button
             type="submit"

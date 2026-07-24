@@ -1,117 +1,166 @@
 import React from "react";
 
 interface ValidationPanelProps {
-  validationResult: any;
+  validationResult:
+    | {
+        isReady: boolean;
+        progress: number;
+        missing: string[];
+        passed: string[];
+        warnings: string[];
+        errors: string[];
+      }
+    | null
+    | undefined;
   onSubmit: () => void;
   isSubmitting: boolean;
+  /** Only the team captain can submit. Members can fill in requirements. */
+  isCaptain: boolean;
 }
 
-export function ValidationPanel({ validationResult, onSubmit, isSubmitting }: ValidationPanelProps) {
+export function ValidationPanel({
+  validationResult,
+  onSubmit,
+  isSubmitting,
+  isCaptain,
+}: ValidationPanelProps) {
   if (!validationResult) {
     return (
-      <div className="bg-white rounded-lg shadow border border-gray-200 p-6 animate-pulse">
-        <div className="h-4 bg-gray-200 rounded w-1/2 mb-4"></div>
-        <div className="h-10 bg-gray-200 rounded mb-4"></div>
-        <div className="h-4 bg-gray-200 rounded w-full mb-2"></div>
-        <div className="h-4 bg-gray-200 rounded w-3/4"></div>
+      <div className="card p-6 space-y-4 animate-pulse">
+        <div className="h-4 rounded bg-[var(--bg-muted)] w-1/2" />
+        <div className="h-10 rounded bg-[var(--bg-muted)]" />
+        <div className="h-4 rounded bg-[var(--bg-muted)] w-full" />
+        <div className="h-4 rounded bg-[var(--bg-muted)] w-3/4" />
       </div>
     );
   }
 
   const { isReady, progress, missing, passed, warnings, errors } = validationResult;
+  const canSubmit = isReady && isCaptain;
 
   return (
-    <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden flex flex-col h-full max-h-[calc(100vh-120px)] sticky top-24">
-      <div className="p-6 border-b border-gray-200">
-        <h3 className="text-lg font-semibold text-gray-900 mb-2">Submission Readiness</h3>
+    <div className="card flex flex-col overflow-hidden sticky top-24 max-h-[calc(100vh-120px)]">
+      {/* Progress header */}
+      <div className="p-5 border-b border-[var(--border)]">
+        <p className="text-sm font-semibold text-[var(--text)] mb-2">Submission Readiness</p>
         <div className="flex items-center justify-between mb-2">
-          <span className="text-3xl font-bold text-gray-900">{progress}%</span>
-          <span className={`px-2.5 py-0.5 rounded-full text-xs font-medium ${isReady ? 'bg-green-100 text-green-800' : 'bg-amber-100 text-amber-800'}`}>
+          <span className="text-3xl font-bold text-[var(--text)]">{progress}%</span>
+          <span
+            className={`rounded-full px-2.5 py-0.5 text-xs font-semibold ${
+              isReady
+                ? "bg-[var(--success-bg)] text-[var(--success)]"
+                : "bg-[var(--warning-bg)] text-[var(--warning)]"
+            }`}
+          >
             {isReady ? "Ready to submit" : "Incomplete"}
           </span>
         </div>
-        <div className="w-full bg-gray-200 rounded-full h-2">
-          <div 
-            className={`h-2 rounded-full transition-all duration-500 ${isReady ? 'bg-green-500' : 'bg-indigo-500'}`} 
-            style={{ width: `${progress}%` }}
-          ></div>
+        <div className="w-full h-1.5 rounded-full bg-[var(--bg-muted)] overflow-hidden">
+          <div
+            className="h-full rounded-full transition-all duration-500"
+            style={{
+              width: `${progress}%`,
+              backgroundColor: isReady ? "var(--success)" : "var(--accent)",
+            }}
+          />
         </div>
       </div>
 
-      <div className="flex-1 overflow-y-auto p-6 space-y-6 bg-gray-50">
-        {/* Errors / Blocking Issues */}
+      {/* Scrollable content */}
+      <div className="flex-1 overflow-y-auto p-5 space-y-5 bg-[var(--bg-elevated)]">
+        {/* Blocking issues */}
         {(errors.length > 0 || missing.length > 0) && (
-          <div>
-            <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">Blocking Issues</h4>
-            <ul className="space-y-2">
-              {errors.map((err: string, i: number) => (
-                <li key={`err-${i}`} className="flex items-start text-sm text-red-600">
-                  <svg className="w-4 h-4 mr-2 mt-0.5 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
-                    <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
-                  </svg>
-                  {err}
+          <div className="space-y-2">
+            <p className="text-[11px] font-semibold uppercase tracking-wider text-[var(--text-muted)]">
+              Blocking Issues
+            </p>
+            <ul className="space-y-1.5">
+              {errors.map((e, i) => (
+                <li key={`e-${i}`} className="flex items-start gap-2 text-xs text-[var(--error)]">
+                  <span className="shrink-0 mt-0.5">✕</span>
+                  <span>{e}</span>
                 </li>
               ))}
-              {missing.map((miss: string, i: number) => (
-                <li key={`miss-${i}`} className="flex items-start text-sm text-amber-600">
-                  <svg className="w-4 h-4 mr-2 mt-0.5 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
-                    <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
-                  </svg>
-                  Missing required: {miss}
+              {missing.map((m, i) => (
+                <li key={`m-${i}`} className="flex items-start gap-2 text-xs text-[var(--warning)]">
+                  <span className="shrink-0 mt-0.5">!</span>
+                  <span>Missing: {m}</span>
                 </li>
               ))}
             </ul>
           </div>
         )}
 
-        {/* Passed Sections */}
+        {/* Completed sections */}
         {passed.length > 0 && (
-          <div>
-            <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">Completed</h4>
-            <ul className="space-y-2">
-              {passed.map((pass: string, i: number) => (
-                <li key={`pass-${i}`} className="flex items-center text-sm text-green-700">
-                  <svg className="w-4 h-4 mr-2 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
-                    <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-                  </svg>
-                  {pass}
+          <div className="space-y-2">
+            <p className="text-[11px] font-semibold uppercase tracking-wider text-[var(--text-muted)]">
+              Completed
+            </p>
+            <ul className="space-y-1.5">
+              {passed.map((p, i) => (
+                <li
+                  key={`p-${i}`}
+                  className="flex items-center gap-2 text-xs text-[var(--success)]"
+                >
+                  <span>✓</span>
+                  <span>{p}</span>
                 </li>
               ))}
             </ul>
           </div>
         )}
-        
-        {/* Warnings */}
+
+        {/* Recommendations */}
         {warnings.length > 0 && (
-           <div>
-             <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">Recommendations</h4>
-             <ul className="space-y-2">
-               {warnings.map((warn: string, i: number) => (
-                 <li key={`warn-${i}`} className="text-sm text-gray-600 flex items-start">
-                   <span className="mr-2 text-gray-400">•</span>
-                   {warn}
-                 </li>
-               ))}
-             </ul>
-           </div>
+          <div className="space-y-2">
+            <p className="text-[11px] font-semibold uppercase tracking-wider text-[var(--text-muted)]">
+              Recommendations
+            </p>
+            <ul className="space-y-1.5">
+              {warnings.map((w, i) => (
+                <li
+                  key={`w-${i}`}
+                  className="flex items-start gap-2 text-xs text-[var(--text-secondary)]"
+                >
+                  <span className="shrink-0 mt-0.5">·</span>
+                  <span>{w}</span>
+                </li>
+              ))}
+            </ul>
+          </div>
         )}
       </div>
 
-      <div className="p-6 border-t border-gray-200 bg-white">
+      {/* Submit footer */}
+      <div className="p-5 border-t border-[var(--border)] bg-[var(--card-bg)] space-y-2">
         <button
-          disabled={!isReady || isSubmitting}
+          disabled={!canSubmit || isSubmitting}
           onClick={onSubmit}
-          className={`w-full py-3 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-colors ${
-            isReady 
-              ? "bg-indigo-600 hover:bg-indigo-700" 
-              : "bg-gray-300 cursor-not-allowed"
-          }`}
+          className="w-full rounded-md py-2.5 text-sm font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+          style={{
+            backgroundColor: canSubmit ? "var(--accent)" : "var(--bg-muted)",
+            color: canSubmit ? "#ffffff" : "var(--text-muted)",
+          }}
         >
-          {isSubmitting ? "Submitting..." : "Submit Project"}
+          {isSubmitting ? "Submitting…" : "Submit Project"}
         </button>
-        {!isReady && (
-          <p className="mt-2 text-xs text-center text-gray-500">
-            Complete all required sections to submit.
+
+        {/* Context-aware helper text */}
+        {!isCaptain && (
+          <p className="text-xs text-center text-[var(--text-muted)]">
+            Only the team captain can submit. Fill in your sections and ask your captain to
+            finalize.
+          </p>
+        )}
+        {isCaptain && !isReady && (
+          <p className="text-xs text-center text-[var(--text-muted)]">
+            Complete all required sections above to unlock submission.
+          </p>
+        )}
+        {isCaptain && isReady && (
+          <p className="text-xs text-center text-[var(--success)]">
+            All requirements met. Ready to submit.
           </p>
         )}
       </div>

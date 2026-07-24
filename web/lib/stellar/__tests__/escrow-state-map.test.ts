@@ -101,7 +101,7 @@ describe("escrow-state-map", () => {
 
     it("handles Failed state gracefully", () => {
       const msg = describeStateDivergence("Failed", 3);
-      expect(msg).toContain("N/A (backend-only)");
+      expect(msg).toContain("no on-chain equivalent");
       expect(msg).toContain("Locked");
     });
   });

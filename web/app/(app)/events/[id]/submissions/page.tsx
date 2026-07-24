@@ -20,7 +20,7 @@ export default async function EventSubmissionsPage({
 
   const supabase = await createServerClient();
 
-  const [{ data: membership }, { data: subsRaw }] = await Promise.all([
+  const [{ data: membership }, { data: subsRaw }, { data: myTeamMembership }] = await Promise.all([
     user
       ? supabase
           .from("event_members")
@@ -34,6 +34,15 @@ export default async function EventSubmissionsPage({
       .select("id, team_id, submitter_id, status, current_version, updated_at")
       .eq("event_id", id)
       .order("updated_at", { ascending: false }),
+    // Resolve current user's team in this event
+    user
+      ? supabase
+          .from("team_members")
+          .select("team_id, teams(name)")
+          .eq("event_id", id)
+          .eq("user_id", user.id)
+          .maybeSingle()
+      : Promise.resolve({ data: null }),
   ]);
 
   // Enrich submissions with team names and submitter display names
@@ -51,9 +60,7 @@ export default async function EventSubmissionsPage({
   let submissions: EnrichedSubmission[] = [];
 
   if (subsRaw && subsRaw.length > 0) {
-    const teamIds = [
-      ...new Set(subsRaw.filter((s) => s.team_id).map((s) => s.team_id!)),
-    ];
+    const teamIds = [...new Set(subsRaw.filter((s) => s.team_id).map((s) => s.team_id!))];
     const submitterIds = [...new Set(subsRaw.map((s) => s.submitter_id))];
 
     const [{ data: teamsData }, { data: usersData }] = await Promise.all([
@@ -73,12 +80,26 @@ export default async function EventSubmissionsPage({
     }));
   }
 
+  const myTeamId =
+    (myTeamMembership as { team_id: string; teams: { name: string } | null } | null)?.team_id ??
+    null;
+  const myTeamName =
+    (myTeamMembership as { team_id: string; teams: { name: string } | null } | null)?.teams?.name ??
+    null;
+
   return (
     <SubmissionsClient
       eventId={id}
+      eventName={event.title}
       eventState={event.state}
+      submissionDeadline={
+        ((event as Record<string, unknown>).submission_deadline as string) ?? null
+      }
       submissions={submissions}
       userRole={membership?.role ?? null}
+      userId={user?.id ?? null}
+      teamId={myTeamId}
+      teamName={myTeamName}
     />
   );
 }

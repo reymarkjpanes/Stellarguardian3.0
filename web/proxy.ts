@@ -1,6 +1,7 @@
 /**
- * Next.js Middleware (Req 1.4, 3.4, 3.5, 14.1, 14.2, 20.1, 20.2).
+ * Next.js Proxy (Req 1.4, 3.4, 3.5, 14.1, 14.2, 20.1, 20.2).
  *
+ * Renamed from middleware.ts → proxy.ts per Next.js 16 convention.
  * Pipeline: authenticate → rate limit → CSP nonce → security headers → forward.
  * Attaches a unique request ID for structured logging. Returns 401 on
  * protected routes without a valid token. Returns 429 when rate limit exceeded.
@@ -88,7 +89,7 @@ function buildCspHeader(nonce: string): string {
   return directives.join("; ");
 }
 
-export async function middleware(request: NextRequest) {
+export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
   const requestId = generateRequestId();
   const nonce = generateNonce();
@@ -160,10 +161,7 @@ export async function middleware(request: NextRequest) {
   response.headers.set("X-Request-Id", requestId);
 
   // HSTS (Req 14.5)
-  response.headers.set(
-    "Strict-Transport-Security",
-    "max-age=63072000; includeSubDomains; preload",
-  );
+  response.headers.set("Strict-Transport-Security", "max-age=63072000; includeSubDomains; preload");
   // Prevent MIME sniffing
   response.headers.set("X-Content-Type-Options", "nosniff");
   // Prevent clickjacking

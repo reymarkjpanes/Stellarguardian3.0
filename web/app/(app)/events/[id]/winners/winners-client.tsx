@@ -1,11 +1,17 @@
 "use client";
 
 /**
- * Winners client component — handles winner assignment form interactions only.
- * All data is passed as props from the Server Component parent; no Supabase calls here.
+ * Winners tab — role-aware.
+ *
+ * Participant: sees all winners, highlighted if they are one,
+ *   with their disbursement status clearly communicated.
+ *
+ * Organizer: same list + form to assign a winner from submitted projects.
  */
-import { useState } from "react";
+import { useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
+
+// ─── Types ────────────────────────────────────────────────────────────────────
 
 interface Winner {
   id: string;
@@ -17,7 +23,7 @@ interface Winner {
   team_name: string | null;
 }
 
-interface SubmissionForSelect {
+interface SubmissionOption {
   id: string;
   submitter_id: string;
   team_id: string | null;
@@ -25,257 +31,260 @@ interface SubmissionForSelect {
   team_name: string | null;
 }
 
-interface WinnerDraft {
-  recipient_id: string;
-  team_id: string | null;
-  prize_amount: string;
-  label: string;
-}
-
-interface WinnersClientProps {
+interface Props {
   eventId: string;
   eventState: string;
   winners: Winner[];
-  submissions: SubmissionForSelect[];
+  submissions: SubmissionOption[];
   isOrganizer: boolean;
+  userId?: string | null;
 }
+
+// ─── Disbursement badge ───────────────────────────────────────────────────────
+
+function DisbursementBadge({ status }: { status: string }) {
+  const s = status.toLowerCase();
+  const [cls, label] =
+    s === "disbursed"
+      ? ["bg-[var(--success-bg)] text-[var(--success)]", "Paid ✓"]
+      : s === "held"
+        ? ["bg-[var(--warning-bg)] text-[var(--warning)]", "Held — connect wallet"]
+        : s === "pending"
+          ? ["bg-[var(--badge-bg)] text-[var(--badge-text)]", "Pending"]
+          : ["bg-[var(--badge-bg)] text-[var(--badge-text)]", status];
+  return <span className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${cls}`}>{label}</span>;
+}
+
+// ─── Component ────────────────────────────────────────────────────────────────
 
 export function WinnersClient({
   eventId,
   eventState,
-  winners,
+  winners: initialWinners,
   submissions,
   isOrganizer,
-}: WinnersClientProps) {
+  userId,
+}: Props) {
   const router = useRouter();
-  const [showForm, setShowForm] = useState(false);
-  const [drafts, setDrafts] = useState<WinnerDraft[]>([]);
-  const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const canAssignWinners =
-    isOrganizer &&
-    winners.length === 0 &&
-    ["JudgingRound1", "JudgingRound2", "DisputeWindow", "WinnerVerification"].includes(
-      eventState,
-    );
+  // Organizer: assign winner form
+  const [showAssign, setShowAssign] = useState(false);
+  const [selectedSubId, setSelectedSubId] = useState("");
+  const [prizeAmount, setPrizeAmount] = useState("");
+  const [assigning, setAssigning] = useState(false);
 
-  function addWinnerDraft(sub: SubmissionForSelect) {
-    setDrafts([
-      ...drafts,
-      {
-        recipient_id: sub.submitter_id,
-        team_id: sub.team_id,
-        prize_amount: "",
-        label: sub.team_name ?? sub.submitter_name,
-      },
-    ]);
-  }
+  const canAssign =
+    isOrganizer && (eventState === "WinnerVerification" || eventState === "PrizeApproved");
 
-  function removeDraft(index: number) {
-    setDrafts(drafts.filter((_, i) => i !== index));
-  }
-
-  function updateDraftAmount(index: number, value: string) {
-    const updated = [...drafts];
-    updated[index] = { ...updated[index]!, prize_amount: value };
-    setDrafts(updated);
-  }
-
-  async function handleAssignWinners() {
-    setSubmitting(true);
+  async function handleAssign(e: FormEvent) {
+    e.preventDefault();
+    if (!selectedSubId || !prizeAmount) return;
+    setAssigning(true);
     setError(null);
 
-    const winnersPayload = drafts.map((d) => ({
-      recipient_id: d.recipient_id,
-      team_id: d.team_id,
-      prize_amount: Number(d.prize_amount),
-    }));
-
-    if (winnersPayload.some((w) => !w.prize_amount || w.prize_amount <= 0)) {
-      setError("All winners must have a positive prize amount.");
-      setSubmitting(false);
-      return;
-    }
-
+    const selected = submissions.find((s) => s.id === selectedSubId);
     const res = await fetch(`/api/events/${eventId}/winners`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ winners: winnersPayload }),
+      body: JSON.stringify({
+        recipient_id: selected?.submitter_id,
+        team_id: selected?.team_id ?? null,
+        prize_amount: Number(prizeAmount),
+      }),
     });
 
     if (!res.ok) {
       const { error: apiErr } = await res.json();
-      setError(apiErr?.message ?? "Failed to assign winners.");
-      setSubmitting(false);
-      return;
+      setError(apiErr?.message ?? "Failed to assign winner.");
+    } else {
+      setSelectedSubId("");
+      setPrizeAmount("");
+      setShowAssign(false);
+      router.refresh();
     }
-
-    setDrafts([]);
-    setShowForm(false);
-    setSubmitting(false);
-    // Refresh server data
-    router.refresh();
+    setAssigning(false);
   }
 
+  // Check if current user is a winner
+  const myWin = userId ? initialWinners.find((w) => w.recipient_id === userId) : null;
+
+  const revealed =
+    eventState === "WinnerVerification" ||
+    eventState === "PrizeApproved" ||
+    eventState === "EscrowRelease" ||
+    eventState === "Completed" ||
+    eventState === "Archived";
+
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 max-w-3xl">
+      {/* Header */}
       <div className="flex items-center justify-between">
-        <h2 className="text-lg font-medium">Winners & Prizes</h2>
-        {canAssignWinners && !showForm && (
+        <div>
+          <h2 className="text-lg font-semibold text-[var(--text)]">Winners</h2>
+          <p className="text-xs text-[var(--text-muted)] mt-0.5">
+            {revealed
+              ? `${initialWinners.length} winner${initialWinners.length !== 1 ? "s" : ""} selected.`
+              : "Winners will be announced after judging completes."}
+          </p>
+        </div>
+        {canAssign && !showAssign && submissions.length > 0 && (
           <button
-            onClick={() => setShowForm(true)}
-            className="btn-primary px-4 py-1.5 text-sm font-medium rounded-md"
+            onClick={() => setShowAssign(true)}
+            className="rounded-md bg-[var(--accent)] px-4 py-2 text-sm font-medium text-white hover:bg-[var(--accent-hover)] transition-colors"
           >
-            Assign Winners
+            Assign Winner
           </button>
         )}
       </div>
 
+      {/* Error */}
       {error && (
         <div
-          className="rounded-md border border-[var(--error)] bg-[var(--error-bg)] px-4 py-3"
           role="alert"
+          className="rounded-md border border-[var(--error)] bg-[var(--error-bg)] px-4 py-3 flex items-center justify-between gap-3"
         >
           <p className="text-sm text-[var(--error)]">{error}</p>
+          <button
+            onClick={() => setError(null)}
+            className="text-xs text-[var(--error)] hover:underline shrink-0"
+          >
+            ✕
+          </button>
         </div>
       )}
 
-      {/* Winner assignment form */}
-      {showForm && (
-        <div className="card p-6 space-y-4">
-          <h3 className="font-medium text-[var(--text)]">Select Winners</h3>
-          <p className="text-xs text-[var(--text-muted)]">
-            Choose submissions to award prizes. Each winner receives the specified XLM
-            amount from the escrow.
+      {/* You won! banner */}
+      {myWin && (
+        <div className="rounded-lg border border-[var(--accent)] bg-[var(--accent-muted)] p-5 space-y-2">
+          <p className="text-sm font-semibold text-[var(--accent)]">
+            🎉 Congratulations &mdash; you&apos;re a winner!
           </p>
-
-          {/* Available submissions to select from */}
-          {submissions.length > 0 && (
-            <div>
-              <p className="text-xs text-[var(--text-muted)] mb-2">Available submissions:</p>
-              <div className="flex flex-wrap gap-2">
-                {submissions
-                  .filter((s) => !drafts.some((d) => d.recipient_id === s.submitter_id))
-                  .map((sub) => (
-                    <button
-                      key={sub.id}
-                      onClick={() => addWinnerDraft(sub)}
-                      className="rounded-md border border-[var(--border)] px-3 py-1.5 text-xs font-medium text-[var(--text-secondary)] hover:border-[var(--accent)] hover:text-[var(--accent)] transition-colors"
-                    >
-                      + {sub.team_name ?? sub.submitter_name}
-                    </button>
-                  ))}
-              </div>
-            </div>
+          <p className="text-sm text-[var(--text)]">
+            Prize: <strong>{myWin.prize_amount} XLM</strong>
+          </p>
+          <div className="flex items-center gap-2">
+            <span className="text-xs text-[var(--text-muted)]">Disbursement status:</span>
+            <DisbursementBadge status={myWin.disbursement_status} />
+          </div>
+          {myWin.disbursement_status === "held" && (
+            <p className="text-xs text-[var(--warning)]">
+              Your prize is held because no verified wallet is on file. Go to{" "}
+              <a href="/settings" className="underline hover:text-[var(--text)]">
+                Settings
+              </a>{" "}
+              to connect and verify your wallet.
+            </p>
           )}
+        </div>
+      )}
 
-          {/* Selected winners with prize amounts */}
-          {drafts.length > 0 && (
-            <div className="space-y-2">
-              {drafts.map((draft, idx) => (
-                <div
-                  key={idx}
-                  className="flex items-center gap-3 rounded-md border border-[var(--border)] p-3"
-                >
-                  <div className="h-7 w-7 rounded-full bg-[var(--accent)] text-white flex items-center justify-center text-xs font-bold">
-                    {idx + 1}
-                  </div>
-                  <span className="flex-1 text-sm font-medium text-[var(--text)]">
-                    {draft.label}
-                  </span>
-                  <div className="flex items-center gap-2">
-                    <input
-                      type="number"
-                      min="0.01"
-                      step="0.01"
-                      value={draft.prize_amount}
-                      onChange={(e) => updateDraftAmount(idx, e.target.value)}
-                      placeholder="XLM"
-                      className="w-24 rounded-md border border-[var(--border)] bg-[var(--bg)] px-2 py-1.5 text-sm text-right focus:outline-none focus:ring-2 focus:ring-[var(--accent)]"
-                    />
-                    <span className="text-xs text-[var(--text-muted)]">XLM</span>
-                    <button
-                      onClick={() => removeDraft(idx)}
-                      className="text-[var(--error)] text-xs hover:underline"
-                    >
-                      Remove
-                    </button>
-                  </div>
-                </div>
+      {/* Organizer: assign winner form */}
+      {showAssign && (
+        <form onSubmit={handleAssign} className="card p-5 space-y-4">
+          <h3 className="text-sm font-semibold text-[var(--text)]">Assign Winner</h3>
+          <div className="space-y-1.5">
+            <label
+              htmlFor="winner-sub"
+              className="text-xs font-medium text-[var(--text-secondary)]"
+            >
+              Submission
+            </label>
+            <select
+              id="winner-sub"
+              value={selectedSubId}
+              onChange={(e) => setSelectedSubId(e.target.value)}
+              required
+              className="w-full rounded-md border border-[var(--border)] bg-[var(--input-bg)] px-3 py-2 text-sm text-[var(--text)] focus:outline-none focus:ring-1 focus:ring-[var(--accent)]"
+            >
+              <option value="">Select a submission…</option>
+              {submissions.map((s) => (
+                <option key={s.id} value={s.id}>
+                  {s.team_name ?? s.submitter_name}
+                </option>
               ))}
-
-              <div className="flex items-center justify-between pt-2">
-                <p className="text-sm text-[var(--text-secondary)]">
-                  Total:{" "}
-                  <strong>
-                    {drafts.reduce((sum, d) => sum + (Number(d.prize_amount) || 0), 0)} XLM
-                  </strong>
-                </p>
-                <div className="flex gap-3">
-                  <button
-                    onClick={() => {
-                      setShowForm(false);
-                      setDrafts([]);
-                    }}
-                    className="text-sm text-[var(--text-muted)] hover:text-[var(--text)]"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    onClick={handleAssignWinners}
-                    disabled={submitting || drafts.length === 0}
-                    className="btn-primary px-4 py-1.5 text-sm font-medium rounded-md disabled:opacity-50"
-                  >
-                    {submitting ? "Saving…" : "Confirm Winners"}
-                  </button>
-                </div>
-              </div>
-            </div>
-          )}
-        </div>
+            </select>
+          </div>
+          <div className="space-y-1.5">
+            <label
+              htmlFor="prize-amount"
+              className="text-xs font-medium text-[var(--text-secondary)]"
+            >
+              Prize Amount (XLM)
+            </label>
+            <input
+              id="prize-amount"
+              type="number"
+              step="0.0000001"
+              min="0.0000001"
+              value={prizeAmount}
+              onChange={(e) => setPrizeAmount(e.target.value)}
+              required
+              placeholder="e.g. 500"
+              className="w-full rounded-md border border-[var(--border)] bg-[var(--input-bg)] px-3 py-2 text-sm text-[var(--text)] placeholder:text-[var(--text-muted)] focus:outline-none focus:ring-1 focus:ring-[var(--accent)]"
+            />
+          </div>
+          <div className="flex gap-3">
+            <button
+              type="submit"
+              disabled={assigning}
+              className="rounded-md bg-[var(--accent)] px-5 py-2 text-sm font-medium text-white hover:bg-[var(--accent-hover)] disabled:opacity-50 transition-colors"
+            >
+              {assigning ? "Assigning…" : "Assign"}
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setShowAssign(false);
+                setSelectedSubId("");
+                setPrizeAmount("");
+              }}
+              className="text-sm text-[var(--text-muted)] hover:text-[var(--text)] transition-colors"
+            >
+              Cancel
+            </button>
+          </div>
+        </form>
       )}
 
-      {/* Existing winners display */}
-      {winners.length === 0 && !showForm ? (
-        <div className="card p-8 text-center">
+      {/* Winners list */}
+      {!revealed ? (
+        <div className="card p-10 text-center">
           <p className="text-sm text-[var(--text-muted)]">
-            Winners have not been announced yet.
+            Winners will be revealed once the organizer completes winner verification.
           </p>
+        </div>
+      ) : initialWinners.length === 0 ? (
+        <div className="card p-10 text-center">
+          <p className="text-sm text-[var(--text-muted)]">No winners assigned yet.</p>
         </div>
       ) : (
-        winners.length > 0 && (
-          <div className="space-y-3">
-            {winners.map((w, idx) => (
-              <div
-                key={w.id}
-                className="card p-4 flex items-center justify-between hover:bg-[var(--bg-muted)]/30 transition-colors"
-              >
-                <div className="flex items-center gap-4">
-                  <div className="w-8 h-8 rounded-full bg-[var(--primary)]/10 text-[var(--primary)] flex items-center justify-center font-bold text-sm shrink-0">
-                    {idx + 1}
-                  </div>
-                  <div>
-                    <p className="font-medium text-[var(--text)]">
-                      {w.team_name ?? w.recipient_name}
-                    </p>
-                    {w.team_name && (
-                      <p className="text-xs text-[var(--text-muted)]">
-                        Individual: {w.recipient_name}
-                      </p>
-                    )}
-                  </div>
-                </div>
-                <div className="text-right">
-                  <p className="font-medium text-[var(--primary)]">{w.prize_amount} XLM</p>
-                  <p className="text-xs text-[var(--text-muted)] capitalize">
-                    {w.disbursement_status}
-                  </p>
-                </div>
+        <div className="space-y-2">
+          {initialWinners.map((w, idx) => (
+            <div
+              key={w.id}
+              className={`card p-4 flex items-center gap-4 ${
+                w.recipient_id === userId ? "border-[var(--accent)]" : ""
+              }`}
+            >
+              <span className="text-2xl font-bold text-[var(--text-muted)] w-8 shrink-0 text-center">
+                {idx + 1}
+              </span>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-medium text-[var(--text)] truncate">
+                  {w.team_name ?? w.recipient_name}
+                  {w.recipient_id === userId && (
+                    <span className="ml-2 text-[var(--accent)] text-xs">(you)</span>
+                  )}
+                </p>
+                <p className="text-xs text-[var(--text-muted)] mt-0.5">
+                  {w.prize_amount.toLocaleString()} XLM
+                </p>
               </div>
-            ))}
-          </div>
-        )
+              <DisbursementBadge status={w.disbursement_status} />
+            </div>
+          ))}
+        </div>
       )}
     </div>
   );

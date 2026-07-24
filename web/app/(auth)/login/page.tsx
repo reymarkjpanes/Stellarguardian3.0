@@ -6,14 +6,18 @@
  * Email/password login via the Supabase browser client with automatic
  * token refresh handled by @supabase/ssr cookie persistence.
  */
-import { useState } from "react";
+import { useState, useCallback } from "react";
 import { createBrowserClient } from "@/lib/supabase/client";
+import { TurnstileWidget } from "@/components/auth/turnstile-widget";
 
 export default function LoginPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [_captchaToken, setCaptchaToken] = useState<string | null>(null);
+  const onCaptchaVerify = useCallback((token: string) => setCaptchaToken(token), []);
+  const onCaptchaExpire = useCallback(() => setCaptchaToken(null), []);
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -63,7 +67,10 @@ export default function LoginPage() {
           )}
 
           <div className="space-y-2">
-            <label htmlFor="email" className="block text-sm font-medium text-[var(--text-secondary)]">
+            <label
+              htmlFor="email"
+              className="block text-sm font-medium text-[var(--text-secondary)]"
+            >
               Email
             </label>
             <input
@@ -80,10 +87,16 @@ export default function LoginPage() {
 
           <div className="space-y-2">
             <div className="flex items-center justify-between">
-              <label htmlFor="password" className="block text-sm font-medium text-[var(--text-secondary)]">
+              <label
+                htmlFor="password"
+                className="block text-sm font-medium text-[var(--text-secondary)]"
+              >
                 Password
               </label>
-              <a href="/forgot-password" className="text-xs text-[var(--text-muted)] hover:text-[var(--text)] hover:underline">
+              <a
+                href="/forgot-password"
+                className="text-xs text-[var(--text-muted)] hover:text-[var(--text)] hover:underline"
+              >
                 Forgot password?
               </a>
             </div>
@@ -98,6 +111,8 @@ export default function LoginPage() {
               placeholder="••••••••"
             />
           </div>
+
+          <TurnstileWidget onVerify={onCaptchaVerify} onExpire={onCaptchaExpire} />
 
           <button
             type="submit"

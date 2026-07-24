@@ -29,6 +29,8 @@ interface EventDetailClientProps {
   userId: string | null;
   judgeCount: number;
   hasVerifiedOrganizer: boolean;
+  hasVerifiedWallet: boolean;
+  submissionStatus: string | null;
   reviewWindowHours: number;
 }
 
@@ -41,6 +43,8 @@ export function EventDetailClient({
   userId,
   judgeCount: _judgeCount,
   hasVerifiedOrganizer: _hasVerifiedOrganizer,
+  hasVerifiedWallet,
+  submissionStatus,
   reviewWindowHours: _reviewWindowHours,
 }: EventDetailClientProps) {
   const router = useRouter();
@@ -96,18 +100,23 @@ export function EventDetailClient({
   }
 
   const roleName = isOrganizer ? "Organizer" : myMembership ? myMembership.role : "Guest";
+  const isInTeam = teams.some((t) => t.team_members?.some((m) => m.user_id === userId));
+
+  // Submission status flags — derived from server-fetched state
+  const hasSubmission = !!submissionStatus;
+  const isSubmitted =
+    submissionStatus === "Submitted" ||
+    submissionStatus === "SUBMITTED" ||
+    submissionStatus === "LOCKED" ||
+    submissionStatus === "Locked";
 
   const milestones = [
     { id: "registered", label: "Registered for Event", completed: !!myMembership },
-    {
-      id: "team",
-      label: "Joined a Team",
-      completed: teams.some((t) => t.team_members?.some((m) => m.user_id === userId)),
-    },
-    { id: "wallet", label: "Wallet Connected", completed: true },
-    { id: "repo", label: "Repository Added", completed: false },
-    { id: "demo", label: "Demo Uploaded", completed: false },
-    { id: "submitted", label: "Final Submitted", completed: false },
+    { id: "team", label: "Joined a Team", completed: isInTeam },
+    { id: "wallet", label: "Wallet Connected", completed: hasVerifiedWallet },
+    { id: "repo", label: "Repository Added", completed: hasSubmission },
+    { id: "demo", label: "Demo Uploaded", completed: hasSubmission },
+    { id: "submitted", label: "Final Submitted", completed: isSubmitted },
   ];
 
   const quickActions = isOrganizer
@@ -118,29 +127,36 @@ export function EventDetailClient({
       ]
     : myMembership
       ? [
-          { id: "team", label: "My Team", href: `/events/${event.id}/teams` },
+          {
+            id: "team",
+            label: isInTeam ? "My Team" : "Find or Create a Team",
+            href: `/events/${event.id}/teams`,
+            primary: !isInTeam,
+          },
           {
             id: "sub",
-            label: "Continue Submission",
+            label: isSubmitted
+              ? "View Submission"
+              : hasSubmission
+                ? "Continue Submission"
+                : "Start Submission",
             href: `/events/${event.id}/submissions`,
-            primary: true,
+            primary: isInTeam && !isSubmitted,
           },
         ]
       : [{ id: "apply", label: "Apply to Participate", onClick: handleApply, primary: true }];
 
   const roleStats = isOrganizer
     ? [
-        { label: "Participants", value: members.length },
+        { label: "Participants", value: members.filter((m) => m.role === "Participant").length },
         { label: "Teams Formed", value: teams.length },
       ]
     : [
+        { label: "Team Status", value: isInTeam ? "Joined" : "No Team" },
         {
-          label: "Team Status",
-          value: teams.some((t) => t.team_members?.some((m) => m.user_id === userId))
-            ? "Joined"
-            : "No Team",
+          label: "Submission",
+          value: isSubmitted ? "Submitted ✓" : hasSubmission ? "Draft" : "Not Started",
         },
-        { label: "Submission", value: "Not Started" },
       ];
 
   const recentActivities = [

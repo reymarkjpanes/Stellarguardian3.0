@@ -1,11 +1,17 @@
 "use client";
 
 /**
- * Submissions client component — handles submit project form interaction only.
- * All data is passed as props from the Server Component parent; no Supabase calls here.
+ * Submissions tab — context-aware rendering:
+ *
+ *  Participant + team + SubmissionOpen  → Full submission hub
+ *    (requirements checklist, auto-save, validation panel, submit)
+ *  Participant + no team + SubmissionOpen → "Join a team first" nudge
+ *  Participant + wrong phase → Phase gate message
+ *  Organizer / Judge / any other role   → Read-only submissions list
  */
-import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { SubmissionHubLayout } from "@/src/domains/submissions/components/SubmissionHubLayout";
+
+// ─── Types ────────────────────────────────────────────────────────────────────
 
 interface Submission {
   id: string;
@@ -18,192 +24,171 @@ interface Submission {
   submitter_name?: string;
 }
 
-interface SubmissionsClientProps {
+interface Props {
   eventId: string;
+  eventName: string;
   eventState: string;
+  submissionDeadline: string | null;
   submissions: Submission[];
   userRole: string | null;
+  userId: string | null;
+  teamId: string | null;
+  teamName: string | null;
 }
+
+// ─── Status badge ─────────────────────────────────────────────────────────────
+
+function StatusBadge({ status }: { status: string }) {
+  const s = status.toLowerCase();
+  const cls =
+    s === "submitted"
+      ? "bg-[var(--success-bg)] text-[var(--success)]"
+      : s === "draft"
+        ? "bg-[var(--warning-bg)] text-[var(--warning)]"
+        : "bg-[var(--badge-bg)] text-[var(--badge-text)]";
+  return <span className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${cls}`}>{status}</span>;
+}
+
+// ─── Phase gate ───────────────────────────────────────────────────────────────
+
+function PhaseGate({ state }: { state: string }) {
+  const messages: Record<string, string> = {
+    Draft: "Submissions open once the organizer starts the submission phase.",
+    Published: "Submissions open once the organizer starts the submission phase.",
+    RegistrationOpen: "Submissions open after registration closes.",
+    RegistrationClosed: "Submissions open after team formation.",
+    TeamFormationLocked: "Submissions open after team formation closes.",
+    SubmissionClosed: "Submissions have closed.",
+    JudgingRound1: "Submissions are under review by judges.",
+    DisputeWindow: "Submissions are locked during the dispute window.",
+    WinnerVerification: "Submissions locked — winner verification in progress.",
+    PrizeApproved: "Submissions locked — prizes being distributed.",
+    EscrowRelease: "Submissions locked — escrow release in progress.",
+    Completed: "This event has completed.",
+    Archived: "This event is archived.",
+    Cancelled: "This event was cancelled.",
+  };
+  return (
+    <div className="card p-10 text-center">
+      <p className="text-sm text-[var(--text-muted)]">
+        {messages[state] ?? `Submissions unavailable in ${state} phase.`}
+      </p>
+    </div>
+  );
+}
+
+// ─── Submissions list (organizer / judge / read-only view) ────────────────────
+
+function SubmissionsList({ submissions }: { submissions: Submission[] }) {
+  if (submissions.length === 0) {
+    return (
+      <div className="card p-10 text-center">
+        <p className="text-sm text-[var(--text-muted)]">No submissions yet.</p>
+      </div>
+    );
+  }
+  return (
+    <div className="space-y-2">
+      {submissions.map((sub) => (
+        <div key={sub.id} className="card p-4 flex items-center justify-between gap-4">
+          <div>
+            <p className="text-sm font-medium text-[var(--text)]">
+              {sub.team_name ?? sub.submitter_name ?? "Unknown"}
+            </p>
+            <p className="text-xs text-[var(--text-muted)] mt-0.5">
+              v{sub.current_version} · Updated {new Date(sub.updated_at).toLocaleDateString()}
+            </p>
+          </div>
+          <StatusBadge status={sub.status} />
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// ─── Main component ───────────────────────────────────────────────────────────
 
 export function SubmissionsClient({
   eventId,
+  eventName,
   eventState,
+  submissionDeadline,
   submissions,
   userRole,
-}: SubmissionsClientProps) {
-  const router = useRouter();
-  const [showForm, setShowForm] = useState(false);
-  const [title, setTitle] = useState("");
-  const [projectUrl, setProjectUrl] = useState("");
-  const [description, setDescription] = useState("");
-  const [submitting, setSubmitting] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  userId: _userId,
+  teamId,
+  teamName,
+}: Props) {
+  const isParticipant = userRole === "Participant";
+  const submissionOpen = eventState === "SubmissionOpen";
 
-  const canSubmit = userRole === "Participant" && eventState === "SubmissionOpen";
-
-  async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
-    e.preventDefault();
-    setSubmitting(true);
-    setError(null);
-
-    try {
-      const res = await fetch(`/api/events/${eventId}/submissions`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          title,
-          description,
-          project_url: projectUrl || undefined,
-        }),
-      });
-
-      if (!res.ok) {
-        let message = "Failed to submit.";
-        try {
-          const body = await res.json();
-          message = body?.error?.message ?? message;
-        } catch {
-          message = `Server error (${res.status})`;
-        }
-        setError(message);
-        setSubmitting(false);
-        return;
-      }
-
-      setTitle("");
-      setDescription("");
-      setProjectUrl("");
-      setShowForm(false);
-      setSubmitting(false);
-      // Refresh server data
-      router.refresh();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Network error. Please try again.");
-      setSubmitting(false);
-    }
+  // ── Organizer / Judge — read-only list ────────────────────────────────────
+  if (!isParticipant) {
+    return (
+      <div className="space-y-4">
+        <div className="flex items-center justify-between">
+          <h2 className="text-lg font-semibold text-[var(--text)]">Submissions</h2>
+          <span className="text-xs text-[var(--text-muted)]">
+            {submissions.length} submission{submissions.length !== 1 && "s"}
+          </span>
+        </div>
+        <SubmissionsList submissions={submissions} />
+      </div>
+    );
   }
 
-  return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <h2 className="text-lg font-medium">Submissions</h2>
-        {canSubmit && !showForm && (
-          <button
-            onClick={() => setShowForm(true)}
-            className="btn-primary px-4 py-1.5 text-sm font-medium rounded-md"
-          >
-            Submit Project
-          </button>
+  // ── Participant: wrong phase ───────────────────────────────────────────────
+  if (!submissionOpen) {
+    return (
+      <div className="space-y-4">
+        <h2 className="text-lg font-semibold text-[var(--text)]">Submissions</h2>
+        <PhaseGate state={eventState} />
+        {/* Still show submitted projects if any exist */}
+        {submissions.length > 0 && (
+          <div className="space-y-2 mt-4">
+            <p className="text-xs font-medium text-[var(--text-muted)] uppercase tracking-wide">
+              Submitted Projects
+            </p>
+            <SubmissionsList submissions={submissions} />
+          </div>
         )}
       </div>
+    );
+  }
 
-      {/* Submission form */}
-      {showForm && (
-        <form onSubmit={handleSubmit} className="card p-6 space-y-4">
-          <div>
-            <label
-              htmlFor="sub-title"
-              className="block text-sm font-medium text-[var(--text-secondary)] mb-1"
-            >
-              Project Title
-            </label>
-            <input
-              id="sub-title"
-              type="text"
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
-              required
-              className="w-full rounded-md border border-[var(--border)] bg-[var(--bg)] px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--accent)]"
-            />
-          </div>
-          <div>
-            <label
-              htmlFor="sub-url"
-              className="block text-sm font-medium text-[var(--text-secondary)] mb-1"
-            >
-              Project URL (GitHub, demo, etc.)
-            </label>
-            <input
-              id="sub-url"
-              type="url"
-              value={projectUrl}
-              onChange={(e) => setProjectUrl(e.target.value)}
-              className="w-full rounded-md border border-[var(--border)] bg-[var(--bg)] px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--accent)]"
-            />
-          </div>
-          <div>
-            <label
-              htmlFor="sub-desc"
-              className="block text-sm font-medium text-[var(--text-secondary)] mb-1"
-            >
-              Description
-            </label>
-            <textarea
-              id="sub-desc"
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-              rows={4}
-              required
-              className="w-full rounded-md border border-[var(--border)] bg-[var(--bg)] px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--accent)]"
-            />
-          </div>
-          {error && <p className="text-sm text-[var(--error)]">{error}</p>}
-          <div className="flex gap-3">
-            <button
-              type="submit"
-              disabled={submitting}
-              className="btn-primary px-5 py-2 text-sm font-medium rounded-md disabled:opacity-50"
-            >
-              {submitting ? "Submitting..." : "Submit"}
-            </button>
-            <button
-              type="button"
-              onClick={() => setShowForm(false)}
-              className="text-sm text-[var(--text-muted)] hover:text-[var(--text)]"
-            >
-              Cancel
-            </button>
-          </div>
-        </form>
-      )}
-
-      {/* Submissions list */}
-      {submissions.length === 0 ? (
-        <div className="card p-8 text-center">
-          <p className="text-sm text-[var(--text-muted)]">
-            {eventState === "SubmissionOpen"
-              ? "No submissions yet."
-              : "Submissions will be accepted during the SubmissionOpen phase."}
+  // ── Participant: no team ───────────────────────────────────────────────────
+  if (!teamId) {
+    return (
+      <div className="space-y-4">
+        <h2 className="text-lg font-semibold text-[var(--text)]">Submissions</h2>
+        <div className="card p-8 text-center space-y-3">
+          <p className="text-sm font-medium text-[var(--text)]">You need a team to submit</p>
+          <p className="text-xs text-[var(--text-muted)] max-w-sm mx-auto">
+            Submissions are linked to teams. Join or create a team on the Teams tab, then come back
+            here to submit your project.
           </p>
+          <a
+            href={`/events/${eventId}/teams`}
+            className="inline-block rounded-md bg-[var(--accent)] px-4 py-2 text-sm font-medium text-white hover:bg-[var(--accent-hover)] transition-colors"
+          >
+            Go to Teams
+          </a>
         </div>
-      ) : (
-        <div className="space-y-2">
-          {submissions.map((sub) => (
-            <div key={sub.id} className="card p-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="font-medium text-[var(--text)]">
-                    {sub.team_name ?? sub.submitter_name}
-                  </p>
-                  <p className="text-xs text-[var(--text-muted)] mt-0.5">
-                    v{sub.current_version} · {sub.status} · Updated{" "}
-                    {new Date(sub.updated_at).toLocaleDateString()}
-                  </p>
-                </div>
-                <span
-                  className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${
-                    sub.status === "Submitted"
-                      ? "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300"
-                      : "bg-[var(--bg-muted)] text-[var(--text-secondary)]"
-                  }`}
-                >
-                  {sub.status}
-                </span>
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
+      </div>
+    );
+  }
+
+  // ── Participant + team + SubmissionOpen → Full submission hub ──────────────
+  return (
+    <div className="space-y-4">
+      <h2 className="text-lg font-semibold text-[var(--text)]">Your Submission</h2>
+      <SubmissionHubLayout
+        eventId={eventId}
+        teamId={teamId}
+        teamName={teamName ?? "Your Team"}
+        eventName={eventName}
+        deadline={submissionDeadline}
+      />
     </div>
   );
 }

@@ -9,23 +9,7 @@ import { decryptSecret } from "@/lib/services/kms";
 import { logger } from "@/lib/logger";
 
 const MAX_OPS_PER_TX = 100;
-
-/**
- * Signs an unsigned transaction XDR with the escrow keypair.
- * SECURITY: Decrypts the escrow secret via KMS, signs in-process, never logs the key.
- */
-async function signXdr(
-  unsignedXdr: string,
-  encryptedSecretKey: string,
-  networkPassphrase: string,
-): Promise<string> {
-  const { Keypair, TransactionBuilder } = await import("@stellar/stellar-sdk");
-  const secret = await decryptSecret(String(encryptedSecretKey));
-  const keypair = Keypair.fromSecret(secret);
-  const tx = TransactionBuilder.fromXDR(unsignedXdr, networkPassphrase);
-  tx.sign(keypair);
-  return tx.toXDR();
-}
+const MAX_DISBURSEMENT_RETRIES = 3;
 
 export class DisbursementService {
   static async validatePrizeAllocation(
@@ -54,14 +38,17 @@ export class DisbursementService {
     const maxDisbursable = onChainBalance - minRetainedBalance;
 
     if (totalAllocated > maxDisbursable) {
-      throw new ValidationError("Prize allocation exceeds the disbursable escrow balance after Stellar reserves.", {
-        onChainBalance: String(onChainBalance),
-        attemptedTotal: String(totalAllocated),
-        stellarReserve: String(minRetainedBalance),
-        maxDisbursable: String(maxDisbursable),
-        deficit: String(totalAllocated - maxDisbursable),
-        batchCount: String(batchCount),
-      });
+      throw new ValidationError(
+        "Prize allocation exceeds the disbursable escrow balance after Stellar reserves.",
+        {
+          onChainBalance: String(onChainBalance),
+          attemptedTotal: String(totalAllocated),
+          stellarReserve: String(minRetainedBalance),
+          maxDisbursable: String(maxDisbursable),
+          deficit: String(totalAllocated - maxDisbursable),
+          batchCount: String(batchCount),
+        },
+      );
     }
   }
 
@@ -204,40 +191,66 @@ export class DisbursementService {
     for (let i = 0; i < verifiedPayments.length; i += MAX_OPS_PER_TX) {
       const batch = verifiedPayments.slice(i, i + MAX_OPS_PER_TX);
       const payments = batch.map((p) => ({ destination: p.destination, amount: p.amount }));
+      const batchIndex = Math.floor(i / MAX_OPS_PER_TX);
 
-      try {
-        // Build unsigned XDR
-        const unsignedXdr = await stellar.buildPaymentBatch(escrow.stellar_public_key, payments);
-        // Sign with the escrow keypair (Task 0.2 fix)
-        const { Keypair, TransactionBuilder } = await import("@stellar/stellar-sdk");
-        const keypair = Keypair.fromSecret(escrowSecret);
-        const tx = TransactionBuilder.fromXDR(unsignedXdr, networkPassphrase);
-        tx.sign(keypair);
-        const signedXdr = tx.toXDR();
+      let batchSucceeded = false;
+      let lastBatchError: unknown = null;
 
-        const { hash, successful } = await stellar.submitSignedTx(signedXdr);
+      // Retry loop with exponential backoff (H8: mirrors RefundService pattern)
+      for (let attempt = 0; attempt < MAX_DISBURSEMENT_RETRIES; attempt++) {
+        try {
+          // Build unsigned XDR
+          const unsignedXdr = await stellar.buildPaymentBatch(escrow.stellar_public_key, payments);
+          // Sign with the escrow keypair (Task 0.2 fix)
+          const { Keypair, TransactionBuilder } = await import("@stellar/stellar-sdk");
+          const keypair = Keypair.fromSecret(escrowSecret);
+          const tx = TransactionBuilder.fromXDR(unsignedXdr, networkPassphrase);
+          tx.sign(keypair);
+          const signedXdr = tx.toXDR();
 
-        if (successful) {
-          batch.forEach((p) => {
-            successfulPayments.push({ ...p, txHash: hash });
-            paid.push({ recipientId: p.recipientId, txHash: hash, amount: p.amount });
-          });
-        } else {
-          batch.forEach((p) => {
-            held.push({
-              recipientId: p.recipientId,
-              amount: p.amount,
-              reason: "Transaction submitted but not successful",
+          const { hash, successful } = await stellar.submitSignedTx(signedXdr);
+
+          if (successful) {
+            batch.forEach((p) => {
+              successfulPayments.push({ ...p, txHash: hash });
+              paid.push({ recipientId: p.recipientId, txHash: hash, amount: p.amount });
             });
+            batchSucceeded = true;
+            break; // Success — exit retry loop
+          } else {
+            // Transaction submitted but rejected by network — retrying won't help
+            lastBatchError = new Error("Transaction submitted but not successful");
+            break;
+          }
+        } catch (error) {
+          lastBatchError = error;
+          logger.warn("[escrow] Disbursement batch attempt failed", {
+            eventId,
+            batch: batchIndex,
+            attempt: attempt + 1,
+            maxRetries: MAX_DISBURSEMENT_RETRIES,
+            error: String(error),
           });
+
+          // Exponential backoff: 1s, 2s, 4s (only if more retries remain)
+          if (attempt < MAX_DISBURSEMENT_RETRIES - 1) {
+            await new Promise((resolve) => setTimeout(resolve, 1000 * Math.pow(2, attempt)));
+          }
         }
-      } catch (error) {
-        logger.error("[escrow] Disbursement batch failed", { eventId, error: String(error) });
+      }
+
+      if (!batchSucceeded) {
+        logger.error("[escrow] Disbursement batch failed after retries", {
+          eventId,
+          batch: batchIndex,
+          attempts: MAX_DISBURSEMENT_RETRIES,
+          error: String(lastBatchError),
+        });
         batch.forEach((p) => {
           held.push({
             recipientId: p.recipientId,
             amount: p.amount,
-            reason: "Batch transaction failed",
+            reason: `Transaction failed after ${MAX_DISBURSEMENT_RETRIES} attempts`,
           });
         });
       }

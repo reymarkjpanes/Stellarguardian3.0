@@ -1,143 +1,235 @@
 "use client";
 
 /**
- * Disputes client component — handles file dispute form and resolve dispute interactions only.
- * All data is passed as props from the Server Component parent; no Supabase calls here.
+ * Disputes tab — role-aware rendering.
+ *
+ * Participant (DisputeWindow state):
+ *   - File a new dispute (title + description)
+ *   - See all disputes and their state
+ *
+ * Organizer:
+ *   - See all disputes, resolve them (uphold / dismiss)
+ *
+ * Everyone else:
+ *   - Read-only list during appropriate phases
  */
-import { useState } from "react";
+import { useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
+
+// ─── Types ────────────────────────────────────────────────────────────────────
 
 interface Dispute {
   id: string;
   filed_by: string;
   state: string;
+  title?: string;
   description: string;
   created_at: string;
   filer_name: string;
 }
 
-interface DisputesClientProps {
+interface Props {
   eventId: string;
   eventState: string;
   disputes: Dispute[];
   userRole: string | null;
+  userId?: string | null;
 }
+
+// ─── State badge ─────────────────────────────────────────────────────────────
+
+function DisputeStateBadge({ state }: { state: string }) {
+  const s = state.toLowerCase();
+  const cls =
+    s === "open" || s === "underreview"
+      ? "bg-[var(--warning-bg)] text-[var(--warning)]"
+      : s === "upheld"
+        ? "bg-[var(--error-bg)] text-[var(--error)]"
+        : s === "dismissed" || s === "withdrawn"
+          ? "bg-[var(--badge-bg)] text-[var(--badge-text)]"
+          : "bg-[var(--badge-bg)] text-[var(--badge-text)]";
+  return <span className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${cls}`}>{state}</span>;
+}
+
+// ─── Component ────────────────────────────────────────────────────────────────
 
 export function DisputesClient({
   eventId,
   eventState,
   disputes: initialDisputes,
   userRole,
-}: DisputesClientProps) {
+  userId: _userId,
+}: Props) {
   const router = useRouter();
+  const isParticipant = userRole === "Participant";
+  const isOrganizer = userRole === "Organizer";
+  const canFile = isParticipant && eventState === "DisputeWindow";
+
   const [disputes, setDisputes] = useState<Dispute[]>(initialDisputes);
   const [showForm, setShowForm] = useState(false);
-  const [reason, setReason] = useState("");
+  const [title, setTitle] = useState("");
+  const [description, setDescription] = useState("");
   const [submitting, setSubmitting] = useState(false);
-  const [resolvingId, setResolvingId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState<string | null>(null);
 
-  const canFile = userRole === "Participant" && eventState === "DisputeWindow";
+  // Organizer: resolve dispute
+  const [resolving, setResolving] = useState<string | null>(null);
+  const [resolution, setResolution] = useState("");
+  const [resolveOpenId, setResolveOpenId] = useState<string | null>(null);
 
-  async function handleFileDispute(e: React.FormEvent) {
+  async function handleFile(e: FormEvent) {
     e.preventDefault();
     setSubmitting(true);
     setError(null);
 
-    const res = await fetch("/api/disputes", {
+    const res = await fetch(`/api/events/${eventId}/disputes`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ event_id: eventId, reason }),
+      body: JSON.stringify({ title, description }),
     });
 
     if (!res.ok) {
-      const { error: err } = await res.json();
-      setError(err?.message ?? "Failed to file dispute.");
-      setSubmitting(false);
-      return;
+      const { error: apiErr } = await res.json();
+      setError(apiErr?.message ?? "Failed to file dispute.");
+    } else {
+      setSuccess("Dispute filed. The organizer will review it.");
+      setTitle("");
+      setDescription("");
+      setShowForm(false);
+      router.refresh();
     }
-
-    setReason("");
-    setShowForm(false);
     setSubmitting(false);
-    router.refresh();
   }
 
-  async function handleResolveDispute(
-    disputeId: string,
-    resolution: "Upheld" | "Dismissed",
-  ) {
-    setResolvingId(disputeId);
+  async function handleResolve(disputeId: string, action: "Upheld" | "Dismissed") {
+    setResolving(disputeId);
     setError(null);
 
-    const res = await fetch(`/api/disputes/${disputeId}`, {
+    const res = await fetch(`/api/events/${eventId}/disputes/${disputeId}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ state: resolution }),
+      body: JSON.stringify({ target_state: action, resolution }),
     });
 
     if (!res.ok) {
-      const { error: err } = await res.json();
-      setError(err?.message ?? "Failed to resolve dispute.");
+      const { error: apiErr } = await res.json();
+      setError(apiErr?.message ?? "Failed to resolve dispute.");
     } else {
-      // Optimistic update — reflects resolved state immediately
-      setDisputes((prev) =>
-        prev.map((d) => (d.id === disputeId ? { ...d, state: resolution } : d)),
-      );
+      setDisputes((prev) => prev.map((d) => (d.id === disputeId ? { ...d, state: action } : d)));
+      setResolveOpenId(null);
+      setResolution("");
     }
-
-    setResolvingId(null);
+    setResolving(null);
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 max-w-3xl">
+      {/* Header */}
       <div className="flex items-center justify-between">
-        <h2 className="text-lg font-medium">Disputes</h2>
+        <div>
+          <h2 className="text-lg font-semibold text-[var(--text)]">Disputes</h2>
+          <p className="text-xs text-[var(--text-muted)] mt-0.5">
+            {eventState === "DisputeWindow"
+              ? "The review window is open. Participants can file disputes about judging decisions."
+              : "Disputes can only be filed during the Review (Dispute) Window."}
+          </p>
+        </div>
         {canFile && !showForm && (
           <button
             onClick={() => setShowForm(true)}
-            className="rounded-md border border-[var(--error)] px-4 py-1.5 text-sm font-medium text-[var(--error)] hover:bg-[var(--error-bg)] transition-colors"
+            className="rounded-md bg-[var(--accent)] px-4 py-2 text-sm font-medium text-white hover:bg-[var(--accent-hover)] transition-colors"
           >
             File Dispute
           </button>
         )}
       </div>
 
-      {showForm && (
-        <form
-          onSubmit={handleFileDispute}
-          className="card p-6 space-y-4 border-[var(--error)]"
+      {/* Feedback banners */}
+      {error && (
+        <div
+          role="alert"
+          className="rounded-md border border-[var(--error)] bg-[var(--error-bg)] px-4 py-3 flex items-center justify-between gap-3"
         >
-          <div>
+          <p className="text-sm text-[var(--error)]">{error}</p>
+          <button
+            onClick={() => setError(null)}
+            className="text-xs text-[var(--error)] hover:underline shrink-0"
+          >
+            ✕
+          </button>
+        </div>
+      )}
+      {success && (
+        <div
+          role="status"
+          className="rounded-md border border-[var(--success)] bg-[var(--success-bg)] px-4 py-3"
+        >
+          <p className="text-sm text-[var(--success)]">{success}</p>
+        </div>
+      )}
+
+      {/* File dispute form */}
+      {showForm && (
+        <form onSubmit={handleFile} className="card p-5 space-y-4">
+          <h3 className="text-sm font-semibold text-[var(--text)]">File a Dispute</h3>
+          <p className="text-xs text-[var(--text-muted)]">
+            Use this form if you believe a judging decision was incorrect or unfair. Disputes are
+            reviewed by the organizer and logged permanently.
+          </p>
+          <div className="space-y-1.5">
             <label
-              htmlFor="dispute-reason"
-              className="block text-sm font-medium text-[var(--text-secondary)] mb-1"
+              htmlFor="dispute-title"
+              className="text-xs font-medium text-[var(--text-secondary)]"
             >
-              Reason for Dispute
+              Subject
             </label>
-            <textarea
-              id="dispute-reason"
-              value={reason}
-              onChange={(e) => setReason(e.target.value)}
-              rows={4}
+            <input
+              id="dispute-title"
+              type="text"
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
               required
-              placeholder="Describe your objection..."
-              className="w-full rounded-md border border-[var(--border)] bg-[var(--bg)] px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--error)]"
+              maxLength={120}
+              placeholder="Brief summary of your dispute"
+              className="w-full rounded-md border border-[var(--border)] bg-[var(--input-bg)] px-3 py-2 text-sm text-[var(--text)] placeholder:text-[var(--text-muted)] focus:outline-none focus:ring-1 focus:ring-[var(--accent)]"
             />
           </div>
-          {error && <p className="text-sm text-[var(--error)]">{error}</p>}
+          <div className="space-y-1.5">
+            <label
+              htmlFor="dispute-desc"
+              className="text-xs font-medium text-[var(--text-secondary)]"
+            >
+              Description
+            </label>
+            <textarea
+              id="dispute-desc"
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              required
+              minLength={20}
+              maxLength={2000}
+              rows={4}
+              placeholder="Explain the issue in detail. Include any relevant evidence or context."
+              className="w-full resize-none rounded-md border border-[var(--border)] bg-[var(--input-bg)] px-3 py-2 text-sm text-[var(--text)] placeholder:text-[var(--text-muted)] focus:outline-none focus:ring-1 focus:ring-[var(--accent)]"
+            />
+          </div>
           <div className="flex gap-3">
             <button
               type="submit"
               disabled={submitting}
-              className="rounded-md bg-[var(--error)] px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
+              className="rounded-md bg-[var(--accent)] px-5 py-2 text-sm font-medium text-white hover:bg-[var(--accent-hover)] disabled:opacity-50 transition-colors"
             >
-              {submitting ? "Filing..." : "Submit Dispute"}
+              {submitting ? "Filing…" : "Submit Dispute"}
             </button>
             <button
               type="button"
-              onClick={() => setShowForm(false)}
-              className="text-sm text-[var(--text-muted)]"
+              onClick={() => {
+                setShowForm(false);
+                setTitle("");
+                setDescription("");
+              }}
+              className="text-sm text-[var(--text-muted)] hover:text-[var(--text)] transition-colors"
             >
               Cancel
             </button>
@@ -145,56 +237,79 @@ export function DisputesClient({
         </form>
       )}
 
+      {/* Disputes list */}
       {disputes.length === 0 ? (
-        <div className="card p-8 text-center">
-          <p className="text-sm text-[var(--text-muted)]">No disputes have been filed.</p>
+        <div className="card p-10 text-center">
+          <p className="text-sm text-[var(--text-muted)]">
+            {eventState === "DisputeWindow"
+              ? "No disputes filed yet."
+              : "No disputes were filed during this event."}
+          </p>
         </div>
       ) : (
-        <div className="space-y-2">
+        <div className="space-y-3">
           {disputes.map((d) => (
-            <div key={d.id} className="card p-4">
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-sm font-medium text-[var(--text)]">{d.filer_name}</span>
-                <span
-                  className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${
-                    d.state === "Open"
-                      ? "bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300"
-                      : d.state === "Upheld"
-                        ? "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300"
-                        : d.state === "Dismissed"
-                          ? "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300"
-                          : "bg-[var(--bg-muted)] text-[var(--text-secondary)]"
-                  }`}
-                >
-                  {d.state}
-                </span>
-              </div>
-              <p className="text-sm text-[var(--text-secondary)]">{d.description}</p>
-              <div className="flex items-center justify-between mt-3">
-                <p className="text-xs text-[var(--text-muted)]">
-                  Filed {new Date(d.created_at).toLocaleDateString()}
-                </p>
-                {/* Resolution buttons for organizers on open disputes */}
-                {userRole === "Organizer" &&
-                  (d.state === "Open" || d.state === "UnderReview") && (
-                    <div className="flex gap-2">
-                      <button
-                        onClick={() => handleResolveDispute(d.id, "Upheld")}
-                        disabled={resolvingId === d.id}
-                        className="rounded-md border border-[var(--error)] px-2.5 py-1 text-xs font-medium text-[var(--error)] hover:bg-[var(--error-bg)] transition-colors disabled:opacity-50"
-                      >
-                        Uphold
-                      </button>
-                      <button
-                        onClick={() => handleResolveDispute(d.id, "Dismissed")}
-                        disabled={resolvingId === d.id}
-                        className="rounded-md border border-green-600 px-2.5 py-1 text-xs font-medium text-green-600 hover:bg-green-50 dark:hover:bg-green-900/20 transition-colors disabled:opacity-50"
-                      >
-                        Dismiss
-                      </button>
-                    </div>
+            <div key={d.id} className="card p-4 space-y-2">
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0 flex-1">
+                  {d.title && (
+                    <p className="text-sm font-medium text-[var(--text)] truncate">{d.title}</p>
                   )}
+                  <p className="text-xs text-[var(--text-muted)] mt-0.5">
+                    Filed by {d.filer_name} · {new Date(d.created_at).toLocaleDateString()}
+                  </p>
+                </div>
+                <DisputeStateBadge state={d.state} />
               </div>
+
+              <p className="text-sm text-[var(--text-secondary)] line-clamp-2">{d.description}</p>
+
+              {/* Organizer resolution */}
+              {isOrganizer && (d.state === "Open" || d.state === "UnderReview") && (
+                <>
+                  {resolveOpenId === d.id ? (
+                    <div className="border-t border-[var(--border)] pt-3 space-y-2">
+                      <textarea
+                        value={resolution}
+                        onChange={(e) => setResolution(e.target.value)}
+                        placeholder="Resolution notes (optional)"
+                        maxLength={500}
+                        rows={2}
+                        className="w-full resize-none rounded-md border border-[var(--border)] bg-[var(--input-bg)] px-3 py-1.5 text-xs text-[var(--text)] placeholder:text-[var(--text-muted)] focus:outline-none focus:ring-1 focus:ring-[var(--accent)]"
+                      />
+                      <div className="flex gap-2">
+                        <button
+                          disabled={resolving === d.id}
+                          onClick={() => handleResolve(d.id, "Upheld")}
+                          className="rounded-md border border-[var(--error)] px-3 py-1 text-xs font-medium text-[var(--error)] hover:bg-[var(--error-bg)] disabled:opacity-50 transition-colors"
+                        >
+                          Uphold
+                        </button>
+                        <button
+                          disabled={resolving === d.id}
+                          onClick={() => handleResolve(d.id, "Dismissed")}
+                          className="rounded-md border border-[var(--border)] px-3 py-1 text-xs font-medium text-[var(--text-secondary)] hover:bg-[var(--bg-muted)] disabled:opacity-50 transition-colors"
+                        >
+                          Dismiss
+                        </button>
+                        <button
+                          onClick={() => setResolveOpenId(null)}
+                          className="text-xs text-[var(--text-muted)] hover:underline ml-1"
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <button
+                      onClick={() => setResolveOpenId(d.id)}
+                      className="text-xs font-medium text-[var(--accent)] hover:underline"
+                    >
+                      Resolve →
+                    </button>
+                  )}
+                </>
+              )}
             </div>
           ))}
         </div>

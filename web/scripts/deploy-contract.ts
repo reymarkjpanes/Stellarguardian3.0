@@ -25,6 +25,7 @@ import {
   rpc as SorobanRpc,
   xdr,
   hash,
+  Address,
 } from "@stellar/stellar-sdk";
 import * as fs from "node:fs";
 import * as path from "node:path";
@@ -68,7 +69,10 @@ async function main() {
   // Step 3: Load the WASM binary
   const wasmPaths = [
     process.env.WASM_PATH,
-    path.resolve(__dirname, "../../contracts/escrow/target/wasm32-unknown-unknown/release/stellar_guardian_escrow.wasm"),
+    path.resolve(
+      __dirname,
+      "../../contracts/escrow/target/wasm32-unknown-unknown/release/stellar_guardian_escrow.wasm",
+    ),
     path.resolve(__dirname, "../../contracts/escrow/escrow.wasm"),
     path.resolve(__dirname, "../contracts/escrow.wasm"),
   ].filter(Boolean) as string[];
@@ -92,7 +96,9 @@ async function main() {
     console.error("  4. Build: cd contracts/escrow && stellar contract build");
     console.error("  5. Re-run this script");
     console.error("\nOR use Docker:");
-    console.error("  docker run --rm -v $(pwd)/contracts:/contracts stellar/stellar-cli:latest contract build --manifest-path /contracts/escrow/Cargo.toml");
+    console.error(
+      "  docker run --rm -v $(pwd)/contracts:/contracts stellar/stellar-cli:latest contract build --manifest-path /contracts/escrow/Cargo.toml",
+    );
     console.error("\nOR set WASM_PATH env var to point to a pre-compiled .wasm file.");
     process.exit(1);
   }
@@ -197,20 +203,17 @@ async function main() {
   console.log("==============================\n");
 }
 
-function extractContractId(txResponse: any): string {
+function extractContractId(txResponse: Record<string, unknown>): string {
   try {
-    // The contract ID is in the transaction result metadata
     const meta = txResponse.resultMetaXdr;
     if (meta) {
       const resultMeta = xdr.TransactionMeta.fromXDR(meta, "base64");
       const v3 = resultMeta.v3();
       const returnVal = v3.sorobanMeta()?.returnValue();
       if (returnVal) {
-        // Contract address from ScVal
-        const addr = returnVal.address();
-        if (addr) {
-          return addr.contractId().toString("hex");
-        }
+        // Address.fromScVal decodes the returned ScVal to the C-strkey contract address
+        const contractAddress: string = Address.fromScVal(returnVal).toString();
+        return contractAddress;
       }
     }
   } catch {

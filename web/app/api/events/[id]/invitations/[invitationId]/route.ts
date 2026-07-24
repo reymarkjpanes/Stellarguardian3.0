@@ -1,140 +1,136 @@
-import { NextRequest } from "next/server";
+/**
+ * PATCH /api/events/[id]/invitations/[invitationId]
+ *
+ * Invitee accepts or declines a team invitation.
+ *
+ * On accept:
+ *   - Adds the user to team_members (DB trigger sets event_id automatically)
+ *   - Marks the invitation as accepted
+ *   - Cancels all other pending invitations for this user in this event
+ *   - Cancels all pending join requests this user sent to other teams
+ *
+ * On decline:
+ *   - Marks the invitation declined; the team can send another invite later.
+ *
+ * Reason for cascade cancel: once a participant joins a team, all their
+ * outstanding outreach (requests they sent, invitations they received) is
+ * no longer valid. This keeps state clean without manual intervention.
+ */
 import { z } from "zod";
+import { apiHandler } from "@/lib/api-handler";
 import { createServerClient } from "@/lib/supabase/server";
-import { handleApiError } from "@/lib/errors";
+import { createServiceClient } from "@/lib/supabase/service";
 import { okResponse } from "@/lib/errors/responses";
+import { ForbiddenError, NotFoundError, BadRequestError } from "@/lib/errors";
 
-const UpdateInvitationSchema = z.object({
+const RespondSchema = z.object({
   action: z.enum(["accept", "decline"]),
 });
 
-/**
- * PATCH /api/events/[id]/invitations/[invitationId] — Accept or decline an invitation
- */
-export async function PATCH(
-  request: NextRequest,
-  { params }: { params: Promise<{ id: string; invitationId: string }> },
-) {
-  try {
-    const { id: eventId, invitationId } = await params;
+export const PATCH = apiHandler(
+  { requireAuth: true, schema: RespondSchema },
+  async ({ params, user, body }) => {
+    const { id: eventId, invitationId } = params as {
+      id: string;
+      invitationId: string;
+    };
     const supabase = await createServerClient();
-    const { data: { user } } = await supabase.auth.getUser();
+    const service = createServiceClient();
 
-    if (!user) {
-      return Response.json({ error: { code: "UNAUTHENTICATED", message: "Authentication required." } }, { status: 401 });
+    // ── 1. Load the invitation ────────────────────────────────────────────
+    const { data: invite } = await service
+      .from("team_invitations")
+      .select("id, team_id, event_id, invitee_user_id, status, teams(name)")
+      .eq("id", invitationId)
+      .single();
+
+    if (!invite) throw new NotFoundError("Invitation not found.");
+    if (invite.invitee_user_id !== user!.id) {
+      throw new ForbiddenError("This invitation is not addressed to you.");
     }
 
-    const body = await request.json();
-    const parsed = UpdateInvitationSchema.safeParse(body);
+    const statusLower = (invite.status as string).toLowerCase();
+    if (statusLower !== "pending") {
+      throw new BadRequestError(`This invitation has already been ${statusLower}.`);
+    }
 
-    if (!parsed.success) {
-      return Response.json(
-        {
-          error: {
-            code: "VALIDATION_FAILED",
-            message: "Invalid request body.",
-            details: { fieldErrors: z.flattenError(parsed.error).fieldErrors },
-          },
-        },
-        { status: 422 },
+    // ── 2. Decline path ───────────────────────────────────────────────────
+    if (body.action === "decline") {
+      await service
+        .from("team_invitations")
+        .update({ status: "declined", responded_at: new Date().toISOString() })
+        .eq("id", invitationId);
+
+      return okResponse({ action: "declined", team_id: invite.team_id });
+    }
+
+    // ── 3. Accept path ────────────────────────────────────────────────────
+
+    // Guard: user must not already be in a team for this event
+    const { data: existingMember } = await supabase
+      .from("team_members")
+      .select("team_id")
+      .eq("event_id", invite.event_id ?? eventId)
+      .eq("user_id", user!.id)
+      .maybeSingle();
+
+    if (existingMember) {
+      throw new BadRequestError(
+        "You are already in a team for this event. Leave your current team first.",
       );
     }
 
-    // Fetch the invitation
-    const { data: invitation } = await supabase
-      .from("invitations")
-      .select("*")
-      .eq("id", invitationId)
-      .eq("scope", "event")
-      .eq("scope_id", eventId)
-      .maybeSingle();
+    // Add to team (trigger will auto-set event_id from teams table)
+    const { error: memberError } = await service.from("team_members").insert({
+      team_id: invite.team_id,
+      user_id: user!.id,
+      joined_at: new Date().toISOString(),
+    });
 
-    if (!invitation) {
-      return Response.json({ error: { code: "NOT_FOUND", message: "Invitation not found." } }, { status: 404 });
-    }
-
-    if (invitation.invitee_email !== user.email) {
-       return Response.json({ error: { code: "FORBIDDEN", message: "This invitation is not for you." } }, { status: 403 });
-    }
-    
-    if (invitation.accepted_at) {
-       return Response.json({ error: { code: "CONFLICT", message: "Invitation already accepted." } }, { status: 409 });
-    }
-
-    if (parsed.data.action === "accept") {
-      // Create Event Member
-      const { error: insertError } = await supabase.from("event_members").insert({
-        event_id: eventId,
-        user_id: user.id,
-        role: "Participant", // Default role for invited members, or maybe should read from invitation metadata
-        availability: "Not Looking"
-      });
-      
-      if (insertError) {
-         return Response.json({ error: { code: "INTERNAL_SERVER_ERROR", message: insertError.message } }, { status: 500 });
+    if (memberError) {
+      // Unique index violation = already a member
+      if (memberError.code === "23505") {
+        throw new BadRequestError("You are already a member of this team.");
       }
-
-      // Mark invitation accepted
-      await supabase.from("invitations").update({ accepted_at: new Date().toISOString() }).eq("id", invitationId);
-    } else {
-      // Decline: delete the invitation or mark it declined
-      await supabase.from("invitations").delete().eq("id", invitationId);
+      throw memberError;
     }
 
-    return okResponse({ success: true });
-  } catch (error) {
-    return handleApiError(error);
-  }
-}
+    // Mark this invitation accepted
+    await service
+      .from("team_invitations")
+      .update({ status: "accepted", responded_at: new Date().toISOString() })
+      .eq("id", invitationId);
 
-/**
- * DELETE /api/events/[id]/invitations/[invitationId] — Cancel an invitation
- */
-export async function DELETE(
-  request: NextRequest,
-  { params }: { params: Promise<{ id: string; invitationId: string }> },
-) {
-  try {
-    const { id: eventId, invitationId } = await params;
-    const supabase = await createServerClient();
-    const { data: { user } } = await supabase.auth.getUser();
+    // Cancel all other pending invitations for this user in this event
+    await service
+      .from("team_invitations")
+      .update({ status: "cancelled" })
+      .eq("invitee_user_id", user!.id)
+      .eq("event_id", invite.event_id ?? eventId)
+      .in("status", ["pending", "Pending"])
+      .neq("id", invitationId);
 
-    if (!user) {
-      return Response.json({ error: { code: "UNAUTHENTICATED", message: "Authentication required." } }, { status: 401 });
+    // Cancel all pending join requests this user sent to other teams in this event
+    const { data: teamIds } = await service
+      .from("teams")
+      .select("id")
+      .eq("event_id", invite.event_id ?? eventId);
+
+    const otherTeamIds = (teamIds ?? []).map((t) => t.id).filter((id) => id !== invite.team_id);
+
+    if (otherTeamIds.length > 0) {
+      await service
+        .from("team_join_requests")
+        .update({ status: "rejected" })
+        .eq("user_id", user!.id)
+        .eq("status", "pending")
+        .in("team_id", otherTeamIds);
     }
 
-    // Verify caller is organizer
-    const { data: callerMembership } = await supabase
-      .from("event_members")
-      .select("role")
-      .eq("event_id", eventId)
-      .eq("user_id", user.id)
-      .eq("role", "Organizer")
-      .maybeSingle();
-
-    if (!callerMembership) {
-      return Response.json(
-        { error: { code: "FORBIDDEN", message: "Only organizers can manage invitations." } },
-        { status: 403 },
-      );
-    }
-
-    const { error: deleteError } = await supabase
-      .from("invitations")
-      .delete()
-      .eq("id", invitationId)
-      .eq("scope_id", eventId)
-      .eq("scope", "event");
-
-    if (deleteError) {
-      return Response.json(
-        { error: { code: "INTERNAL_SERVER_ERROR", message: deleteError.message } },
-        { status: 500 },
-      );
-    }
-
-    return okResponse({ success: true });
-  } catch (error) {
-    return handleApiError(error);
-  }
-}
+    return okResponse({
+      action: "accepted",
+      team_id: invite.team_id,
+      team_name: (invite.teams as { name: string } | null)?.name ?? "Your Team",
+    });
+  },
+);
