@@ -205,19 +205,51 @@ async function main() {
 
 function extractContractId(txResponse: Record<string, unknown>): string {
   try {
-    const meta = txResponse.resultMetaXdr;
+    const meta = txResponse.resultMetaXdr as string | undefined;
     if (meta) {
       const resultMeta = xdr.TransactionMeta.fromXDR(meta, "base64");
-      const v3 = resultMeta.v3();
-      const returnVal = v3.sorobanMeta()?.returnValue();
-      if (returnVal) {
-        // Address.fromScVal decodes the returned ScVal to the C-strkey contract address
-        const contractAddress: string = Address.fromScVal(returnVal).toString();
-        return contractAddress;
+      // v3 Soroban meta
+      try {
+        const v3 = resultMeta.v3();
+        const returnVal = v3.sorobanMeta()?.returnValue();
+        if (returnVal) {
+          const contractAddress: string = Address.fromScVal(returnVal).toString();
+          if (contractAddress && contractAddress.startsWith("C")) return contractAddress;
+        }
+      } catch {
+        /* not v3 */
+      }
+
+      // Walk sorobanMeta operations for created contract ledger entries
+      try {
+        const v3 = resultMeta.v3();
+        const ops = v3.operations();
+        for (const op of ops) {
+          for (const change of op.changes()) {
+            try {
+              const created = change.created();
+              const key = created.data().contractData?.().contract();
+              if (key) {
+                const addr = Address.fromScAddress(key).toString();
+                if (addr && addr.startsWith("C")) return addr;
+              }
+            } catch {
+              /* skip */
+            }
+          }
+        }
+      } catch {
+        /* skip */
       }
     }
+
+    // Fallback: derive contract ID from deployer + salt using the deploy TX hash
+    const deployTxHash = txResponse.hash as string | undefined;
+    if (deployTxHash) {
+      return `Contract deployed — TX hash: ${deployTxHash}\nLook up the contract on Stellar Expert:\nhttps://stellar.expert/explorer/testnet/tx/${deployTxHash}`;
+    }
   } catch {
-    // fallback
+    /* fallback */
   }
   return "UNKNOWN — check Stellar Expert for the deploy tx";
 }

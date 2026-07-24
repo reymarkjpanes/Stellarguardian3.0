@@ -224,12 +224,16 @@ The codebase has two coexisting layers (see `ARCHITECTURE_AUDIT.md` for full det
 
 The escrow logic runs on a **Soroban smart contract** written in Rust, located in `contracts/escrow/src/lib.rs`. The contract is a trustless prize escrow — funds are locked on-chain and released only by the platform admin after winners are finalised.
 
-> **Note:** The contract must be deployed to Stellar Testnet before escrow features are active. After deployment, set `ESCROW_CONTRACT_ID` in `web/.env.local` to the printed contract ID. See `web/scripts/deploy-contract.ts` for the deployment script.
+### Contract ID (Deployed on Stellar Testnet)
+
+```
+CAF2TCCKNRTUNANF6YFMRU764GQKGCSLRN3RKQEO4XJJGMCQF5ED6ZAT
+```
 
 | Explorer | Link |
 |---|---|
-| Stellar Lab | [Contract Explorer](https://lab.stellar.org/smart-contracts/contract-explorer?network=testnet) |
-| Stellar Expert | [Testnet Contracts](https://stellar.expert/explorer/testnet) |
+| Stellar Lab | [View on Stellar Lab](https://lab.stellar.org/smart-contracts/contract-explorer?network=testnet&contractId=CAF2TCCKNRTUNANF6YFMRU764GQKGCSLRN3RKQEO4XJJGMCQF5ED6ZAT) |
+| Stellar Expert | [View on Stellar Expert](https://stellar.expert/explorer/testnet/contract/CAF2TCCKNRTUNANF6YFMRU764GQKGCSLRN3RKQEO4XJJGMCQF5ED6ZAT) |
 
 ---
 
@@ -534,7 +538,7 @@ The following steps walk through the full end-to-end flow you can reproduce loca
 10. **Fund escrow** — Organiser signs a Soroban `deposit` transaction via Freighter to lock XLM on-chain
 11. **EscrowRelease** — Platform locks the contract, then calls `disburse` / `disburse_batch` + `finalize`; each ranked winner receives XLM directly to their verified wallet
 12. **Completed** — All disbursements confirmed on-chain; event is marked complete
-13. **Verify on-chain** — Every step is verifiable on [Stellar Expert](https://stellar.expert/explorer/testnet)
+13. **Verify on-chain** — Every step is verifiable on [Stellar Expert](https://stellar.expert/explorer/testnet/contract/CAF2TCCKNRTUNANF6YFMRU764GQKGCSLRN3RKQEO4XJJGMCQF5ED6ZAT)
 
 ---
 
