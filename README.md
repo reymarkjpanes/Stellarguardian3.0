@@ -232,7 +232,7 @@ CB6EX6RFBNMGUZUHZOY5KA5I4PKMK4OLV4ICVDJ4SZP4GMHS44B4RBJD
 
 | Explorer | Link |
 |---|---|
-| Stellar Lab | [View on Stellar Lab](https://lab.stellar.org/contract/CB6EX6RFBNMGUZUHZOY5KA5I4PKMK4OLV4ICVDJ4SZP4GMHS44B4RBJD?network=testnet) |
+| Stellar Lab | [View on Stellar Lab](https://lab.stellar.org/smart-contracts/contract-explorer?network=testnet&contractId=CB6EX6RFBNMGUZUHZOY5KA5I4PKMK4OLV4ICVDJ4SZP4GMHS44B4RBJD) |
 | Stellar Expert | [View on Stellar Expert](https://stellar.expert/explorer/testnet/contract/CB6EX6RFBNMGUZUHZOY5KA5I4PKMK4OLV4ICVDJ4SZP4GMHS44B4RBJD) |
 
 ---
