@@ -32,6 +32,7 @@ Stellar Guardian 3.0 is a full-stack platform for running hackathons, competitiv
 - [Running the App](#running-the-app)
 - [Scripts Reference](#scripts-reference)
 - [Project Structure](#project-structure)
+- [Demo Video](#demo-video)
 - [Screenshots](#screenshots)
 - [Stellar Builder Challenge](#stellar-builder-challenge)
 - [Security](#security)
@@ -331,6 +332,14 @@ stellar-guardian-3.0/
 ├── .kiro/                            # Kiro specs and steering rules
 └── package.json                      # Root script proxy
 ```
+
+---
+
+## Demo Video
+
+### Level 1 — Video Demo
+
+▶️ [Watch on Google Drive](https://drive.google.com/file/d/1K4lYCkc9Mw61nKVQJ3V5mIvA76o81oo2/view?usp=sharing)
 
 ---
 
