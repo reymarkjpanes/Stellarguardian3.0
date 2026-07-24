@@ -227,13 +227,13 @@ The escrow logic runs on a **Soroban smart contract** deployed to Stellar Testne
 ### Contract ID (Deployed on Stellar Testnet)
 
 ```
-CAR33UWAUPQPFDSKUJK6WAVS33SA2EEES3ZXZKB7GXSNOS7YUQ6LZISS
+CB6EX6RFBNMGUZUHZOY5KA5I4PKMK4OLV4ICVDJ4SZP4GMHS44B4RBJD
 ```
 
 | Explorer | Link |
 |---|---|
-| Stellar Lab | [View on Stellar Lab](https://lab.stellar.org/contract/CAR33UWAUPQPFDSKUJK6WAVS33SA2EEES3ZXZKB7GXSNOS7YUQ6LZISS?network=testnet) |
-| Stellar Expert | [View on Stellar Expert](https://stellar.expert/explorer/testnet/contract/CAR33UWAUPQPFDSKUJK6WAVS33SA2EEES3ZXZKB7GXSNOS7YUQ6LZISS) |
+| Stellar Lab | [View on Stellar Lab](https://lab.stellar.org/contract/CB6EX6RFBNMGUZUHZOY5KA5I4PKMK4OLV4ICVDJ4SZP4GMHS44B4RBJD?network=testnet) |
+| Stellar Expert | [View on Stellar Expert](https://stellar.expert/explorer/testnet/contract/CB6EX6RFBNMGUZUHZOY5KA5I4PKMK4OLV4ICVDJ4SZP4GMHS44B4RBJD) |
 
 ---
 
@@ -538,7 +538,7 @@ The following steps walk through the full end-to-end flow you can reproduce loca
 10. **Fund escrow** — Organiser signs a Soroban `deposit` transaction via Freighter to lock XLM on-chain
 11. **EscrowRelease** — Platform locks the contract, then calls `disburse` / `disburse_batch` + `finalize`; each ranked winner receives XLM directly to their verified wallet
 12. **Completed** — All disbursements confirmed on-chain; event is marked complete
-13. **Verify on-chain** — Every step is verifiable on [Stellar Expert](https://stellar.expert/explorer/testnet/contract/CAR33UWAUPQPFDSKUJK6WAVS33SA2EEES3ZXZKB7GXSNOS7YUQ6LZISS)
+13. **Verify on-chain** — Every step is verifiable on [Stellar Expert](https://stellar.expert/explorer/testnet/contract/CB6EX6RFBNMGUZUHZOY5KA5I4PKMK4OLV4ICVDJ4SZP4GMHS44B4RBJD)
 
 ---
 
