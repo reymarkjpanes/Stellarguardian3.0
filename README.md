@@ -72,11 +72,13 @@ Stellar Guardian 3.0 eliminates the trust gap by holding prize pools in a **Soro
 
 | Role | What they do on the platform |
 |---|---|
-| **Organiser** | Creates events, sets prize pools, funds the escrow contract, selects winners |
-| **Participant** | Registers for events, forms teams, submits projects |
-| **Judge** | Reviews submissions against rubrics, scores entries |
-| **Sponsor** | Contributes to prize pools, monitors event progress |
-| **Admin** | Manages platform configuration, resolves disputes, oversees escrow health |
+| **Organiser** (`Organizer`) | Creates events, sets prize pools, funds the escrow contract via Freighter, selects winners |
+| **Participant** | Registers for events, submits projects, can file disputes about own submissions |
+| **Team Captain** (`TeamCaptain`) | Leads a team, creates/updates the team submission, accepts join requests |
+| **Judge** | Reviews and scores assigned submissions against configured rubrics |
+| **Sponsor** | Contributes to prize pools via `admin_deposit`; monitors escrow and milestones |
+| **Workspace Owner / Admin** | Manages the workspace, members, and invitations; can run events |
+| **Platform Admin** | Full platform access — resolves disputes, manages escrow health, oversees disbursements |
 
 ---
 
@@ -98,23 +100,41 @@ Stellar Guardian 3.0 eliminates the trust gap by holding prize pools in a **Soro
 ### 16-State Event Lifecycle Engine
 A pure TypeScript state machine governs every event from draft to settlement. Transitions enforce business rules at the domain layer — independent of any framework or I/O — and are validated with property-based tests via `fast-check`.
 
-**Lifecycle phases:** `Draft` → `Registration Open` → `Submissions Open` → `Review` → `Judging` → `Winner Selection` → `Escrow Funded` → `Disbursement` → `Completed` (with `Cancelled`, `Disputed`, and intermediate states).
+**Lifecycle states:**
+`Draft` → `Published` → `RegistrationOpen` → `RegistrationClosed` → `TeamFormationLocked` → `SubmissionOpen` → `SubmissionClosed` → `JudgingRound1` → `JudgingRound2` → `WinnerVerification` → `DisputeWindow` → `PrizeApproved` → `EscrowRelease` → `Completed` → `Archived`
+(plus `Cancelled` at any stage)
 
 ### Soroban Smart Contract Escrow
 Prize pools are held in a Soroban contract, not on the platform's balance sheet.
 
 | Contract Operation | Trigger |
 |---|---|
-| `initialize` | Event transitions to funding phase |
-| `deposit` | Organizer signs transaction via Freighter wallet |
-| `lock` | Winners are finalized |
-| `disburse` | Platform signs batch payout to ranked winners |
-| `refund` | Event cancelled — funds returned to organizer |
+| `initialize` | Platform creates escrow for an event (admin + organizer + event_id + target + token) |
+| `deposit` | Organizer signs transaction via Freighter wallet — funds locked into contract |
+| `admin_deposit` | Platform authorizes a sponsor deposit from any address |
+| `lock` | Platform locks the escrow once fully funded — no further deposits accepted |
+| `disburse` | Platform signs single-batch payout to ranked winners → transitions to Released |
+| `disburse_batch` | Platform signs multi-batch payout (stays Locked until `finalize`) |
+| `finalize` | Platform finalises all batches → transitions state to Released |
+| `refund` | Platform returns all funds to organizer on event cancellation |
 
 All Soroban interactions simulate before submission, assemble resource requirements, and poll for confirmation.
 
 ### Role-Based Permission Engine
-Ten roles (`Admin`, `Organizer`, `Judge`, `Participant`, `Sponsor`, `TeamLead`, `Reviewer`, `Auditor`, `Observer`, `Guest`) with a typed permission matrix enforced server-side on every API route via the `authorize()` middleware.
+Ten roles with a typed RBAC + ABAC permission matrix enforced server-side on every API route via the `authorize()` middleware.
+
+| Role | Description |
+|---|---|
+| `PlatformAdmin` | Full platform access; freeze requires compliance flag |
+| `WorkspaceOwner` | Owns the workspace; full event + member management |
+| `WorkspaceAdmin` | Same as WorkspaceOwner minus workspace deletion |
+| `Organizer` | Manages their event; editing locked after RegistrationClosed |
+| `Sponsor` | Read-only access; can view own sponsorship and milestones |
+| `Judge` | Reviews events/submissions; evaluates only assigned submissions |
+| `Mentor` | Read-only on submissions and teams |
+| `Participant` | Creates/updates own submissions; can file disputes |
+| `TeamCaptain` | Manages own team; creates/updates team submission; accepts join requests |
+| `TeamMember` | Can contribute to team submission; read-only on teams |
 
 ### Domain Event Bus
 An in-process domain event bus decouples financial operations, audit logging, and notification delivery. Subscribers are registered at application bootstrap and process events asynchronously with `Promise.allSettled`.
@@ -180,26 +200,29 @@ The codebase has two coexisting layers (see `ARCHITECTURE_AUDIT.md` for full det
 
 ## Tech Stack
 
-| Layer | Technology |
-|---|---|
-| Framework | Next.js 16 (App Router), React 19 |
-| Language | TypeScript 5.x |
-| Database | Supabase (PostgreSQL + Row Level Security) |
-| Auth | Supabase Auth with SSR cookie adapter |
-| Styling | Tailwind CSS 4 |
-| Blockchain | `@stellar/stellar-sdk` v16, Soroban RPC, Freighter API |
-| Validation | Zod v4 |
-| Testing | Vitest, fast-check (property-based), Playwright (E2E) |
-| Email | Resend |
-| Rate Limiting | Upstash Redis (falls back to in-memory) |
-| Encryption | AWS KMS (prod) / AES-256-GCM (dev) |
-| Deployment | Vercel (Cron + Edge Middleware) |
+| Layer | Technology | Version |
+|---|---|---|
+| Framework | Next.js (App Router) | 16.2.10 |
+| UI Library | React | 19.2.4 |
+| Language | TypeScript | ^5 |
+| Database | Supabase (PostgreSQL + Row Level Security) | supabase-js 2.110.7 |
+| Auth | Supabase Auth with SSR cookie adapter | @supabase/ssr 0.12.3 |
+| Styling | Tailwind CSS | ^4.3.3 |
+| Blockchain | `@stellar/stellar-sdk` | ^16.0.1 |
+| Wallet | `@stellar/freighter-api` | ^6.0.1 |
+| Validation | Zod | ^4.4.3 |
+| State/Data fetching | TanStack React Query | ^5.101.2 |
+| Testing | Vitest + fast-check (property-based) + Playwright (E2E) | ^4.1.10 |
+| Email | Resend | ^4.1.2 |
+| Rate Limiting | Upstash Redis (falls back to in-memory) | ^1.38.0 |
+| Encryption | AWS KMS (prod) / AES-256-GCM (dev) | @aws-sdk/client-kms ^3.1090.0 |
+| Deployment | Vercel (Cron + Edge Middleware) | — |
 
 ---
 
 ## Smart Contract
 
-The escrow logic runs on a **Soroban smart contract** deployed to Stellar Testnet.
+The escrow logic runs on a **Soroban smart contract** deployed to Stellar Testnet. The contract is a trustless prize escrow — funds are locked on-chain and released only by the platform admin after winners are finalised.
 
 ### Contract ID (Deployed on Stellar Testnet)
 
@@ -218,26 +241,45 @@ CAR33UWAUPQPFDSKUJK6WAVS33SA2EEES3ZXZKB7GXSNOS7YUQ6LZISS
 
 | Function | Caller | Description |
 |---|---|---|
-| `initialize(admin, fee_bps)` | Admin | One-time setup, sets platform fee |
-| `create_job(job_id, client, freelancer, amount, token)` | Platform (ops) | Registers escrow job on-chain |
-| `fund_job(job_id, caller, amount)` | Client | Locks XLM into the contract |
-| `submit_milestone(job_id, milestone_id, caller)` | Freelancer | Marks milestone as submitted |
-| `approve_milestone(job_id, milestone_id, caller)` | Client | Releases payment to freelancer |
-| `get_job(job_id)` | Anyone | Read-only: returns full job state |
-| `get_fee()` | Anyone | Read-only: returns current fee rate |
-| `get_admin()` | Anyone | Read-only: returns admin address |
-| `update_platform_fee(new_fee)` | Admin | Updates global fee (does not affect live jobs) |
+| `initialize(admin, organizer, event_id, target, token)` | Platform (admin) | One-time setup — sets organizer, funding target, and token address |
+| `deposit(from, amount)` | Organizer | Locks XLM into the contract from the organizer's wallet |
+| `admin_deposit(from, amount)` | Platform (admin) | Authorises a deposit from any address (sponsor use case) |
+| `lock()` | Platform (admin) | Locks the escrow once fully funded — no further deposits accepted |
+| `disburse(recipients, amounts)` | Platform (admin) | Single-batch payout to winners → immediately transitions to Released |
+| `disburse_batch(recipients, amounts)` | Platform (admin) | Multi-batch payout — state stays Locked until `finalize()` is called |
+| `finalize()` | Platform (admin) | Marks all batches complete → transitions state to Released |
+| `refund()` | Platform (admin) | Returns full balance to the stored organizer address |
+| `get_balance()` | Anyone | Read-only: returns current escrow balance in stroops |
+| `get_state()` | Anyone | Read-only: returns numeric state (0–5, see lifecycle below) |
+| `get_target()` | Anyone | Read-only: returns the configured funding target |
+| `get_disbursed_total()` | Anyone | Read-only: returns cumulative amount disbursed across all batches |
+| `is_locked()` | Anyone | Read-only: returns true if escrow is in Locked state |
+| `get_organizer()` | Anyone | Read-only: returns the organizer's address |
+| `get_event_id()` | Anyone | Read-only: returns the event UUID bytes |
 
 ---
 
 ## Escrow Status Lifecycle
 
 ```
-Open ──────→ Funded ──────→ InProgress ──────→ Completed
-(create_job)  (fund_job)   (submit_milestone)  (approve_milestone)
-                                               ├─ Net amount → Freelancer
-                                               └─ Platform fee → Admin
+PendingFunding ──→ PartiallyFunded ──→ FullyFunded ──→ Locked ──→ PendingRelease ──→ Released
+  (0)                  (1)                (2)           (3)           (4)               (4)
+
+Cancelled ──→ Refunded      Failed (manual review required)
+   └─ refund() returns
+      funds to organizer
 ```
+
+On-chain state values returned by `get_state()`:
+
+| Value | State |
+|---|---|
+| 0 | PendingFunding |
+| 1 | PartiallyFunded |
+| 2 | FullyFunded |
+| 3 | Locked |
+| 4 | Released |
+| 5 | Refunded |
 
 ---
 
@@ -245,11 +287,14 @@ Open ──────→ Funded ──────→ InProgress ────�
 
 | Property | Description |
 |---|---|
-| Conservation of funds | `net_to_freelancer + platform_fee == funded_amount` always |
-| Fee snapshot | Fee rate is locked at `create_job` — changing global fee does not affect live jobs |
-| Authorization | Each action requires the correct party's wallet signature (`require_auth()`) |
-| No panics | All functions return `Result<T, ContractError>` |
-| Events | Every state change emits an on-chain event |
+| Conservation of funds | Balance decrements by exactly the disbursed amount on every payout |
+| Partial deposits | Organizer can deposit in multiple transactions until target is reached |
+| Sponsor deposits | `admin_deposit` allows additional contributions from any address |
+| Authorization | Every state-changing function calls `require_auth()` on the appropriate party |
+| No panics | All functions return `Result<T, ContractError>`; panics are reserved for init guards |
+| On-chain events | Every state change emits a contract event (`deposit`, `sponsor`, `locked`, `batch`, `disburse`, `finalize`, `refund`) |
+| TTL extension | Storage TTL is extended on every write — contract does not expire during active use |
+| Fee snapshot | The platform fee rate in use is locked at `initialize` time |
 
 ---
 
@@ -257,11 +302,12 @@ Open ──────→ Funded ──────→ InProgress ────�
 
 | Feature | Usage |
 |---|---|
-| Soroban smart contracts | Escrow logic — lock funds, milestone tracking, auto-release |
-| XLM (native asset) | Payment settlement via SEP-41 token interface |
-| `require_auth()` | Wallet-based authorization for every state-changing action |
-| On-chain events | Audit trail for job creation, funding, submission, approval |
-| Persistent storage | Per-job state keyed by `job_id` |
+| Soroban smart contracts | Full escrow lifecycle — lock funds, multi-batch disbursement, refund |
+| XLM (native asset) | Prize pool denomination and payment settlement via SEP-41 token interface |
+| `require_auth()` | Wallet-based authorization — organizer for deposits, admin for lock/disburse/refund |
+| On-chain events | Audit trail for every state transition — deposit, lock, batch, finalize, refund |
+| Persistent storage | Per-event state keyed by `DataKey` enum in contract instance storage |
+| TTL extension | Instance storage TTL refreshed on every write to prevent contract expiry |
 
 ---
 
@@ -339,18 +385,21 @@ Copy `web/.env.example` to `web/.env.local`. The minimal set required to boot th
 | Variable | Required | Description |
 |---|---|---|
 | `NEXT_PUBLIC_SUPABASE_URL` | ✅ | Supabase project URL |
-| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | ✅ | Supabase anon/public key |
+| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | ✅ | Supabase anon/public key (subject to RLS) |
 | `SUPABASE_SERVICE_ROLE_KEY` | ✅ | Supabase service-role key (server-only, bypasses RLS) |
 | `LOCAL_ENCRYPTION_KEY` | ✅ | 32+ character random string — AES-256-GCM key for dev KMS |
 | `STELLAR_NETWORK_MODE` | ✅ | `testnet` or `mainnet` |
+| `STELLAR_MAINNET_ENABLED` | ✅ | Set to `true` only when targeting mainnet (guards accidental prod ops) |
 | `SOROBAN_RPC_URL` | ✅ | Soroban RPC endpoint (default: `https://soroban-testnet.stellar.org`) |
 | `ESCROW_CONTRACT_ID` | ✅ | Deployed Soroban escrow contract ID |
 | `NEXT_PUBLIC_SITE_URL` | ✅ | App base URL (default: `http://localhost:3000`) |
+| `CRON_SECRET` | ✅ | Bearer secret for Vercel Cron route authentication |
 | `RESEND_API_KEY` | Optional | Transactional email — app degrades gracefully without it |
 | `UPSTASH_REDIS_REST_URL` | Optional | Redis for distributed rate limiting — falls back to in-memory |
 | `UPSTASH_REDIS_REST_TOKEN` | Optional | Upstash token |
-| `CRON_SECRET` | Optional | Bearer secret for Vercel Cron route authentication |
 | `KMS_KEY_ARN` + `AWS_REGION` | Production | AWS KMS key ARN — replaces `LOCAL_ENCRYPTION_KEY` in prod |
+| `NEXT_PUBLIC_APP_VERSION` | Optional | Displayed app version string |
+| `NEXT_PUBLIC_TURNSTILE_SITE_KEY` + `TURNSTILE_SECRET_KEY` | Optional | Cloudflare Turnstile CAPTCHA for auth forms |
 
 > **Never** commit `web/.env.local` or any file containing real secrets. It is covered by `.gitignore`.
 
@@ -478,15 +527,18 @@ stellar-guardian-3.0/
 The following steps walk through the full end-to-end flow you can reproduce locally or watch in the video above.
 
 1. **Sign up / Log in** — Create an account and verify your email
-2. **Connect Freighter wallet** — Link your Stellar Testnet wallet from the Settings page
-3. **Create an event** — Fill in event details, set prize pool, and publish
-4. **Register a team** — Join as a participant, create or join a team
-5. **Submit a project** — Upload submission with description and links
-6. **Judging phase** — Judges score submissions against the configured rubric
-7. **Select winners** — Organiser finalises ranked winners from the leaderboard
-8. **Fund escrow** — Organiser signs a Soroban `deposit` transaction via Freighter to lock prize funds on-chain
-9. **Disburse prizes** — Platform signs a batch payout transaction; each ranked winner receives their XLM directly to their wallet
-10. **Verify on-chain** — Every step is verifiable on [Stellar Expert](https://stellar.expert/explorer/testnet/contract/CAR33UWAUPQPFDSKUJK6WAVS33SA2EEES3ZXZKB7GXSNOS7YUQ6LZISS)
+2. **Connect Freighter wallet** — Link your Stellar Testnet wallet from the Settings page; the wallet is verified on-chain before being stored
+3. **Create an event** (`Draft`) — Fill in event details, assign at least one judge, set a registration deadline, then publish
+4. **Published → RegistrationOpen** — Organiser opens registration; participants join the event
+5. **RegistrationClosed → TeamFormationLocked** — Organiser closes registration and locks team formation once all participants are assigned to teams
+6. **SubmissionOpen → SubmissionClosed** — Participants submit projects; organiser closes the submission window
+7. **JudgingRound1 / JudgingRound2** — Judges score assigned submissions against the configured rubric
+8. **WinnerVerification → DisputeWindow** — Organiser confirms winners; a dispute window opens for objections
+9. **PrizeApproved** — Dispute window closes with no unresolved disputes; prizes are approved for release
+10. **Fund escrow** — Organiser signs a Soroban `deposit` transaction via Freighter to lock XLM on-chain
+11. **EscrowRelease** — Platform locks the contract, then calls `disburse` / `disburse_batch` + `finalize`; each ranked winner receives XLM directly to their verified wallet
+12. **Completed** — All disbursements confirmed on-chain; event is marked complete
+13. **Verify on-chain** — Every step is verifiable on [Stellar Expert](https://stellar.expert/explorer/testnet/contract/CAR33UWAUPQPFDSKUJK6WAVS33SA2EEES3ZXZKB7GXSNOS7YUQ6LZISS)
 
 ---
 
