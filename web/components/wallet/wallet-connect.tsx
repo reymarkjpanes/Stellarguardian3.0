@@ -350,7 +350,7 @@ export function WalletConnect({
           <div>
             <h3 className="text-sm font-semibold text-[var(--text)]">{meta.label} connected</h3>
             <p className="text-xs text-[var(--text-muted)]">
-              Sign a message to prove ownership before linking
+              Wallet linked successfully. Verify ownership to enable financial operations.
             </p>
           </div>
         </div>
@@ -382,19 +382,35 @@ export function WalletConnect({
         </div>
         <div className="flex gap-3">
           <button
-            onClick={handleVerify}
+            onClick={() => {
+              // Accept wallet as connected without verification — fire onVerified
+              // so the parent (settings page) knows the wallet is linked.
+              setStep("done");
+              onVerified?.(publicKey);
+            }}
             disabled={hasNetworkError}
             className="flex-1 btn-primary rounded-md px-4 py-2.5 text-sm font-medium transition-colors disabled:opacity-40 disabled:cursor-not-allowed focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)]"
+          >
+            Link Wallet
+          </button>
+          <button
+            onClick={handleVerify}
+            disabled={hasNetworkError}
+            className="rounded-md border border-[var(--border)] px-4 py-2.5 text-sm font-medium text-[var(--text-secondary)] hover:bg-[var(--bg-muted)] transition-colors focus:outline-none disabled:opacity-40 disabled:cursor-not-allowed"
+            title="Proves key ownership on-chain — required before funding or claiming prizes"
           >
             Verify Ownership
           </button>
           <button
             onClick={reset}
-            className="rounded-md border border-[var(--border)] px-4 py-2.5 text-sm font-medium text-[var(--text-secondary)] hover:bg-[var(--bg-muted)] transition-colors focus:outline-none"
+            className="rounded-md border border-[var(--border)] px-3 py-2.5 text-sm text-[var(--text-muted)] hover:bg-[var(--bg-muted)] transition-colors focus:outline-none"
           >
-            Back
+            ←
           </button>
         </div>
+        <p className="text-[11px] text-[var(--text-muted)]">
+          Verification is optional for viewing. It's required before funding events or claiming prizes.
+        </p>
       </div>
     );
   }
