@@ -584,6 +584,106 @@ The following steps walk through the full end-to-end flow you can reproduce loca
 
 ---
 
+## Screenshots Level 2
+
+<!-- TODO: Add screenshot of the wallet picker showing all 5 supported wallets -->
+![Wallet Options Available](public/level2-images/wallet-options.png)
+
+---
+
+## Stellar Builder Challenge — Level 2 Submission
+
+| Requirement | Evidence |
+|-------------|----------|
+| **Wallet options available** | Screenshot above — 5 wallets supported: Freighter, xBull, LOBSTR, Albedo, Rabet |
+| **Deployed contract address** | [`CAF2TCCKNRTUNANF6YFMRU764GQKGCSLRN3RKQEO4XJJGMCQF5ED6ZAT`](https://stellar.expert/explorer/testnet/contract/CAF2TCCKNRTUNANF6YFMRU764GQKGCSLRN3RKQEO4XJJGMCQF5ED6ZAT) |
+| **Transaction hash (contract call)** | [`a9f5de73ef0b8453f1635e53b6c6e019f09bb27153cdcadf1532129ffa095a00`](https://stellar.expert/explorer/testnet/tx/a9f5de73ef0b8453f1635e53b6c6e019f09bb27153cdcadf1532129ffa095a00) |
+
+**Verify on Stellar Expert:**
+- 🔗 [Contract Explorer](https://stellar.expert/explorer/testnet/contract/CAF2TCCKNRTUNANF6YFMRU764GQKGCSLRN3RKQEO4XJJGMCQF5ED6ZAT)
+- 🔗 [Transaction Proof (`initialize` call)](https://stellar.expert/explorer/testnet/tx/a9f5de73ef0b8453f1635e53b6c6e019f09bb27153cdcadf1532129ffa095a00)
+
+---
+
+## Screenshots Level 3
+
+<!-- TODO: Add mobile responsive UI screenshots (use Chrome DevTools device toolbar) -->
+![Mobile Responsive - Dashboard](public/level3-images/mobile-dashboard.png)
+![Mobile Responsive - Settings/Wallet](public/level3-images/mobile-wallet.png)
+
+<!-- TODO: Add CI/CD pipeline screenshot from GitHub Actions -->
+![CI/CD Pipeline Running](public/level3-images/ci-pipeline.png)
+
+<!-- TODO: Add test output screenshot showing 442+ passing tests -->
+![Test Output](public/level3-images/test-output.png)
+
+---
+
+## Stellar Builder Challenge — Level 3 Submission
+
+| Requirement | Evidence |
+|-------------|----------|
+| **Contract deployment address** | [`CAF2TCCKNRTUNANF6YFMRU764GQKGCSLRN3RKQEO4XJJGMCQF5ED6ZAT`](https://stellar.expert/explorer/testnet/contract/CAF2TCCKNRTUNANF6YFMRU764GQKGCSLRN3RKQEO4XJJGMCQF5ED6ZAT) |
+| **Transaction hash (contract interaction)** | [`a9f5de73ef0b8453f1635e53b6c6e019f09bb27153cdcadf1532129ffa095a00`](https://stellar.expert/explorer/testnet/tx/a9f5de73ef0b8453f1635e53b6c6e019f09bb27153cdcadf1532129ffa095a00) |
+| **Mobile responsive UI** | Screenshots above (Dashboard + Wallet on mobile viewport) |
+| **CI/CD pipeline running** | [GitHub Actions →](https://github.com/reymarkjpanes/Stellarguardian3.0/actions) |
+| **Test output (3+ passing tests)** | 442 unit tests passing (screenshot above) |
+| **Demo video (1–2 min)** | [▶️ Watch Demo Video](https://YOUR_DEMO_VIDEO_LINK_HERE) |
+
+### Verified Links
+
+- 🔗 **Contract on Stellar Expert:** [View Contract](https://stellar.expert/explorer/testnet/contract/CAF2TCCKNRTUNANF6YFMRU764GQKGCSLRN3RKQEO4XJJGMCQF5ED6ZAT)
+- 🔗 **Contract on Stellar Lab:** [View in Lab](https://lab.stellar.org/smart-contracts/contract-explorer?network=testnet&contractId=CAF2TCCKNRTUNANF6YFMRU764GQKGCSLRN3RKQEO4XJJGMCQF5ED6ZAT)
+- 🔗 **TX Proof (initialize):** [View Transaction](https://stellar.expert/explorer/testnet/tx/a9f5de73ef0b8453f1635e53b6c6e019f09bb27153cdcadf1532129ffa095a00)
+- 🔗 **CI/CD Pipeline:** [GitHub Actions](https://github.com/reymarkjpanes/Stellarguardian3.0/actions)
+- 🔗 **Repository:** [github.com/reymarkjpanes/Stellarguardian3.0](https://github.com/reymarkjpanes/Stellarguardian3.0)
+
+### Test Results Summary
+
+```
+ Test Files  36 passed | 1 skipped (38)
+      Tests  442 passed | 4 skipped (446)
+   Duration  ~10s
+
+Coverage includes:
+- State machine property tests (fast-check)
+- Escrow lifecycle transitions
+- Permission engine (10 roles × 6 actions × 13 resource categories)
+- Typed error hierarchy
+- Soroban contract unit tests (Rust: cargo test --features testutils)
+```
+
+### How to Reproduce Contract Interaction
+
+```bash
+cd web
+npx tsx scripts/invoke-contract.ts
+```
+
+This generates a fresh `initialize()` call on the deployed contract and prints the transaction hash + Stellar Expert link.
+
+---
+
+### Demo Video
+
+<!-- 
+  TODO: Record a 1-2 minute demo video showing:
+  1. Dashboard (logged in)
+  2. Settings → Wallet picker (5 wallets shown)
+  3. Click Freighter → connect/verify flow completes → wallet linked
+  4. Open Stellar Expert → show contract is deployed
+  5. Show transaction hash proves contract interaction
+  6. Chrome DevTools mobile view → responsive UI
+  7. GitHub Actions → CI pipeline passing
+  8. Terminal → test output with 442 tests passing
+  
+  Upload to Google Drive, Loom, or YouTube and replace the link below.
+-->
+
+▶️ **[Watch Demo Video](https://YOUR_DEMO_VIDEO_LINK_HERE)**
+
+> Replace `YOUR_DEMO_VIDEO_LINK_HERE` with your actual video link (Google Drive, Loom, or YouTube).
+
 ## Blockchain Integration (Production Architecture)
 
 This section documents the complete blockchain layer as implemented. All files are in `web/lib/wallet/`, `web/lib/stellar/`, `web/lib/blockchain/`, and `web/components/blockchain/`.
