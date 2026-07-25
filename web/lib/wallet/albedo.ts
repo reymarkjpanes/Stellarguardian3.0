@@ -40,6 +40,18 @@ function isRejected(msg: string): boolean {
   );
 }
 
+/** Extract a readable message from Albedo's error objects (which are plain objects, not Error instances). */
+function extractMessage(err: unknown): string {
+  if (err instanceof Error) return err.message;
+  if (typeof err === "object" && err !== null) {
+    if ("message" in err && typeof (err as { message: unknown }).message === "string") {
+      return (err as { message: string }).message;
+    }
+    return JSON.stringify(err);
+  }
+  return String(err);
+}
+
 export class AlbedoAdapter implements WalletAdapter {
   readonly provider = "Albedo" as const;
 
@@ -55,8 +67,12 @@ export class AlbedoAdapter implements WalletAdapter {
     try {
       const result = await albedo.publicKey({ require_existing: false });
       return { publicKey: result.pubkey, network: "testnet" };
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err);
+    } catch (err: unknown) {
+      const msg = err instanceof Error
+        ? err.message
+        : typeof err === "object" && err !== null && "message" in err
+          ? String((err as { message: unknown }).message)
+          : JSON.stringify(err);
       if (isRejected(msg)) throw new Error("Albedo connection was declined.");
       throw new Error(`Albedo connection failed: ${msg}`);
     }
@@ -70,8 +86,8 @@ export class AlbedoAdapter implements WalletAdapter {
     try {
       const result = await albedo.publicKey({ require_existing: false });
       return result.pubkey;
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err);
+    } catch (err: unknown) {
+      const msg = extractMessage(err);
       throw new Error(`Albedo getPublicKey failed: ${msg}`);
     }
   }
@@ -89,8 +105,8 @@ export class AlbedoAdapter implements WalletAdapter {
         submit: false,
       });
       return result.signed_envelope_xdr;
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err);
+    } catch (err: unknown) {
+      const msg = extractMessage(err);
       if (isRejected(msg)) throw new Error("Transaction signing was declined in Albedo.");
       throw new Error(`Albedo signTransaction failed: ${msg}`);
     }
@@ -103,8 +119,8 @@ export class AlbedoAdapter implements WalletAdapter {
       const result = await albedo.signMessage({ message });
       // Result field is `message_signature` (HEX-encoded ED25519 signature)
       return result.message_signature;
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err);
+    } catch (err: unknown) {
+      const msg = extractMessage(err);
       if (isRejected(msg)) throw new Error("Message signing was declined in Albedo.");
       throw new Error(`Albedo signMessage failed: ${msg}`);
     }
