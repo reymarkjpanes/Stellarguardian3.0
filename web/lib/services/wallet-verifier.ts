@@ -97,46 +97,61 @@ export async function verifyChallenge(
 
   // Verify signature using Stellar SDK (imported at top of file)
   const publicKey = challenge.claimed_public_key;
-  const signatureBuffer = Buffer.from(signature, "base64");
 
-  // Freighter may sign the message in different formats depending on version:
-  // 1. UTF-8 bytes of the hex nonce string (signMessage gets the hex string directly)
-  // 2. Raw hex-decoded bytes of the nonce
-  // We try both approaches for compatibility.
+  // Freighter v6 signMessage (SUBMIT_BLOB) signs the raw UTF-8 bytes of the
+  // message string. The returned signature may be base64 or hex-encoded
+  // depending on the wallet adapter and version. We try all combinations.
   const keypair = Keypair.fromPublicKey(publicKey);
-  const messageCandidates = [
-    Buffer.from(challenge.nonce, "utf8"),  // UTF-8 of hex string
-    Buffer.from(challenge.nonce, "hex"),    // Raw bytes the hex represents
-  ];
+
+  // The message that was signed is the nonce string (64-char hex) as UTF-8 bytes
+  const messageBuffer = Buffer.from(challenge.nonce, "utf8");
+
+  // Try to decode the signature in multiple formats
+  const signatureCandidates: Buffer[] = [];
+
+  // 1. Base64-encoded signature (most common from Freighter v6)
+  try {
+    const b64 = Buffer.from(signature, "base64");
+    if (b64.length === 64) signatureCandidates.push(b64); // ED25519 sig is always 64 bytes
+  } catch { /* skip */ }
+
+  // 2. Hex-encoded signature (some wallets return hex)
+  try {
+    const hex = Buffer.from(signature, "hex");
+    if (hex.length === 64) signatureCandidates.push(hex);
+  } catch { /* skip */ }
+
+  // 3. Raw string as-is (unlikely but handle edge case)
+  if (signatureCandidates.length === 0) {
+    // Last resort: try the raw string bytes
+    signatureCandidates.push(Buffer.from(signature));
+  }
 
   let verified = false;
-  for (const messageBuffer of messageCandidates) {
+  for (const sigBuf of signatureCandidates) {
     try {
-      if (keypair.verify(messageBuffer, signatureBuffer)) {
+      if (keypair.verify(messageBuffer, sigBuf)) {
         verified = true;
         break;
       }
     } catch {
-      // Try next candidate
+      // Continue to next candidate
     }
   }
 
-  // Also try if signature was sent as hex instead of base64
+  // Also try verifying against the raw hex-decoded nonce bytes
+  // (some wallets may decode the hex nonce before signing)
   if (!verified) {
-    try {
-      const sigHex = Buffer.from(signature, "hex");
-      for (const messageBuffer of messageCandidates) {
-        try {
-          if (keypair.verify(messageBuffer, sigHex)) {
-            verified = true;
-            break;
-          }
-        } catch {
-          // continue
+    const altMessageBuffer = Buffer.from(challenge.nonce, "hex");
+    for (const sigBuf of signatureCandidates) {
+      try {
+        if (keypair.verify(altMessageBuffer, sigBuf)) {
+          verified = true;
+          break;
         }
+      } catch {
+        // Continue
       }
-    } catch {
-      // Signature not valid hex either
     }
   }
 
