@@ -46,9 +46,9 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const { challengeId, nonce } = await issueChallenge(user.id, parsed.data.publicKey);
+    const { challengeId, nonce, transaction } = await issueChallenge(user.id, parsed.data.publicKey);
 
-    return NextResponse.json({ challengeId, nonce });
+    return NextResponse.json({ challengeId, nonce, transaction });
   } catch (error) {
     return handleApiError(error);
   }

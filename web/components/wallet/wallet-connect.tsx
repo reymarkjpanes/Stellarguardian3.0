@@ -151,7 +151,7 @@ export function WalletConnect({
     setError(null);
 
     try {
-      // 2a. Issue challenge
+      // 2a. Issue challenge — returns a transaction XDR to sign
       const challengeRes = await fetch("/api/wallets/challenge", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -163,13 +163,14 @@ export function WalletConnect({
         throw new Error(body?.error?.message ?? "Failed to issue challenge.");
       }
 
-      const { challengeId, nonce } = await challengeRes.json();
+      const { challengeId, transaction } = await challengeRes.json();
 
-      // 2b. Sign the nonce with the wallet
+      // 2b. Sign the challenge transaction with the wallet (signTransaction is
+      // universally supported by all Stellar wallets — unlike signMessage)
       setStep("signing");
-      let signature: string;
+      let signedXdr: string;
       try {
-        signature = await selectedAdapter.signMessage(nonce, network);
+        signedXdr = await selectedAdapter.signTransaction(transaction, network);
       } catch (err) {
         const msg = err instanceof Error ? err.message : "Signing failed.";
         if (
@@ -179,21 +180,20 @@ export function WalletConnect({
         ) {
           throw new Error("You declined to sign the verification message. Click Verify again and approve in your wallet.");
         }
-        if (msg.toLowerCase().includes("does not support")) {
-          // Rabet fallback: use signTransaction with a challenge memo
-          throw new Error(
-            `${selectedAdapter.provider} does not support message signing. Use Freighter, xBull, or LOBSTR for wallet verification.`,
-          );
-        }
         throw err;
       }
 
-      // 2c. Submit verification
+      // 2c. Submit the signed transaction for verification
       setStep("submitting");
       const verifyRes = await fetch("/api/wallets/verify", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ challengeId, signature }),
+        body: JSON.stringify({
+          challengeId,
+          signature: signedXdr,
+          provider: selectedAdapter.provider,
+          networkMode: network,
+        }),
       });
 
       if (!verifyRes.ok) {
