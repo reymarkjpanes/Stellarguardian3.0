@@ -1,23 +1,23 @@
-import { NextResponse, type NextRequest } from "next/server";
+import { type NextRequest } from "next/server";
 import { z } from "zod";
 import { createServerClient } from "@/lib/supabase/server";
 import { handleApiError, UnauthenticatedError, ValidationError } from "@/lib/errors";
 
-export type ApiContext<T = any, P = Record<string, string>> = {
+export type ApiContext<T = unknown, P = Record<string, string>> = {
   request: NextRequest;
   params: P;
   user: { id: string; email: string } | null;
   body: T;
 };
 
-export type ApiHandlerConfig<T extends z.ZodTypeAny = any> = {
+export type ApiHandlerConfig<T extends z.ZodTypeAny = z.ZodTypeAny> = {
   requireAuth?: boolean;
   schema?: T;
 };
 
 export function apiHandler<T extends z.ZodTypeAny, P = Record<string, string>>(
   config: ApiHandlerConfig<T>,
-  handler: (ctx: ApiContext<z.infer<T>, P>) => Promise<Response> | Response
+  handler: (ctx: ApiContext<z.infer<T>, P>) => Promise<Response> | Response,
 ) {
   return async (request: NextRequest, props: { params: Promise<P> } | { params: P }) => {
     try {
@@ -47,14 +47,18 @@ export function apiHandler<T extends z.ZodTypeAny, P = Record<string, string>>(
 
           const parsed = config.schema.safeParse(bodyData);
           if (!parsed.success) {
-            throw new ValidationError("Validation failed", { fieldErrors: parsed.error.flatten().fieldErrors });
+            throw new ValidationError("Validation failed", {
+              fieldErrors: parsed.error.flatten().fieldErrors,
+            });
           }
           parsedBody = parsed.data;
         } else if (["GET", "DELETE"].includes(request.method)) {
           const searchParams = Object.fromEntries(request.nextUrl.searchParams);
           const parsed = config.schema.safeParse(searchParams);
           if (!parsed.success) {
-            throw new ValidationError("Query parameter validation failed", { fieldErrors: parsed.error.flatten().fieldErrors });
+            throw new ValidationError("Query parameter validation failed", {
+              fieldErrors: parsed.error.flatten().fieldErrors,
+            });
           }
           parsedBody = parsed.data;
         }

@@ -4,14 +4,13 @@ import { ConflictError, ForbiddenError } from "@/lib/errors";
 import { createServerClient } from "@/lib/supabase/server";
 
 export class SubmissionService {
-  
   static async submitProject(
     eventId: string,
     submitterId: string,
-    payload: { title: string; description: string; projectUrl?: string }
+    payload: { title: string; description: string; projectUrl?: string },
   ): Promise<{ submissionId: string; teamId: string | null; version: number }> {
     const supabase = await createServerClient();
-    
+
     // Verify participant role
     const { data: membership } = await supabase
       .from("event_members")
@@ -34,7 +33,8 @@ export class SubmissionService {
 
     let teamId: string | null = null;
     if (teamMembership) {
-      const teamEvent = (teamMembership as any).teams as { event_id: string } | null;
+      const teamEvent = (teamMembership as { team_id: string; teams: { event_id: string } | null })
+        .teams;
       if (teamEvent?.event_id === eventId) {
         teamId = teamMembership.team_id;
       }
@@ -47,12 +47,12 @@ export class SubmissionService {
         submitterId,
         payload.title,
         payload.description,
-        payload.projectUrl
+        payload.projectUrl,
       );
-      
+
       return { ...result, teamId };
-    } catch (error: any) {
-      if (error.message === "SUBMISSIONS_CLOSED") {
+    } catch (error) {
+      if (error instanceof Error && error.message === "SUBMISSIONS_CLOSED") {
         throw new ConflictError("Submissions are not currently open for this event.");
       }
       throw error;

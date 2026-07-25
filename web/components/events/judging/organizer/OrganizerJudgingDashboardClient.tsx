@@ -1,15 +1,18 @@
-'use client';
+"use client";
 
-import React, { useState, useTransition, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
-import { Button } from '@/components/ui/button';
-import { RefreshCw } from 'lucide-react';
-import { fetchJudgingAnalytics, finalizeEventAction } from '@/app/actions/judging-analytics.actions';
-import { JudgingProgressStats, ProgressData } from './JudgingProgressStats';
-import { RankingPreviewTable, LiveRankingData } from './RankingPreviewTable';
-import { FinalizationActionBox } from './FinalizationActionBox';
-import { FinalizedScoreboard, RankingSnapshot } from './FinalizedScoreboard';
-import { RankingDetailPanel } from './RankingDetailPanel';
+import React, { useState, useTransition, useEffect } from "react";
+import { useRouter } from "next/navigation";
+import { Button } from "@/components/ui/button";
+import { RefreshCw } from "lucide-react";
+import {
+  fetchJudgingAnalytics,
+  finalizeEventAction,
+} from "@/app/actions/judging-analytics.actions";
+import { JudgingProgressStats, ProgressData } from "./JudgingProgressStats";
+import { RankingPreviewTable, LiveRankingData } from "./RankingPreviewTable";
+import { FinalizationActionBox } from "./FinalizationActionBox";
+import { FinalizedScoreboard, RankingSnapshot } from "./FinalizedScoreboard";
+import { RankingDetailPanel } from "./RankingDetailPanel";
 
 interface Props {
   eventId: string;
@@ -27,12 +30,23 @@ export function OrganizerJudgingDashboardClient({
   eventId,
   expectedVersion,
   isCompleted,
-  initialData
+  initialData,
 }: Props) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [data, setData] = useState(initialData);
   const [selectedSnapshot, setSelectedSnapshot] = useState<RankingSnapshot | null>(null);
+
+  const handleRefresh = async () => {
+    startTransition(async () => {
+      try {
+        const newData = await fetchJudgingAnalytics(eventId);
+        setData(newData);
+      } catch (err) {
+        console.error("Failed to refresh analytics", err);
+      }
+    });
+  };
 
   // Optional: Auto-refresh every 60 seconds if judging is active
   useEffect(() => {
@@ -41,37 +55,30 @@ export function OrganizerJudgingDashboardClient({
       handleRefresh();
     }, 60000);
     return () => clearInterval(interval);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isCompleted]);
-
-  const handleRefresh = async () => {
-    startTransition(async () => {
-      try {
-        const newData = await fetchJudgingAnalytics(eventId);
-        setData(newData);
-      } catch (err) {
-        console.error('Failed to refresh analytics', err);
-      }
-    });
-  };
 
   const handleFinalize = async () => {
     try {
       await finalizeEventAction(eventId, expectedVersion);
-      // Refresh the page fully to get new event status
       router.refresh();
-    } catch (err: any) {
-      alert(`Finalization failed: ${err.message}`);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      alert(`Finalization failed: ${msg}`);
     }
   };
 
-  const hasTies = data.liveRankings.some((r, i, arr) => i > 0 && r.average_score === arr[i-1]?.average_score);
+  const hasTies = data.liveRankings.some(
+    (r, i, arr) => i > 0 && r.average_score === arr[i - 1]?.average_score,
+  );
   const isFinalizationDisabled = data.progress.count_draft > 0 || data.progress.count_flagged > 0;
 
-  let warningMessage = '';
+  let warningMessage = "";
   if (isFinalizationDisabled) {
-    warningMessage = 'You cannot finalize while there are Draft or Flagged evaluations.';
+    warningMessage = "You cannot finalize while there are Draft or Flagged evaluations.";
   } else if (hasTies) {
-    warningMessage = 'There are unresolved ties. The Ranking Engine will attempt to break them using weights and judge counts.';
+    warningMessage =
+      "There are unresolved ties. The Ranking Engine will attempt to break them using weights and judge counts.";
   }
 
   return (
@@ -86,14 +93,14 @@ export function OrganizerJudgingDashboardClient({
                 Monitor evaluation progress and finalize rankings.
               </p>
             </div>
-            
+
             <div className="flex items-center gap-4">
               <span className="text-sm text-muted-foreground">
                 Last updated: {new Date(data.refreshedAt).toLocaleTimeString()}
               </span>
               {!isCompleted && (
                 <Button variant="outline" size="sm" onClick={handleRefresh} disabled={isPending}>
-                  <RefreshCw className={`w-4 h-4 mr-2 ${isPending ? 'animate-spin' : ''}`} />
+                  <RefreshCw className={`w-4 h-4 mr-2 ${isPending ? "animate-spin" : ""}`} />
                   Refresh Data
                 </Button>
               )}
@@ -102,24 +109,21 @@ export function OrganizerJudgingDashboardClient({
 
           {/* Body */}
           {isCompleted ? (
-            <FinalizedScoreboard 
-              snapshots={data.snapshots} 
-              onSelect={setSelectedSnapshot} 
-            />
+            <FinalizedScoreboard snapshots={data.snapshots} onSelect={setSelectedSnapshot} />
           ) : (
             <>
               <JudgingProgressStats data={data.progress} />
-              
+
               <div className="space-y-4">
                 <h3 className="text-lg font-semibold">Live Ranking Preview</h3>
-                <RankingPreviewTable 
-                  rankings={data.liveRankings} 
+                <RankingPreviewTable
+                  rankings={data.liveRankings}
                   onSelect={() => {}} // Disabled pre-finalization
                 />
               </div>
 
               <div className="pt-8">
-                <FinalizationActionBox 
+                <FinalizationActionBox
                   onFinalize={handleFinalize}
                   disabled={isFinalizationDisabled}
                   warningMessage={warningMessage}
@@ -131,10 +135,7 @@ export function OrganizerJudgingDashboardClient({
       </div>
 
       {/* Detail Panel */}
-      <RankingDetailPanel 
-        snapshot={selectedSnapshot} 
-        onClose={() => setSelectedSnapshot(null)} 
-      />
+      <RankingDetailPanel snapshot={selectedSnapshot} onClose={() => setSelectedSnapshot(null)} />
     </div>
   );
 }

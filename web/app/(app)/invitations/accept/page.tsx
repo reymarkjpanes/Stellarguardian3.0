@@ -13,7 +13,7 @@
  */
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { EventTrustSignals } from "@/components/events/event-trust-signals";
 
@@ -44,21 +44,12 @@ export default function AcceptInvitationPage() {
   const router = useRouter();
   const token = searchParams.get("token");
 
-  const [pageState, setPageState] = useState<PageState>("loading");
+  const [pageState, setPageState] = useState<PageState>(() => (token ? "loading" : "invalid"));
   const [preview, setPreview] = useState<InvitePreview | null>(null);
-  const [message, setMessage] = useState("");
+  const [message, setMessage] = useState(() => (token ? "" : "No invitation token provided."));
   const [workspaceName, setWorkspaceName] = useState("");
 
-  useEffect(() => {
-    if (!token) {
-      setPageState("invalid");
-      setMessage("No invitation token provided.");
-      return;
-    }
-    loadPreview(token);
-  }, [token]);
-
-  async function loadPreview(inviteToken: string) {
+  const loadPreview = useCallback(async (inviteToken: string) => {
     try {
       // Fetch invitation details first — show trust context before auto-accepting
       const res = await fetch(`/api/invitations/preview?token=${encodeURIComponent(inviteToken)}`);
@@ -77,7 +68,13 @@ export default function AcceptInvitationPage() {
       setPageState("error");
       setMessage("Network error. Please try again.");
     }
-  }
+  }, []);
+
+  useEffect(() => {
+    if (token) {
+      loadPreview(token);
+    }
+  }, [token, loadPreview]);
 
   async function handleAccept() {
     if (!token) return;
@@ -132,9 +129,15 @@ export default function AcceptInvitationPage() {
           {preview.event && (
             <div className="card p-5 space-y-4">
               <div>
-                <p className="text-xs text-[var(--text-muted)] uppercase tracking-wider font-medium">Event</p>
-                <h2 className="text-base font-semibold text-[var(--text)] mt-0.5">{preview.event.title}</h2>
-                <p className="text-sm text-[var(--text-secondary)] mt-1 line-clamp-3">{preview.event.description}</p>
+                <p className="text-xs text-[var(--text-muted)] uppercase tracking-wider font-medium">
+                  Event
+                </p>
+                <h2 className="text-base font-semibold text-[var(--text)] mt-0.5">
+                  {preview.event.title}
+                </h2>
+                <p className="text-sm text-[var(--text-secondary)] mt-1 line-clamp-3">
+                  {preview.event.description}
+                </p>
               </div>
 
               {/* Trust signals — helps participant decide before accepting */}
@@ -160,7 +163,8 @@ export default function AcceptInvitationPage() {
               {pageState === "accepting" ? "Accepting…" : "Accept & Join"}
             </button>
             <p className="text-center text-xs text-[var(--text-muted)]">
-              By accepting, you&apos;ll be added to <strong>{preview.workspace_name}</strong> as a {preview.role}.
+              By accepting, you&apos;ll be added to <strong>{preview.workspace_name}</strong> as a{" "}
+              {preview.role}.
             </p>
           </div>
         </div>
@@ -195,7 +199,9 @@ export default function AcceptInvitationPage() {
           </div>
           <h1 className="text-xl font-semibold text-[var(--text)]">Invitation expired</h1>
           <p className="text-sm text-[var(--text-secondary)]">{message}</p>
-          <p className="text-xs text-[var(--text-muted)]">Ask the workspace owner to send a new invitation.</p>
+          <p className="text-xs text-[var(--text-muted)]">
+            Ask the workspace owner to send a new invitation.
+          </p>
         </div>
       )}
 

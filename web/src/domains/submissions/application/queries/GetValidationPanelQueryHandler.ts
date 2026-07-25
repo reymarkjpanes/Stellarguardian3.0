@@ -1,8 +1,14 @@
 import { createServerClient } from "@/lib/supabase/server";
-import { SubmissionValidationService, SubmissionRequirement, SubmissionAsset } from "../../domain/SubmissionValidationService";
+import {
+  SubmissionValidationService,
+  SubmissionRequirement,
+  SubmissionAsset,
+} from "../../domain/SubmissionValidationService";
 
 export class GetValidationPanelQueryHandler {
-  constructor(private validationService: SubmissionValidationService = new SubmissionValidationService()) {}
+  constructor(
+    private validationService: SubmissionValidationService = new SubmissionValidationService(),
+  ) {}
 
   async execute(eventId: string, teamId: string) {
     const supabase = await createServerClient();
@@ -21,17 +27,37 @@ export class GetValidationPanelQueryHandler {
       .eq("event_id", eventId)
       .maybeSingle();
 
-    let assets: any[] = [];
+    let assets: AssetRow[] = [];
     if (submission) {
       const { data: assetData } = await supabase
         .from("submission_assets")
         .select("*")
         .eq("submission_id", submission.id);
-      assets = assetData || [];
+      assets = assetData ?? [];
     }
 
-    // Map DB to domain models
-    const reqs: SubmissionRequirement[] = (requirements || []).map((r: any) => ({
+    type DbRequirement = {
+      id: string;
+      name: string;
+      asset_type: string;
+      is_required: boolean;
+      minimum_files: number;
+      maximum_files: number;
+      accepted_file_types?: string;
+      max_size_mb?: number;
+      validation_regex?: string;
+    };
+    type DbAsset = {
+      id: string;
+      requirement_id: string;
+      asset_type: string;
+      text_value?: string;
+      url_value?: string;
+      storage_path?: string;
+      metadata?: Record<string, unknown>;
+    };
+
+    const reqs: SubmissionRequirement[] = ((requirements ?? []) as DbRequirement[]).map((r) => ({
       id: r.id,
       name: r.name,
       assetType: r.asset_type,
@@ -43,7 +69,7 @@ export class GetValidationPanelQueryHandler {
       validationRegex: r.validation_regex,
     }));
 
-    const assts: SubmissionAsset[] = assets.map((a: any) => ({
+    const assts: SubmissionAsset[] = (assets as DbAsset[]).map((a) => ({
       id: a.id,
       requirementId: a.requirement_id,
       assetType: a.asset_type,

@@ -6,7 +6,7 @@ export interface CacheProvider {
 
 // Basic in-memory implementation for now
 export class MemoryCacheProvider implements CacheProvider {
-  private cache = new Map<string, { value: any; expiry?: number }>();
+  private cache = new Map<string, { value: unknown; expiry?: number }>();
 
   async get<T>(key: string): Promise<T | null> {
     const item = this.cache.get(key);

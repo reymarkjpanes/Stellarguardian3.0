@@ -1,5 +1,15 @@
 import postgres from "postgres";
 
+interface MemberProfile {
+  id: string;
+  [key: string]: unknown;
+}
+
+interface TeamRequirements {
+  id: string;
+  [key: string]: unknown;
+}
+
 export interface CompatibilityScore {
   memberId: string;
   teamId: string;
@@ -19,47 +29,47 @@ export class DiscoveryService {
 
   /**
    * Calculates compatibility based on a weighted formula.
-   * This logic can eventually be moved to a nightly CRON worker that inserts into matchmaking_scores.
    */
-  public calculateScore(memberProfile: any, teamRequirements: any): CompatibilityScore {
-    let score = 0;
+  public calculateScore(
+    memberProfile: MemberProfile,
+    teamRequirements: TeamRequirements,
+  ): CompatibilityScore {
+    const score = 0;
     const breakdown = {
       skills: 0,
       role: 0,
       timezone: 0,
       language: 0,
       availability: 0,
-      experience: 0
+      experience: 0,
     };
 
-    // Skills (35%)
-    // Role Match (20%)
-    // Timezone (15%)
-    // Language (10%)
-    // Availability (10%)
-    // Experience (10%)
-
+    // Skills (35%), Role (20%), Timezone (15%), Language (10%), Availability (10%), Experience (10%)
     // ... Implementation of scoring formula goes here ...
 
     return {
       memberId: memberProfile.id,
       teamId: teamRequirements.id,
       totalScore: score,
-      breakdown
+      breakdown,
     };
   }
 
-  public async getSuggestedMembers(teamId: string, limit: number = 10): Promise<any[]> {
-    // Queries matchmaking_scores OR computes on the fly
+  public async getSuggestedMembers(
+    _teamId: string,
+    _limit: number = 10,
+  ): Promise<Record<string, unknown>[]> {
     return [];
   }
 
-  public async getSuggestedTeams(memberId: string, limit: number = 10): Promise<any[]> {
-    // Queries matchmaking_scores OR computes on the fly
+  public async getSuggestedTeams(
+    _memberId: string,
+    _limit: number = 10,
+  ): Promise<Record<string, unknown>[]> {
     return [];
   }
 
-  public async getTrendingTeams(eventId: string): Promise<any[]> {
+  public async getTrendingTeams(_eventId: string): Promise<Record<string, unknown>[]> {
     return [];
   }
 }

@@ -23,7 +23,7 @@ export class GetSubmissionHubQueryHandler {
     if (subError) throw new Error("Failed to fetch submission");
 
     // 3. If there's a submission, fetch its assets
-    let assets: any[] = [];
+    let assets: Record<string, unknown>[] = [];
     if (submission) {
       const { data: assetData, error: assetError } = await supabase
         .from("submission_assets")
@@ -31,7 +31,7 @@ export class GetSubmissionHubQueryHandler {
         .eq("submission_id", submission.id);
 
       if (assetError) throw new Error("Failed to fetch assets");
-      assets = assetData;
+      assets = (assetData ?? []) as Record<string, unknown>[];
     }
 
     return {

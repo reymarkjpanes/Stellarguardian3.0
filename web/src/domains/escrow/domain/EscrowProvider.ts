@@ -18,7 +18,7 @@ export interface EscrowProviderCapabilities {
   supportedAssets: string[];
   requiresMemo: boolean;
   maximumBatchSize: number;
-  feeModel: 'fixed' | 'dynamic';
+  feeModel: "fixed" | "dynamic";
 }
 
 export interface ProviderIdentity {
@@ -37,7 +37,7 @@ export interface EscrowProvider {
   /**
    * Initializes an Escrow account on the blockchain.
    */
-  createEscrow(): Promise<{ address: string; metadata?: any }>;
+  createEscrow(): Promise<{ address: string; metadata?: Record<string, unknown> }>;
 
   /**
    * Fetches the current state/balance of the escrow from the chain.
@@ -52,17 +52,26 @@ export interface EscrowProvider {
   /**
    * Simulates a batch payout without broadcasting to the network.
    */
-  simulatePayoutBatch(address: string, instructions: PayoutInstruction[]): Promise<{ isValid: boolean; estimatedFee: number; errors?: any }>;
+  simulatePayoutBatch(
+    address: string,
+    instructions: PayoutInstruction[],
+  ): Promise<{ isValid: boolean; estimatedFee: number; errors?: string }>;
 
   /**
    * Executes a batch of payouts from the escrow account.
    */
-  executePayoutBatch(address: string, idempotencyKey: string, instructions: PayoutInstruction[]): Promise<{ txHash: string }>;
+  executePayoutBatch(
+    address: string,
+    idempotencyKey: string,
+    instructions: PayoutInstruction[],
+  ): Promise<{ txHash: string }>;
 
   /**
    * Checks the status of a specific transaction hash.
    */
-  getTransactionStatus(txHash: string): Promise<{ status: 'Pending' | 'Confirmed' | 'Finalized' | 'Failed'; failureReason?: string }>;
+  getTransactionStatus(
+    txHash: string,
+  ): Promise<{ status: "Pending" | "Confirmed" | "Finalized" | "Failed"; failureReason?: string }>;
 
   /**
    * Refunds the remaining balance in the escrow back to the original funder.
@@ -74,6 +83,12 @@ export interface EscrowProvider {
  * Abstraction for transaction signing. Keeps secrets out of the provider.
  */
 export interface TransactionSigner {
-  sign(transaction: any): Promise<any>;
+  sign(transaction: StellarTransaction): Promise<StellarTransaction>;
   getPublicKey(): string;
+}
+
+/** Minimal Stellar transaction shape used by the signer abstraction */
+export interface StellarTransaction {
+  toEnvelope(): unknown;
+  hash(networkPassphrase: string): Buffer;
 }

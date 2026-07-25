@@ -36,17 +36,22 @@ function applyTheme(resolved: "light" | "dark") {
 }
 
 export function ThemeProvider({ children }: { children: ReactNode }) {
-  const [theme, setThemeState] = useState<Theme>("dark");
-  const [resolvedTheme, setResolvedTheme] = useState<"light" | "dark">("dark");
+  // Lazy initializer reads localStorage once on mount — avoids set-state-in-effect
+  const [theme, setThemeState] = useState<Theme>(() => {
+    if (typeof window === "undefined") return "dark";
+    return (localStorage.getItem("theme") as Theme) ?? "dark";
+  });
+  const [resolvedTheme, setResolvedTheme] = useState<"light" | "dark">(() => {
+    if (typeof window === "undefined") return "dark";
+    const stored = (localStorage.getItem("theme") as Theme) ?? "dark";
+    const resolved = stored === "system" ? getSystemTheme() : stored;
+    return resolved;
+  });
 
+  // Apply to DOM on first mount
   useEffect(() => {
-    const stored = localStorage.getItem("theme") as Theme | null;
-    const initial = stored ?? "dark";
-    setThemeState(initial);
-
-    const resolved = initial === "system" ? getSystemTheme() : initial;
-    setResolvedTheme(resolved);
-    applyTheme(resolved);
+    applyTheme(resolvedTheme);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {

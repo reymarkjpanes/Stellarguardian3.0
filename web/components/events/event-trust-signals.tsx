@@ -51,24 +51,33 @@ export function EventTrustSignals({
 
   // Only fetch escrow balance if event is past Draft/Published
   const escrowRelevant = ![
-    "Draft", "Published", "RegistrationOpen", "RegistrationClosed", "TeamFormationLocked"
+    "Draft",
+    "Published",
+    "RegistrationOpen",
+    "RegistrationClosed",
+    "TeamFormationLocked",
   ].includes(eventState);
 
   useEffect(() => {
     if (!escrowRelevant) return;
-    setEscrowLoading(true);
-    fetch(`/api/events/${eventId}/verify-escrow`)
-      .then((r) => r.ok ? r.json() : null)
-      .then((data) => {
+    void (async () => {
+      setEscrowLoading(true);
+      try {
+        const r = await fetch(`/api/events/${eventId}/verify-escrow`);
+        const data = r.ok ? ((await r.json()) as { data?: { balance?: unknown } }) : null;
         if (data?.data?.balance !== undefined) {
           setEscrowBalance(Number(data.data.balance));
         }
-      })
-      .catch(() => null)
-      .finally(() => setEscrowLoading(false));
+      } catch {
+        // non-critical — trust signals degrade gracefully
+      } finally {
+        setEscrowLoading(false);
+      }
+    })();
   }, [eventId, escrowRelevant]);
 
-  const escrowFunded = escrowBalance !== null && prizePoolTarget !== null && escrowBalance >= prizePoolTarget;
+  const escrowFunded =
+    escrowBalance !== null && prizePoolTarget !== null && escrowBalance >= prizePoolTarget;
 
   const signals: TrustSignal[] = [
     {
@@ -78,17 +87,17 @@ export function EventTrustSignals({
       status: !escrowRelevant
         ? "pending"
         : escrowLoading
-        ? "pending"
-        : escrowFunded
-        ? "verified"
-        : "warning",
+          ? "pending"
+          : escrowFunded
+            ? "verified"
+            : "warning",
       detail: !escrowRelevant
         ? "Funding begins after team formation"
         : escrowLoading
-        ? "Checking on-chain balance…"
-        : escrowFunded
-        ? `${escrowBalance} XLM confirmed on ${networkMode}`
-        : `${escrowBalance ?? 0} / ${prizePoolTarget ?? 0} XLM on ${networkMode}`,
+          ? "Checking on-chain balance…"
+          : escrowFunded
+            ? `${escrowBalance} XLM confirmed on ${networkMode}`
+            : `${escrowBalance ?? 0} / ${prizePoolTarget ?? 0} XLM on ${networkMode}`,
     },
     {
       id: "organizer",
@@ -104,9 +113,10 @@ export function EventTrustSignals({
       label: "Judges assigned",
       description: "Independent judges confirmed for fair scoring",
       status: judgeCount >= 1 ? "verified" : eventState === "Draft" ? "na" : "pending",
-      detail: judgeCount >= 1
-        ? `${judgeCount} judge${judgeCount > 1 ? "s" : ""} assigned`
-        : "No judges assigned yet",
+      detail:
+        judgeCount >= 1
+          ? `${judgeCount} judge${judgeCount > 1 ? "s" : ""} assigned`
+          : "No judges assigned yet",
     },
     {
       id: "lifecycle",
@@ -122,9 +132,10 @@ export function EventTrustSignals({
       label: "Dispute window",
       description: "Objection period before irreversible disbursement",
       status: reviewWindowHours >= 24 ? "verified" : "warning",
-      detail: reviewWindowHours >= 24
-        ? `${reviewWindowHours}h review window configured`
-        : "Review window should be at least 24 hours",
+      detail:
+        reviewWindowHours >= 24
+          ? `${reviewWindowHours}h review window configured`
+          : "Review window should be at least 24 hours",
     },
   ];
 
@@ -136,14 +147,20 @@ export function EventTrustSignals({
       {/* Header */}
       <div className="px-4 py-3 border-b border-[var(--border)] flex items-center justify-between bg-[var(--bg-elevated)]">
         <div>
-          <p className="text-xs font-semibold text-[var(--text)] uppercase tracking-wider">Trust Signals</p>
-          <p className="text-[10px] text-[var(--text-muted)] mt-0.5">Verified from on-chain and database state</p>
+          <p className="text-xs font-semibold text-[var(--text)] uppercase tracking-wider">
+            Trust Signals
+          </p>
+          <p className="text-[10px] text-[var(--text-muted)] mt-0.5">
+            Verified from on-chain and database state
+          </p>
         </div>
         <div className="flex items-center gap-2">
           <div className="text-right">
-            <p className={`text-sm font-bold ${
-              verifiedCount === totalRelevant ? "text-[var(--success)]" : "text-[var(--text)]"
-            }`}>
+            <p
+              className={`text-sm font-bold ${
+                verifiedCount === totalRelevant ? "text-[var(--success)]" : "text-[var(--text)]"
+              }`}
+            >
               {verifiedCount}/{totalRelevant}
             </p>
             <p className="text-[10px] text-[var(--text-muted)]">verified</p>
@@ -153,7 +170,10 @@ export function EventTrustSignals({
             <svg viewBox="0 0 32 32" className="rotate-[-90deg]">
               <circle cx="16" cy="16" r="12" fill="none" stroke="var(--border)" strokeWidth="3" />
               <circle
-                cx="16" cy="16" r="12" fill="none"
+                cx="16"
+                cy="16"
+                r="12"
+                fill="none"
                 stroke={verifiedCount === totalRelevant ? "var(--success)" : "var(--accent)"}
                 strokeWidth="3"
                 strokeDasharray={`${(verifiedCount / Math.max(totalRelevant, 1)) * 75.4} 75.4`}
@@ -169,43 +189,61 @@ export function EventTrustSignals({
         {signals.map((signal) => (
           <div key={signal.id} className="px-4 py-2.5 flex items-start gap-3">
             {/* Status indicator */}
-            <div className={`mt-0.5 h-4 w-4 rounded-full flex items-center justify-center text-[9px] font-bold flex-shrink-0 ${
-              signal.status === "verified"
-                ? "bg-[var(--success-bg)] text-[var(--success)]"
+            <div
+              className={`mt-0.5 h-4 w-4 rounded-full flex items-center justify-center text-[9px] font-bold flex-shrink-0 ${
+                signal.status === "verified"
+                  ? "bg-[var(--success-bg)] text-[var(--success)]"
+                  : signal.status === "warning"
+                    ? "bg-[var(--warning-bg)] text-[var(--warning)]"
+                    : signal.status === "na"
+                      ? "bg-[var(--bg-muted)] text-[var(--text-muted)]"
+                      : "bg-[var(--bg-muted)] text-[var(--text-muted)]"
+              }`}
+            >
+              {signal.status === "verified"
+                ? "✓"
                 : signal.status === "warning"
-                ? "bg-[var(--warning-bg)] text-[var(--warning)]"
-                : signal.status === "na"
-                ? "bg-[var(--bg-muted)] text-[var(--text-muted)]"
-                : "bg-[var(--bg-muted)] text-[var(--text-muted)]"
-            }`}>
-              {signal.status === "verified" ? "✓"
-                : signal.status === "warning" ? "!"
-                : signal.status === "pending" ? "·"
-                : "–"}
+                  ? "!"
+                  : signal.status === "pending"
+                    ? "·"
+                    : "–"}
             </div>
             {/* Content */}
             <div className="flex-1 min-w-0">
               <div className="flex items-center justify-between gap-2">
-                <p className={`text-xs font-medium leading-tight ${
-                  signal.status === "verified" ? "text-[var(--text)]"
-                  : signal.status === "na" ? "text-[var(--text-muted)]"
-                  : "text-[var(--text-secondary)]"
-                }`}>
+                <p
+                  className={`text-xs font-medium leading-tight ${
+                    signal.status === "verified"
+                      ? "text-[var(--text)]"
+                      : signal.status === "na"
+                        ? "text-[var(--text-muted)]"
+                        : "text-[var(--text-secondary)]"
+                  }`}
+                >
                   {signal.label}
                 </p>
-                <span className={`text-[10px] font-medium flex-shrink-0 ${
-                  signal.status === "verified" ? "text-[var(--success)]"
-                  : signal.status === "warning" ? "text-[var(--warning)]"
-                  : "text-[var(--text-muted)]"
-                }`}>
-                  {signal.status === "verified" ? "Verified"
-                    : signal.status === "warning" ? "Attention"
-                    : signal.status === "na" ? "N/A"
-                    : "Pending"}
+                <span
+                  className={`text-[10px] font-medium flex-shrink-0 ${
+                    signal.status === "verified"
+                      ? "text-[var(--success)]"
+                      : signal.status === "warning"
+                        ? "text-[var(--warning)]"
+                        : "text-[var(--text-muted)]"
+                  }`}
+                >
+                  {signal.status === "verified"
+                    ? "Verified"
+                    : signal.status === "warning"
+                      ? "Attention"
+                      : signal.status === "na"
+                        ? "N/A"
+                        : "Pending"}
                 </span>
               </div>
               {signal.detail && (
-                <p className="text-[10px] text-[var(--text-muted)] mt-0.5 leading-tight">{signal.detail}</p>
+                <p className="text-[10px] text-[var(--text-muted)] mt-0.5 leading-tight">
+                  {signal.detail}
+                </p>
               )}
             </div>
           </div>

@@ -11,12 +11,15 @@ export interface SuggestedMembersQuery {
 export class SuggestedMembersQueryHandler {
   constructor(private discoveryService: DiscoveryService) {}
 
-  async execute(query: SuggestedMembersQuery): Promise<PaginatedResult<any>> {
-    const recommendations = await this.discoveryService.getSuggestedMembers(query.teamId, query.limit);
+  async execute(query: SuggestedMembersQuery): Promise<PaginatedResult<Record<string, unknown>>> {
+    const recommendations = await this.discoveryService.getSuggestedMembers(
+      query.teamId,
+      query.limit,
+    );
     return {
       items: recommendations,
       hasMore: false,
-      totalCount: recommendations.length
+      totalCount: recommendations.length,
     };
   }
 }

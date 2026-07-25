@@ -11,13 +11,16 @@
  * - Compact hero (fits viewport, headline max 2 lines)
  */
 import { redirect } from "next/navigation";
+import Link from "next/link";
 import { createServerClient } from "@/lib/supabase/server";
 
 export default async function HomePage() {
   // Silently check auth — if Supabase is unavailable, fall through to landing page
   try {
     const supabase = await createServerClient();
-    const { data: { user } } = await supabase.auth.getUser();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
     if (user) {
       redirect("/dashboard");
     }
@@ -30,14 +33,20 @@ export default async function HomePage() {
       {/* Navigation */}
       <header className="fixed top-0 inset-x-0 z-50 border-b border-[var(--border)] bg-[var(--nav-bg)] backdrop-blur-md">
         <nav className="max-w-6xl mx-auto px-4 h-14 flex items-center justify-between">
-          <a href="/" className="text-base font-semibold tracking-tight text-[var(--text)]">
+          <Link href="/" className="text-base font-semibold tracking-tight text-[var(--text)]">
             Stellar Guardian
-          </a>
+          </Link>
           <div className="flex items-center gap-4">
-            <a href="/discover" className="text-sm text-[var(--text-secondary)] hover:text-[var(--text)] transition-colors">
+            <a
+              href="/discover"
+              className="text-sm text-[var(--text-secondary)] hover:text-[var(--text)] transition-colors"
+            >
               Events
             </a>
-            <a href="/login" className="text-sm text-[var(--text-secondary)] hover:text-[var(--text)] transition-colors">
+            <a
+              href="/login"
+              className="text-sm text-[var(--text-secondary)] hover:text-[var(--text)] transition-colors"
+            >
               Sign in
             </a>
             <a
@@ -60,7 +69,8 @@ export default async function HomePage() {
             Trustless prize distribution for hackathons
           </h1>
           <p className="text-lg text-[var(--text-secondary)] max-w-xl mx-auto">
-            Create events, fund escrow on Stellar, and disburse prizes automatically — no middleman, no disputes.
+            Create events, fund escrow on Stellar, and disburse prizes automatically — no middleman,
+            no disputes.
           </p>
           <div className="flex items-center justify-center gap-3 pt-2">
             <a
@@ -163,9 +173,15 @@ export default async function HomePage() {
         <div className="max-w-5xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-4 text-xs text-[var(--text-muted)]">
           <p>© 2026 Stellar Guardian. Built on the Stellar network.</p>
           <div className="flex gap-4">
-            <a href="/terms" className="hover:text-[var(--text)]">Terms</a>
-            <a href="/privacy" className="hover:text-[var(--text)]">Privacy</a>
-            <a href="/discover" className="hover:text-[var(--text)]">Events</a>
+            <a href="/terms" className="hover:text-[var(--text)]">
+              Terms
+            </a>
+            <a href="/privacy" className="hover:text-[var(--text)]">
+              Privacy
+            </a>
+            <a href="/discover" className="hover:text-[var(--text)]">
+              Events
+            </a>
           </div>
         </div>
       </footer>
@@ -173,7 +189,15 @@ export default async function HomePage() {
   );
 }
 
-function StepCard({ number, title, description }: { number: string; title: string; description: string }) {
+function StepCard({
+  number,
+  title,
+  description,
+}: {
+  number: string;
+  title: string;
+  description: string;
+}) {
   return (
     <div className="text-center space-y-3">
       <div className="mx-auto h-10 w-10 rounded-full bg-[var(--accent-muted)] flex items-center justify-center text-sm font-bold text-[var(--accent)]">

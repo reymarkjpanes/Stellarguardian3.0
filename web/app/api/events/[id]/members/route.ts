@@ -6,10 +6,7 @@ import { paginatedResponse } from "@/lib/errors/responses";
 /**
  * GET /api/events/[id]/members — cursor-paginated list of Event Members
  */
-export async function GET(
-  request: NextRequest,
-  { params }: { params: Promise<{ id: string }> },
-) {
+export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     const { id: eventId } = await params;
     const supabase = await createServerClient();
@@ -22,7 +19,10 @@ export async function GET(
 
     let query = supabase
       .from("event_members")
-      .select("*, users!inner(*, user_skills(*, skills(*)), user_links(*), user_presence(*), wallets(id)), team_memberships(team_id)", { count: "exact" })
+      .select(
+        "*, users!inner(*, user_skills(*, skills(*)), user_links(*), user_presence(*), wallets(id)), team_memberships(team_id)",
+        { count: "exact" },
+      )
       .eq("event_id", eventId)
       .order("id")
       .limit(limit);
@@ -45,22 +45,25 @@ export async function GET(
     // Filter by search term on displayName or email in memory.
     if (search) {
       const searchLower = search.toLowerCase();
-      members = members.filter(m => 
-        (m.users?.display_name?.toLowerCase() ?? "").includes(searchLower) ||
-        (m.users?.email?.toLowerCase() ?? "").includes(searchLower)
+      members = members.filter(
+        (m) =>
+          (m.users?.display_name?.toLowerCase() ?? "").includes(searchLower) ||
+          (m.users?.email?.toLowerCase() ?? "").includes(searchLower),
       );
     }
 
-    const mappedMembers = members.map(m => {
+    const mappedMembers = members.map((m) => {
       const u = m.users;
       const missingFields: string[] = [];
       if (!u?.wallets || u.wallets.length === 0) missingFields.push("Wallet");
-      if (!u?.user_links?.some((l: any) => l.type === "GitHub")) missingFields.push("GitHub");
+      if (!u?.user_links?.some((l: { type: string }) => l.type === "GitHub"))
+        missingFields.push("GitHub");
       if (!u?.bio) missingFields.push("Bio");
       if (!u?.avatar_url) missingFields.push("Avatar");
       if (!u?.user_skills || u.user_skills.length === 0) missingFields.push("Skills");
       if (!u?.timezone) missingFields.push("Timezone");
-      if (!u?.user_links?.some((l: any) => l.type === "Portfolio")) missingFields.push("Portfolio");
+      if (!u?.user_links?.some((l: { type: string }) => l.type === "Portfolio"))
+        missingFields.push("Portfolio");
 
       return {
         ...m,

@@ -1,21 +1,19 @@
 import { Specification } from "@packages/shared-kernel/domain/SpecificationRegistry";
 import { TeamSearchQuery } from "../application/queries/TeamSearchQuery";
 
-export class TeamSearchSpecification implements Specification<any> {
+export class TeamSearchSpecification implements Specification<Record<string, unknown>> {
   constructor(private readonly query: TeamSearchQuery) {}
 
-  public isSatisfiedBy(team: any): boolean {
-    // In-memory evaluation if needed, though usually delegated to DB via toSql
-    if (this.query.eventId !== team.eventId) return false;
-    if (this.query.visibility && team.visibility !== this.query.visibility) return false;
-    if (this.query.recruiting && team.status !== "Recruiting") return false;
-    
+  public isSatisfiedBy(team: Record<string, unknown>): boolean {
+    if (this.query.eventId !== team["eventId"]) return false;
+    if (this.query.visibility && team["visibility"] !== this.query.visibility) return false;
+    if (this.query.recruiting && team["status"] !== "Recruiting") return false;
     return true;
   }
 
-  public toSql(): { text: string; values: any[] } {
+  public toSql(): { text: string; values: unknown[] } {
     let sqlText = `SELECT * FROM teams WHERE event_id = $1 AND archived_at IS NULL`;
-    const values: any[] = [this.query.eventId];
+    const values: unknown[] = [this.query.eventId];
     let paramIndex = 2;
 
     if (this.query.visibility) {

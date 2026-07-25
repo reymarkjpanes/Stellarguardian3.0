@@ -1,5 +1,7 @@
 "use client";
 
+import Link from "next/link";
+
 /**
  * Global error boundary — catches unhandled errors in Server Components.
  * Shows a user-friendly error message instead of "Internal Server Error".
@@ -18,16 +20,12 @@ export default function GlobalError({
           <span className="text-2xl">⚠</span>
         </div>
         <div className="space-y-2">
-          <h1 className="text-2xl font-semibold text-[var(--text)]">
-            Something went wrong
-          </h1>
+          <h1 className="text-2xl font-semibold text-[var(--text)]">Something went wrong</h1>
           <p className="text-sm text-[var(--text-muted)]">
             An unexpected error occurred. This may be a temporary issue with our services.
           </p>
           {error.digest && (
-            <p className="text-xs font-mono text-[var(--text-muted)]">
-              Error ID: {error.digest}
-            </p>
+            <p className="text-xs font-mono text-[var(--text-muted)]">Error ID: {error.digest}</p>
           )}
         </div>
         <div className="flex items-center justify-center gap-3">
@@ -37,12 +35,12 @@ export default function GlobalError({
           >
             Try again
           </button>
-          <a
+          <Link
             href="/"
             className="rounded-md border border-[var(--border)] px-5 py-2 text-sm font-medium text-[var(--text)] hover:bg-[var(--bg-muted)] transition-colors"
           >
             Go home
-          </a>
+          </Link>
         </div>
       </div>
     </div>

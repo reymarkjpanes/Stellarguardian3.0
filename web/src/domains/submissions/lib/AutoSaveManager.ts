@@ -1,6 +1,6 @@
 type SaveTask = {
   requirementId: string;
-  assetData: any;
+  assetData: Record<string, unknown>;
 };
 
 export class AutoSaveManager {
@@ -15,7 +15,7 @@ export class AutoSaveManager {
     this.debounceMs = debounceMs;
   }
 
-  enqueue(requirementId: string, assetData: any) {
+  enqueue(requirementId: string, assetData: Record<string, unknown>) {
     // Overwrite any existing task for this requirement to only save the latest
     this.queue.set(requirementId, { requirementId, assetData });
 
@@ -38,7 +38,7 @@ export class AutoSaveManager {
     } catch (error) {
       console.error("AutoSave failed, requeuing", error);
       // Requeue failed tasks if they haven't been overwritten
-      tasksToProcess.forEach(task => {
+      tasksToProcess.forEach((task) => {
         if (!this.queue.has(task.requirementId)) {
           this.queue.set(task.requirementId, task);
         }

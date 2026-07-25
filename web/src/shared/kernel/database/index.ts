@@ -24,22 +24,26 @@ export class PostgresUnitOfWork implements UnitOfWork {
     while (true) {
       attempt++;
       try {
-        return await sql.begin(async (tx) => {
+        return (await sql.begin(async (tx) => {
           return await callback(tx as unknown as postgres.Sql);
-        }) as Promise<T>;
-      } catch (error: any) {
+        })) as Promise<T>;
+      } catch (error: unknown) {
         // 40001: serialization_failure
         // 40P01: deadlock_detected
         // 08...: connection exception classes
-        const isTransient = error.code === '40001' || error.code === '40P01' || (error.code && error.code.startsWith('08'));
-        
+        const pgError = error as { code?: string };
+        const isTransient =
+          pgError.code === "40001" ||
+          pgError.code === "40P01" ||
+          (pgError.code !== undefined && pgError.code.startsWith("08"));
+
         if (!isTransient || attempt >= maxRetries) {
           throw error;
         }
 
         // Exponential backoff
         const delay = Math.min(100 * Math.pow(2, attempt), 1000);
-        await new Promise(resolve => setTimeout(resolve, delay));
+        await new Promise((resolve) => setTimeout(resolve, delay));
       }
     }
   }

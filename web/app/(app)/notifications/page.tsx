@@ -9,7 +9,7 @@
  * Design: Card list with category color coding. System font. CSS variables.
  * No pagination needed initially (limit 50 most recent).
  */
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { createBrowserClient } from "@/lib/supabase/client";
 
 interface Notification {
@@ -35,13 +35,11 @@ export default function NotificationsPage() {
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    loadNotifications();
-  }, []);
-
-  async function loadNotifications() {
+  const loadNotifications = useCallback(async () => {
     const supabase = createBrowserClient();
-    const { data: { user } } = await supabase.auth.getUser();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
     if (!user) return;
 
     const { data } = await supabase
@@ -53,19 +51,23 @@ export default function NotificationsPage() {
 
     setNotifications(data ?? []);
     setLoading(false);
-  }
+  }, []);
+
+  useEffect(() => {
+    loadNotifications();
+  }, [loadNotifications]);
 
   async function markAsRead(id: string) {
     const supabase = createBrowserClient();
     await supabase.from("notifications").update({ read: true }).eq("id", id);
-    setNotifications((prev) =>
-      prev.map((n) => (n.id === id ? { ...n, read: true } : n)),
-    );
+    setNotifications((prev) => prev.map((n) => (n.id === id ? { ...n, read: true } : n)));
   }
 
   async function markAllRead() {
     const supabase = createBrowserClient();
-    const { data: { user } } = await supabase.auth.getUser();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
     if (!user) return;
     await supabase
       .from("notifications")
@@ -89,11 +91,11 @@ export default function NotificationsPage() {
     <div className="max-w-2xl mx-auto space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight text-[var(--text)]">Notifications</h1>
+          <h1 className="text-2xl font-semibold tracking-tight text-[var(--text)]">
+            Notifications
+          </h1>
           {unreadCount > 0 && (
-            <p className="text-sm text-[var(--text-muted)] mt-1">
-              {unreadCount} unread
-            </p>
+            <p className="text-sm text-[var(--text-muted)] mt-1">{unreadCount} unread</p>
           )}
         </div>
         {unreadCount > 0 && (
@@ -110,7 +112,7 @@ export default function NotificationsPage() {
         <div className="card p-12 text-center">
           <p className="text-[var(--text-muted)]">No notifications yet.</p>
           <p className="text-xs text-[var(--text-muted)] mt-1">
-            You'll receive updates about events, teams, and prizes here.
+            You&apos;ll receive updates about events, teams, and prizes here.
           </p>
         </div>
       ) : (
@@ -137,16 +139,14 @@ export default function NotificationsPage() {
                     >
                       {n.category}
                     </span>
-                    {!n.read && (
-                      <span className="h-2 w-2 rounded-full bg-[var(--accent)]" />
-                    )}
+                    {!n.read && <span className="h-2 w-2 rounded-full bg-[var(--accent)]" />}
                   </div>
-                  <p className={`text-sm mt-1 ${n.read ? "text-[var(--text-secondary)]" : "text-[var(--text)] font-medium"}`}>
+                  <p
+                    className={`text-sm mt-1 ${n.read ? "text-[var(--text-secondary)]" : "text-[var(--text)] font-medium"}`}
+                  >
                     {n.title}
                   </p>
-                  <p className="text-xs text-[var(--text-muted)] mt-0.5 line-clamp-2">
-                    {n.body}
-                  </p>
+                  <p className="text-xs text-[var(--text-muted)] mt-0.5 line-clamp-2">{n.body}</p>
                   <p className="text-[10px] text-[var(--text-muted)] mt-2">
                     {new Date(n.created_at).toLocaleString()}
                   </p>

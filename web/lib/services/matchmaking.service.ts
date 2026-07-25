@@ -3,12 +3,14 @@ import { createServiceClient } from "@/lib/supabase/service";
 import { NotFoundError } from "@/lib/errors";
 
 export class MatchmakingService {
-
   /**
    * Recommends teams to a user based on their skills and preferred roles.
    * Full algorithmic ranking will be built in Sprint 3.5.
    */
-  static async recommendTeams(eventMemberId: string, filters?: any): Promise<any[]> {
+  static async recommendTeams(
+    _eventMemberId: string,
+    _filters?: Record<string, unknown>,
+  ): Promise<Record<string, unknown>[]> {
     // Stub for future recommendation engine
     return [];
   }
@@ -17,7 +19,10 @@ export class MatchmakingService {
    * Recommends available event members to a team based on team's preferred skills and open roles.
    * Full algorithmic ranking will be built in Sprint 3.5.
    */
-  static async recommendMembers(teamId: string, filters?: any): Promise<any[]> {
+  static async recommendMembers(
+    _teamId: string,
+    _filters?: Record<string, unknown>,
+  ): Promise<Record<string, unknown>[]> {
     // Stub for future recommendation engine
     return [];
   }
@@ -46,12 +51,12 @@ export class MatchmakingService {
 
     // Simplified scoring: If user has skills the team needs, increase score.
     // Full implementation deferred to Sprint 3.5.
-    
+
     // In a real scenario, query user_skills where user_id = eventMember.user_id
     // and intersect with teamNeeds.
-    
+
     // Stub logic
-    score = 50; 
+    score = 50;
     return score;
   }
 
@@ -83,11 +88,11 @@ export class MatchmakingService {
       user.avatar_url,
       user.bio,
       user.github_url,
-      user.portfolio_url
+      user.portfolio_url,
       // we would also check wallets and skills
     ];
 
-    const filledItems = items.filter(item => item && item.trim().length > 0).length;
+    const filledItems = items.filter((item) => item && item.trim().length > 0).length;
     score = Math.round((filledItems / items.length) * maxScore);
 
     return score;
@@ -118,16 +123,18 @@ export class MatchmakingService {
       .eq("team_id", teamId);
 
     // Filter down to the unfilled roles. For simplicity in 3.2, just return them.
-    return preferredRoles?.map(r => r.role_name) || [];
+    return preferredRoles?.map((r) => r.role_name) || [];
   }
 
   /**
    * Fast lookup of open teams by skills.
    */
-  static async searchBySkills(eventId: string, skillIds: string[]): Promise<any[]> {
+  static async searchBySkills(
+    eventId: string,
+    skillIds: string[],
+  ): Promise<Record<string, unknown>[]> {
     const supabase = createServiceClient();
 
-    // Query teams that are Recruiting and have matching preferred skills
     const { data: teams } = await supabase
       .from("teams")
       .select("id, name, status, team_preferred_skills!inner(skill_id)")
@@ -135,6 +142,6 @@ export class MatchmakingService {
       .eq("status", "Recruiting")
       .in("team_preferred_skills.skill_id", skillIds);
 
-    return teams || [];
+    return (teams as Record<string, unknown>[] | null) ?? [];
   }
 }

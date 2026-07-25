@@ -1,7 +1,7 @@
 import { EventRepository } from "../repositories/event.repository";
 import { CreateEventDTO, EventResponseDTO } from "./dto/event.dto";
 import { requirePermission } from "@/lib/auth/permissions";
-import { BusinessRuleError, AppError } from "@/lib/errors";
+import { BusinessRuleError } from "@/lib/errors";
 import { eventBus } from "../domain/events";
 
 export class EventService {
@@ -11,15 +11,11 @@ export class EventService {
     this.repository = new EventRepository();
   }
 
-  async createEvent(
-    userId: string,
-    dto: CreateEventDTO
-  ): Promise<EventResponseDTO> {
+  async createEvent(userId: string, dto: CreateEventDTO): Promise<EventResponseDTO> {
     // 1. Authorization Check (Domain Logic: Can this user create events here?)
     try {
       await requirePermission(dto.workspace_id, "workspace", "update");
-    } catch (error: any) {
-      // Re-throw appropriately based on central error logic if it's not already
+    } catch (error) {
       throw error;
     }
 

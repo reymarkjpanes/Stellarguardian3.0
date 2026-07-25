@@ -6,6 +6,7 @@
  * Large "404" as a subtle background element, clear message, two recovery paths.
  * System font, CSS variables, no external dependencies.
  */
+import Link from "next/link";
 import { type Metadata } from "next";
 
 export const metadata: Metadata = {
@@ -14,10 +15,7 @@ export const metadata: Metadata = {
 
 export default function NotFoundPage() {
   return (
-    <main
-      id="main-content"
-      className="min-h-[80vh] flex items-center justify-center px-4"
-    >
+    <main id="main-content" className="min-h-[80vh] flex items-center justify-center px-4">
       <div className="relative text-center max-w-md">
         {/* Ghost 404 — large, faint, behind content */}
         <p
@@ -38,18 +36,18 @@ export default function NotFoundPage() {
           </p>
 
           <div className="flex items-center justify-center gap-3 pt-2">
-            <a
+            <Link
               href="/"
               className="rounded-md bg-[var(--btn-primary-bg)] px-4 py-2 text-sm font-medium text-[var(--btn-primary-text)] hover:bg-[var(--btn-primary-hover)] transition-colors"
             >
               Back to home
-            </a>
-            <a
+            </Link>
+            <Link
               href="/discover"
               className="rounded-md border border-[var(--border)] px-4 py-2 text-sm font-medium text-[var(--text)] hover:bg-[var(--bg-muted)] transition-colors"
             >
               Browse events
-            </a>
+            </Link>
           </div>
         </div>
       </div>

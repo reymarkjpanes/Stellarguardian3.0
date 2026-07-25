@@ -1,15 +1,15 @@
-import { test as base } from '@playwright/test';
-import { AuthHelper } from '../helpers/auth';
+import { test as base } from "@playwright/test";
+import { AuthHelper } from "../helpers/auth";
 
 type TestFixtures = {
   auth: AuthHelper;
 };
 
 export const test = base.extend<TestFixtures>({
-  auth: async ({ page }, use) => {
+  auth: async ({ page }, provide) => {
     const auth = new AuthHelper(page);
-    await use(auth);
+    await provide(auth);
   },
 });
 
-export { expect } from '@playwright/test';
+export { expect } from "@playwright/test";

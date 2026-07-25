@@ -10,7 +10,7 @@
  * Design: card form matching the platform's established patterns.
  * CSS variables throughout. System font. Single accent.
  */
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { createBrowserClient } from "@/lib/supabase/client";
 
 function slugify(text: string): string {
@@ -31,12 +31,10 @@ export default function CreateWorkspacePage() {
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
-  // Auto-generate slug from name (unless user has manually edited)
-  useEffect(() => {
-    if (!slugTouched) {
-      setSlug(slugify(name));
-    }
-  }, [name, slugTouched]);
+  // Derive slug from name when user hasn't manually edited it
+  const derivedSlug = slugTouched ? slug : slugify(name);
+  // Keep slug state in sync for the controlled input
+  const displaySlug = derivedSlug;
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -64,12 +62,11 @@ export default function CreateWorkspacePage() {
         return;
       }
 
-      // Create workspace
       const { data: workspace, error: wsError } = await supabase
         .from("workspaces")
         .insert({
           name: name.trim(),
-          slug: slug.trim(),
+          slug: displaySlug.trim(),
           description: description.trim() || null,
           owner_id: user.id,
         })
@@ -158,7 +155,7 @@ export default function CreateWorkspacePage() {
                 maxLength={40}
                 pattern="[a-z0-9-]+"
                 title="Lowercase letters, numbers, and hyphens only"
-                value={slug}
+                value={displaySlug}
                 onChange={(e) => {
                   setSlug(e.target.value);
                   setSlugTouched(true);

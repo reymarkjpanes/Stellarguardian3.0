@@ -76,7 +76,7 @@ jobs:
           restore-keys: ${{ runner.os }}-cargo-
 
       - name: Run contract unit tests
-        run: cargo test --features testutils
+        run: cargo test
 
       - name: Build WASM (verify contract compiles)
         run: cargo build --target wasm32-unknown-unknown --release

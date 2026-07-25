@@ -1,0 +1,647 @@
+﻿
+C:\Users\Reymark\Documents\Antigravity-Project\stellar-guardian-3.0\web\app\(app)\invitations\accept\page.tsx
+  54:7  error  Error: Calling setState synchronously within an effect can trigger cascading renders
+
+Effects are intended to synchronize state between React and external systems such as manually updating the DOM, state management libraries, or other platform APIs. In general, the body of an effect should do one or both of the following:
+* Update external systems with the latest state from React.
+* Subscribe for updates from some external system, calling setState in a callback function when external state changes.
+
+Calling setState synchronously within an effect body causes cascading renders that can hurt performance, and is not recommended. (https://react.dev/learn/you-might-not-need-an-effect).
+
+C:\Users\Reymark\Documents\Antigravity-Project\stellar-guardian-3.0\web\app\(app)\invitations\accept\page.tsx:54:7
+  52 |   useEffect(() => {
+  53 |     if (!token) {
+> 54 |       setPageState("invalid");
+     |       ^^^^^^^^^^^^ Avoid calling setState() directly within an effect
+  55 |       setMessage("No invitation token provided.");
+  56 |       return;
+  57 |     }                                 react-hooks/set-state-in-effect
+  58:5  error  Error: Cannot access variable before it is declared
+
+`loadPreview` is accessed before it is declared, which prevents the earlier access from updating when this value changes over time.
+
+C:\Users\Reymark\Documents\Antigravity-Project\stellar-guardian-3.0\web\app\(app)\invitations\accept\page.tsx:58:5
+  56 |       return;
+  57 |     }
+> 58 |     loadPreview(token);
+     |     ^^^^^^^^^^^ `loadPreview` accessed before it is declared
+  59 |   }, [token]);
+  60 |
+  61 |   async function loadPreview(inviteToken: string) {
+
+C:\Users\Reymark\Documents\Antigravity-Project\stellar-guardian-3.0\web\app\(app)\invitations\accept\page.tsx:61:3
+  59 |   }, [token]);
+  60 |
+> 61 |   async function loadPreview(inviteToken: string) {
+     |   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 62 |     try {
+     | ^^^^^^^^^
+> 63 |       // Fetch invitation details first ΓÇö show trust context before auto-accepting
+     ΓÇª
+     | ^^^^^^^^^
+> 79 |     }
+     | ^^^^^^^^^
+> 80 |   }
+     | ^^^^ `loadPreview` is declared here
+  81 |
+  82 |   async function handleAccept() {
+  83 |     if (!token) return;  react-hooks/immutability
+
+C:\Users\Reymark\Documents\Antigravity-Project\stellar-guardian-3.0\web\app\(app)\notifications\page.tsx
+   39:5   error  Error: Cannot access variable before it is declared
+
+`loadNotifications` is accessed before it is declared, which prevents the earlier access from updating when this value changes over time.
+
+C:\Users\Reymark\Documents\Antigravity-Project\stellar-guardian-3.0\web\app\(app)\notifications\page.tsx:39:5
+  37 |
+  38 |   useEffect(() => {
+> 39 |     loadNotifications();
+     |     ^^^^^^^^^^^^^^^^^ `loadNotifications` accessed before it is declared
+  40 |   }, []);
+  41 |
+  42 |   async function loadNotifications() {
+
+C:\Users\Reymark\Documents\Antigravity-Project\stellar-guardian-3.0\web\app\(app)\notifications\page.tsx:42:3
+  40 |   }, []);
+  41 |
+> 42 |   async function loadNotifications() {
+     |   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 43 |     const supabase = createBrowserClient();
+     | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 44 |     const { data: { user } } = await supabase.auth.getUser();
+     ΓÇª
+     | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 55 |     setLoading(false);
+     | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 56 |   }
+     | ^^^^ `loadNotifications` is declared here
+  57 |
+  58 |   async function markAsRead(id: string) {
+  59 |     const supabase = createBrowserClient();  react-hooks/immutability
+  113:16  error  `'` can be escaped with `&apos;`, `&lsquo;`, `&#39;`, `&rsquo;`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        react/no-unescaped-entities
+
+C:\Users\Reymark\Documents\Antigravity-Project\stellar-guardian-3.0\web\app\(app)\workspaces\[slug]\members\page.tsx
+  22:10  warning  'inviteEmail' is assigned a value but never used     @typescript-eslint/no-unused-vars
+  22:23  warning  'setInviteEmail' is assigned a value but never used  @typescript-eslint/no-unused-vars
+  23:10  warning  'inviteRole' is assigned a value but never used      @typescript-eslint/no-unused-vars
+  23:22  warning  'setInviteRole' is assigned a value but never used   @typescript-eslint/no-unused-vars
+  24:10  warning  'inviting' is assigned a value but never used        @typescript-eslint/no-unused-vars
+  24:20  warning  'setInviting' is assigned a value but never used     @typescript-eslint/no-unused-vars
+  25:17  warning  'setError' is assigned a value but never used        @typescript-eslint/no-unused-vars
+
+C:\Users\Reymark\Documents\Antigravity-Project\stellar-guardian-3.0\web\app\(app)\workspaces\[slug]\settings\page.tsx
+  8:10  warning  'createBrowserClient' is defined but never used  @typescript-eslint/no-unused-vars
+
+C:\Users\Reymark\Documents\Antigravity-Project\stellar-guardian-3.0\web\app\(app)\workspaces\new\page.tsx
+  37:7  error  Error: Calling setState synchronously within an effect can trigger cascading renders
+
+Effects are intended to synchronize state between React and external systems such as manually updating the DOM, state management libraries, or other platform APIs. In general, the body of an effect should do one or both of the following:
+* Update external systems with the latest state from React.
+* Subscribe for updates from some external system, calling setState in a callback function when external state changes.
+
+Calling setState synchronously within an effect body causes cascading renders that can hurt performance, and is not recommended. (https://react.dev/learn/you-might-not-need-an-effect).
+
+C:\Users\Reymark\Documents\Antigravity-Project\stellar-guardian-3.0\web\app\(app)\workspaces\new\page.tsx:37:7
+  35 |   useEffect(() => {
+  36 |     if (!slugTouched) {
+> 37 |       setSlug(slugify(name));
+     |       ^^^^^^^ Avoid calling setState() directly within an effect
+  38 |     }
+  39 |   }, [name, slugTouched]);
+  40 |  react-hooks/set-state-in-effect
+
+C:\Users\Reymark\Documents\Antigravity-Project\stellar-guardian-3.0\web\app\(auth)\login\page.tsx
+  18:10  warning  '_captchaToken' is assigned a value but never used  @typescript-eslint/no-unused-vars
+
+C:\Users\Reymark\Documents\Antigravity-Project\stellar-guardian-3.0\web\app\(auth)\reset-password\page.tsx
+  12:10  warning  'createBrowserClient' is defined but never used  @typescript-eslint/no-unused-vars
+
+C:\Users\Reymark\Documents\Antigravity-Project\stellar-guardian-3.0\web\app\(auth)\signup\page.tsx
+  22:10  warning  '_captchaToken' is assigned a value but never used  @typescript-eslint/no-unused-vars
+
+C:\Users\Reymark\Documents\Antigravity-Project\stellar-guardian-3.0\web\app\actions\judging.actions.ts
+  13:3   warning  'submissionId' is defined but never used  @typescript-eslint/no-unused-vars
+  22:30  error    Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  52:30  error    Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+C:\Users\Reymark\Documents\Antigravity-Project\stellar-guardian-3.0\web\app\actions\prize-allocation.actions.ts
+  106:78  error    Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  118:28  warning  'cid' is defined but never used           @typescript-eslint/no-unused-vars
+
+C:\Users\Reymark\Documents\Antigravity-Project\stellar-guardian-3.0\web\app\api\auth\reset-password\route.ts
+  43:12  warning  'error' is defined but never used  @typescript-eslint/no-unused-vars
+
+C:\Users\Reymark\Documents\Antigravity-Project\stellar-guardian-3.0\web\app\api\cron\process-events\route.ts
+   88:36  error    Unexpected any. Specify a different type   @typescript-eslint/no-explicit-any
+   88:51  error    Unexpected any. Specify a different type   @typescript-eslint/no-explicit-any
+  110:23  warning  'user' is assigned a value but never used  @typescript-eslint/no-unused-vars
+
+C:\Users\Reymark\Documents\Antigravity-Project\stellar-guardian-3.0\web\app\api\events\[id]\members\[memberId]\route.ts
+  6:33  warning  'AvailabilitySchema' is defined but never used  @typescript-eslint/no-unused-vars
+
+C:\Users\Reymark\Documents\Antigravity-Project\stellar-guardian-3.0\web\app\api\events\[id]\members\route.ts
+  58:36  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  63:36  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+C:\Users\Reymark\Documents\Antigravity-Project\stellar-guardian-3.0\web\app\api\events\[id]\submissions\route.ts
+  8:10  warning  'NextRequest' is defined but never used  @typescript-eslint/no-unused-vars
+
+C:\Users\Reymark\Documents\Antigravity-Project\stellar-guardian-3.0\web\app\api\v1\events\[eventId]\teams\[teamId]\archive\route.ts
+   7:10  warning  'z' is defined but never used             @typescript-eslint/no-unused-vars
+  11:34  error    Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+C:\Users\Reymark\Documents\Antigravity-Project\stellar-guardian-3.0\web\app\api\v1\events\[eventId]\teams\[teamId]\route.ts
+  13:43  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  15:25  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  32:34  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+C:\Users\Reymark\Documents\Antigravity-Project\stellar-guardian-3.0\web\app\api\v1\events\[eventId]\teams\route.ts
+  11:10  warning  'z' is defined but never used             @typescript-eslint/no-unused-vars
+  15:35  error    Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  45:35  error    Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+C:\Users\Reymark\Documents\Antigravity-Project\stellar-guardian-3.0\web\app\api\v1\teams\[teamId]\submission\submit\route.ts
+  24:19  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+C:\Users\Reymark\Documents\Antigravity-Project\stellar-guardian-3.0\web\app\api\v1\teams\[teamId]\submission\upload-url\route.ts
+  24:19  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+C:\Users\Reymark\Documents\Antigravity-Project\stellar-guardian-3.0\web\app\api\v1\teams\[teamId]\submission\validation\route.ts
+  25:19  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+C:\Users\Reymark\Documents\Antigravity-Project\stellar-guardian-3.0\web\app\error.tsx
+  40:11  error  Do not use an `<a>` element to navigate to `/`. Use `<Link />` from `next/link` instead. See: https://nextjs.org/docs/messages/no-html-link-for-pages  @next/next/no-html-link-for-pages
+
+C:\Users\Reymark\Documents\Antigravity-Project\stellar-guardian-3.0\web\app\not-found.tsx
+  41:13  error  Do not use an `<a>` element to navigate to `/`. Use `<Link />` from `next/link` instead. See: https://nextjs.org/docs/messages/no-html-link-for-pages  @next/next/no-html-link-for-pages
+
+C:\Users\Reymark\Documents\Antigravity-Project\stellar-guardian-3.0\web\app\page.tsx
+  33:11  error  Do not use an `<a>` element to navigate to `/`. Use `<Link />` from `next/link` instead. See: https://nextjs.org/docs/messages/no-html-link-for-pages  @next/next/no-html-link-for-pages
+
+C:\Users\Reymark\Documents\Antigravity-Project\stellar-guardian-3.0\web\components\comments\comment-thread.tsx
+  31:40  warning  React Hook useEffect has a missing dependency: 'loadComments'. Either include it or remove the dependency array  react-hooks/exhaustive-deps
+
+C:\Users\Reymark\Documents\Antigravity-Project\stellar-guardian-3.0\web\components\events\event-trust-signals.tsx
+  59:5  error  Error: Calling setState synchronously within an effect can trigger cascading renders
+
+Effects are intended to synchronize state between React and external systems such as manually updating the DOM, state management libraries, or other platform APIs. In general, the body of an effect should do one or both of the following:
+* Update external systems with the latest state from React.
+* Subscribe for updates from some external system, calling setState in a callback function when external state changes.
+
+Calling setState synchronously within an effect body causes cascading renders that can hurt performance, and is not recommended. (https://react.dev/learn/you-might-not-need-an-effect).
+
+C:\Users\Reymark\Documents\Antigravity-Project\stellar-guardian-3.0\web\components\events\event-trust-signals.tsx:59:5
+  57 |   useEffect(() => {
+  58 |     if (!escrowRelevant) return;
+> 59 |     setEscrowLoading(true);
+     |     ^^^^^^^^^^^^^^^^ Avoid calling setState() directly within an effect
+  60 |     fetch(`/api/events/${eventId}/verify-escrow`)
+  61 |       .then((r) => r.ok ? r.json() : null)
+  62 |       .then((data) => {  react-hooks/set-state-in-effect
+
+C:\Users\Reymark\Documents\Antigravity-Project\stellar-guardian-3.0\web\components\events\judging\ScoringPanel.tsx
+   9:37  warning  'Save' is defined but never used                   @typescript-eslint/no-unused-vars
+  10:61  warning  'declareConflictAction' is defined but never used  @typescript-eslint/no-unused-vars
+
+C:\Users\Reymark\Documents\Antigravity-Project\stellar-guardian-3.0\web\components\events\judging\organizer\FinalizationActionBox.tsx
+  34:7  error  Error: Calling setState synchronously within an effect can trigger cascading renders
+
+Effects are intended to synchronize state between React and external systems such as manually updating the DOM, state management libraries, or other platform APIs. In general, the body of an effect should do one or both of the following:
+* Update external systems with the latest state from React.
+* Subscribe for updates from some external system, calling setState in a callback function when external state changes.
+
+Calling setState synchronously within an effect body causes cascading renders that can hurt performance, and is not recommended. (https://react.dev/learn/you-might-not-need-an-effect).
+
+C:\Users\Reymark\Documents\Antigravity-Project\stellar-guardian-3.0\web\components\events\judging\organizer\FinalizationActionBox.tsx:34:7
+  32 |   useEffect(() => {
+  33 |     if (open) {
+> 34 |       setConfirmText("");
+     |       ^^^^^^^^^^^^^^ Avoid calling setState() directly within an effect
+  35 |       setIsSubmitting(false);
+  36 |       // Defer focus so the portal has painted
+  37 |       setTimeout(() => inputRef.current?.focus(), 50);  react-hooks/set-state-in-effect
+
+C:\Users\Reymark\Documents\Antigravity-Project\stellar-guardian-3.0\web\components\events\judging\organizer\OrganizerJudgingDashboardClient.tsx
+  41:7   error    Error: Cannot access variable before it is declared
+
+`handleRefresh` is accessed before it is declared, which prevents the earlier access from updating when this value changes over time.
+
+C:\Users\Reymark\Documents\Antigravity-Project\stellar-guardian-3.0\web\components\events\judging\organizer\OrganizerJudgingDashboardClient.tsx:41:7
+  39 |     if (isCompleted) return;
+  40 |     const interval = setInterval(() => {
+> 41 |       handleRefresh();
+     |       ^^^^^^^^^^^^^ `handleRefresh` accessed before it is declared
+  42 |     }, 60000);
+  43 |     return () => clearInterval(interval);
+  44 |   }, [isCompleted]);
+
+C:\Users\Reymark\Documents\Antigravity-Project\stellar-guardian-3.0\web\components\events\judging\organizer\OrganizerJudgingDashboardClient.tsx:46:3
+  44 |   }, [isCompleted]);
+  45 |
+> 46 |   const handleRefresh = async () => {
+     |   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 47 |     startTransition(async () => {
+     | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 48 |       try {
+     | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 49 |         const newData = await fetchJudgingAnalytics(eventId);
+     | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 50 |         setData(newData);
+     | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 51 |       } catch (err) {
+     | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 52 |         console.error('Failed to refresh analytics', err);
+     | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 53 |       }
+     | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 54 |     });
+     | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 55 |   };
+     | ^^^^^ `handleRefresh` is declared here
+  56 |
+  57 |   const handleFinalize = async () => {
+  58 |     try {  react-hooks/immutability
+  44:6   warning  React Hook useEffect has a missing dependency: 'handleRefresh'. Either include it or remove the dependency array                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           react-hooks/exhaustive-deps
+  62:19  error    Unexpected any. Specify a different type                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   @typescript-eslint/no-explicit-any
+
+C:\Users\Reymark\Documents\Antigravity-Project\stellar-guardian-3.0\web\components\events\members\invite-drawer.tsx
+   2:10  warning  'createBrowserClient' is defined but never used                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       @typescript-eslint/no-unused-vars
+  16:50  error    Unexpected any. Specify a different type                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              @typescript-eslint/no-explicit-any
+  25:7   error    Error: Calling setState synchronously within an effect can trigger cascading renders
+
+Effects are intended to synchronize state between React and external systems such as manually updating the DOM, state management libraries, or other platform APIs. In general, the body of an effect should do one or both of the following:
+* Update external systems with the latest state from React.
+* Subscribe for updates from some external system, calling setState in a callback function when external state changes.
+
+Calling setState synchronously within an effect body causes cascading renders that can hurt performance, and is not recommended. (https://react.dev/learn/you-might-not-need-an-effect).
+
+C:\Users\Reymark\Documents\Antigravity-Project\stellar-guardian-3.0\web\components\events\members\invite-drawer.tsx:25:7
+  23 |     } else {
+  24 |       document.body.style.overflow = "unset";
+> 25 |       setSuccess(false);
+     |       ^^^^^^^^^^ Avoid calling setState() directly within an effect
+  26 |       setError(null);
+  27 |       setEmail("");
+  28 |     }  react-hooks/set-state-in-effect
+  32:6   warning  React Hook useEffect has a missing dependency: 'loadInvitations'. Either include it or remove the dependency array                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    react-hooks/exhaustive-deps
+  70:14  warning  'e' is defined but never used                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         @typescript-eslint/no-unused-vars
+  83:14  warning  'e' is defined but never used                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         @typescript-eslint/no-unused-vars
+
+C:\Users\Reymark\Documents\Antigravity-Project\stellar-guardian-3.0\web\components\events\overview\activity-feed-card.tsx
+  38:40  warning  'i' is defined but never used  @typescript-eslint/no-unused-vars
+
+C:\Users\Reymark\Documents\Antigravity-Project\stellar-guardian-3.0\web\components\events\prizes\BatchLockPanel.tsx
+   5:89  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  20:19  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  40:19  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  47:56  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  48:60  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+C:\Users\Reymark\Documents\Antigravity-Project\stellar-guardian-3.0\web\components\events\prizes\OrganizerPrizeDashboardClient.tsx
+  13:22  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  14:14  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  15:23  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+C:\Users\Reymark\Documents\Antigravity-Project\stellar-guardian-3.0\web\components\events\prizes\PrizeAllocationBoard.tsx
+    5:113  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+    8:43   error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+    8:58   error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   30:19   error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   42:45   error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   43:19   error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   57:32   error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   64:39   error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   65:64   error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   89:31   error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   90:54   error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   91:70   error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   99:38   error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  100:53   error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+C:\Users\Reymark\Documents\Antigravity-Project\stellar-guardian-3.0\web\components\events\prizes\PrizeCategoryManager.tsx
+   19:88  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   42:19  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   64:19  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   87:52  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   94:29  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  105:73  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  109:72  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  123:33  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+C:\Users\Reymark\Documents\Antigravity-Project\stellar-guardian-3.0\web\components\events\sponsor-display.tsx
+  67:19  warning  Using `<img>` could result in slower LCP and higher bandwidth. Consider using `<Image />` from `next/image` or a custom image loader to automatically optimize images. This may incur additional usage or cost from your provider. See: https://nextjs.org/docs/messages/no-img-element  @next/next/no-img-element
+
+C:\Users\Reymark\Documents\Antigravity-Project\stellar-guardian-3.0\web\components\settings\session-info.tsx
+  14:19  warning  'setSuccess' is assigned a value but never used  @typescript-eslint/no-unused-vars
+
+C:\Users\Reymark\Documents\Antigravity-Project\stellar-guardian-3.0\web\components\theme\theme-provider.tsx
+  45:5  error  Error: Calling setState synchronously within an effect can trigger cascading renders
+
+Effects are intended to synchronize state between React and external systems such as manually updating the DOM, state management libraries, or other platform APIs. In general, the body of an effect should do one or both of the following:
+* Update external systems with the latest state from React.
+* Subscribe for updates from some external system, calling setState in a callback function when external state changes.
+
+Calling setState synchronously within an effect body causes cascading renders that can hurt performance, and is not recommended. (https://react.dev/learn/you-might-not-need-an-effect).
+
+C:\Users\Reymark\Documents\Antigravity-Project\stellar-guardian-3.0\web\components\theme\theme-provider.tsx:45:5
+  43 |     const stored = localStorage.getItem("theme") as Theme | null;
+  44 |     const initial = stored ?? "dark";
+> 45 |     setThemeState(initial);
+     |     ^^^^^^^^^^^^^ Avoid calling setState() directly within an effect
+  46 |
+  47 |     const resolved = initial === "system" ? getSystemTheme() : initial;
+  48 |     setResolvedTheme(resolved);  react-hooks/set-state-in-effect
+
+C:\Users\Reymark\Documents\Antigravity-Project\stellar-guardian-3.0\web\components\ui\button.tsx
+  11:17  warning  'variant' is assigned a value but never used  @typescript-eslint/no-unused-vars
+  11:38  warning  'size' is assigned a value but never used     @typescript-eslint/no-unused-vars
+  12:38  error    Unexpected any. Specify a different type      @typescript-eslint/no-explicit-any
+  13:44  error    Unexpected any. Specify a different type      @typescript-eslint/no-explicit-any
+
+C:\Users\Reymark\Documents\Antigravity-Project\stellar-guardian-3.0\web\components\ui\dialog.tsx
+   4:41  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   5:48  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   6:48  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   7:47  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   8:47  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   9:46  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  10:52  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+C:\Users\Reymark\Documents\Antigravity-Project\stellar-guardian-3.0\web\components\ui\input.tsx
+  4:18  error  An interface declaring no members is equivalent to its supertype  @typescript-eslint/no-empty-object-type
+
+C:\Users\Reymark\Documents\Antigravity-Project\stellar-guardian-3.0\web\components\ui\textarea.tsx
+  4:18  error  An interface declaring no members is equivalent to its supertype  @typescript-eslint/no-empty-object-type
+
+C:\Users\Reymark\Documents\Antigravity-Project\stellar-guardian-3.0\web\components\workspaces\webhook-manager.tsx
+  25:40  warning  React Hook useEffect has a missing dependency: 'loadWebhooks'. Either include it or remove the dependency array  react-hooks/exhaustive-deps
+
+C:\Users\Reymark\Documents\Antigravity-Project\stellar-guardian-3.0\web\lib\__tests__\cron-auth.test.ts
+  9:32  warning  'vi' is defined but never used  @typescript-eslint/no-unused-vars
+
+C:\Users\Reymark\Documents\Antigravity-Project\stellar-guardian-3.0\web\lib\api-handler.ts
+   1:10  warning  'NextResponse' is defined but never used  @typescript-eslint/no-unused-vars
+   6:28  error    Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  13:55  error    Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+C:\Users\Reymark\Documents\Antigravity-Project\stellar-guardian-3.0\web\lib\application\event.service.ts
+   4:29  warning  'AppError' is defined but never used      @typescript-eslint/no-unused-vars
+  21:21  error    Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+C:\Users\Reymark\Documents\Antigravity-Project\stellar-guardian-3.0\web\lib\auth\__tests__\mfa-guard.test.ts
+  10:36  warning  'beforeEach' is defined but never used  @typescript-eslint/no-unused-vars
+
+C:\Users\Reymark\Documents\Antigravity-Project\stellar-guardian-3.0\web\lib\domain\events.ts
+  3:1   warning  Unused eslint-disable directive (no problems were reported from '@typescript-eslint/no-explicit-any')
+  7:46  error    Unexpected any. Specify a different type                                                               @typescript-eslint/no-explicit-any
+
+C:\Users\Reymark\Documents\Antigravity-Project\stellar-guardian-3.0\web\lib\engines\business-rules\event-rules.ts
+  1:10  warning  'EventState' is defined but never used  @typescript-eslint/no-unused-vars
+
+C:\Users\Reymark\Documents\Antigravity-Project\stellar-guardian-3.0\web\lib\engines\business-rules\team-rules.ts
+  34:11  warning  'eventTeams' is assigned a value but never used  @typescript-eslint/no-unused-vars
+  35:61  warning  'userId' is defined but never used               @typescript-eslint/no-unused-vars
+
+C:\Users\Reymark\Documents\Antigravity-Project\stellar-guardian-3.0\web\lib\engines\workflow\event-workflow.ts
+  19:7  warning  'TERMINAL_STATES' is assigned a value but never used  @typescript-eslint/no-unused-vars
+
+C:\Users\Reymark\Documents\Antigravity-Project\stellar-guardian-3.0\web\lib\events\publisher.ts
+  90:80  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+C:\Users\Reymark\Documents\Antigravity-Project\stellar-guardian-3.0\web\lib\logger.ts
+  21:13  warning  'timestamp' is assigned a value but never used  @typescript-eslint/no-unused-vars
+
+C:\Users\Reymark\Documents\Antigravity-Project\stellar-guardian-3.0\web\lib\services\evaluation.ts
+  12:41  warning  'NotFoundError' is defined but never used  @typescript-eslint/no-unused-vars
+
+C:\Users\Reymark\Documents\Antigravity-Project\stellar-guardian-3.0\web\lib\services\file-validation.ts
+  139:3  warning  '_buffer' is defined but never used    @typescript-eslint/no-unused-vars
+  140:3  warning  '_filename' is defined but never used  @typescript-eslint/no-unused-vars
+
+C:\Users\Reymark\Documents\Antigravity-Project\stellar-guardian-3.0\web\lib\services\legal.ts
+  120:9  warning  'threshold' is assigned a value but never used  @typescript-eslint/no-unused-vars
+
+C:\Users\Reymark\Documents\Antigravity-Project\stellar-guardian-3.0\web\lib\services\matchmaking.service.ts
+   11:31  warning  'eventMemberId' is defined but never used  @typescript-eslint/no-unused-vars
+   11:54  warning  'filters' is defined but never used        @typescript-eslint/no-unused-vars
+   11:64  error    Unexpected any. Specify a different type   @typescript-eslint/no-explicit-any
+   11:78  error    Unexpected any. Specify a different type   @typescript-eslint/no-explicit-any
+   20:33  warning  'teamId' is defined but never used         @typescript-eslint/no-unused-vars
+   20:49  warning  'filters' is defined but never used        @typescript-eslint/no-unused-vars
+   20:59  error    Unexpected any. Specify a different type   @typescript-eslint/no-explicit-any
+   20:73  error    Unexpected any. Specify a different type   @typescript-eslint/no-explicit-any
+  127:77  error    Unexpected any. Specify a different type   @typescript-eslint/no-explicit-any
+
+C:\Users\Reymark\Documents\Antigravity-Project\stellar-guardian-3.0\web\lib\services\submission.service.ts
+  37:44  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  54:21  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+C:\Users\Reymark\Documents\Antigravity-Project\stellar-guardian-3.0\web\lib\services\team.ts
+  13:42  warning  'ForbiddenError' is defined but never used  @typescript-eslint/no-unused-vars
+
+C:\Users\Reymark\Documents\Antigravity-Project\stellar-guardian-3.0\web\lib\state-machine\event.property.test.ts
+  19:8  warning  'TransitionResult' is defined but never used  @typescript-eslint/no-unused-vars
+
+C:\Users\Reymark\Documents\Antigravity-Project\stellar-guardian-3.0\web\lib\state-machine\event.test.ts
+  12:3   warning  'EVENT_TERMINAL' is defined but never used  @typescript-eslint/no-unused-vars
+  15:15  warning  'EventState' is defined but never used      @typescript-eslint/no-unused-vars
+
+C:\Users\Reymark\Documents\Antigravity-Project\stellar-guardian-3.0\web\lib\stellar\client.ts
+  74:25  error  A `require()` style import is forbidden  @typescript-eslint/no-require-imports
+
+C:\Users\Reymark\Documents\Antigravity-Project\stellar-guardian-3.0\web\lib\supabase\database.types.ts
+  1:0  error  Parsing error: File appears to be binary
+
+C:\Users\Reymark\Documents\Antigravity-Project\stellar-guardian-3.0\web\src\app\api\v1\events\[eventId]\members\route.ts
+   7:5   warning  'params' is defined but never used           @typescript-eslint/no-unused-vars
+  11:11  warning  'cursor' is assigned a value but never used  @typescript-eslint/no-unused-vars
+  12:11  warning  'skills' is assigned a value but never used  @typescript-eslint/no-unused-vars
+  23:12  warning  'error' is defined but never used            @typescript-eslint/no-unused-vars
+
+C:\Users\Reymark\Documents\Antigravity-Project\stellar-guardian-3.0\web\src\domains\escrow\adapters\MockStellarAdapter.ts
+  29:63   error    Unexpected any. Specify a different type   @typescript-eslint/no-explicit-any
+  38:25   warning  'address' is defined but never used        @typescript-eslint/no-unused-vars
+  65:141  error    Unexpected any. Specify a different type   @typescript-eslint/no-explicit-any
+  76:69   warning  'instructions' is defined but never used   @typescript-eslint/no-unused-vars
+  99:22   warning  'address' is defined but never used        @typescript-eslint/no-unused-vars
+  99:39   warning  'targetAddress' is defined but never used  @typescript-eslint/no-unused-vars
+
+C:\Users\Reymark\Documents\Antigravity-Project\stellar-guardian-3.0\web\src\domains\escrow\adapters\StellarEscrowAdapter.ts
+   45:63   error  Unexpected any. Specify a different type              @typescript-eslint/no-explicit-any
+   59:19   error  Unexpected any. Specify a different type              @typescript-eslint/no-explicit-any
+   82:53   error  Unexpected any. Specify a different type              @typescript-eslint/no-explicit-any
+   83:48   error  Unexpected any. Specify a different type              @typescript-eslint/no-explicit-any
+   96:19   error  Unexpected any. Specify a different type              @typescript-eslint/no-explicit-any
+  107:141  error  Unexpected any. Specify a different type              @typescript-eslint/no-explicit-any
+  132:19   error  Unexpected any. Specify a different type              @typescript-eslint/no-explicit-any
+  148:9    error  'txBuilder' is never reassigned. Use 'const' instead  prefer-const
+  170:19   error  Unexpected any. Specify a different type              @typescript-eslint/no-explicit-any
+  186:19   error  Unexpected any. Specify a different type              @typescript-eslint/no-explicit-any
+  234:19   error  Unexpected any. Specify a different type              @typescript-eslint/no-explicit-any
+
+C:\Users\Reymark\Documents\Antigravity-Project\stellar-guardian-3.0\web\src\domains\escrow\domain\EscrowProvider.ts
+  40:57   error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  55:135  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  77:21   error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  77:35   error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+C:\Users\Reymark\Documents\Antigravity-Project\stellar-guardian-3.0\web\src\domains\escrow\services\EscrowService.ts
+   11:40  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   46:19  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   90:19  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  182:72  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  189:53  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  228:53  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  249:22  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  276:19  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  321:19  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+C:\Users\Reymark\Documents\Antigravity-Project\stellar-guardian-3.0\web\src\domains\judging\domain\EvaluationAggregate.ts
+  1:36  warning  'EvaluationEvent' is defined but never used  @typescript-eslint/no-unused-vars
+
+C:\Users\Reymark\Documents\Antigravity-Project\stellar-guardian-3.0\web\src\domains\judging\domain\EvaluationStateMachine.ts
+  1:10  warning  'randomUUID' is defined but never used  @typescript-eslint/no-unused-vars
+
+C:\Users\Reymark\Documents\Antigravity-Project\stellar-guardian-3.0\web\src\domains\judging\repositories\EvaluationRepository.ts
+  67:31  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+C:\Users\Reymark\Documents\Antigravity-Project\stellar-guardian-3.0\web\src\domains\judging\services\JudgingService.ts
+  2:10  warning  'EvaluationAggregate' is defined but never used  @typescript-eslint/no-unused-vars
+
+C:\Users\Reymark\Documents\Antigravity-Project\stellar-guardian-3.0\web\src\domains\members\application\queries\MemberDirectoryQueryHandler.ts
+  18:17  warning  'query' is defined but never used  @typescript-eslint/no-unused-vars
+
+C:\Users\Reymark\Documents\Antigravity-Project\stellar-guardian-3.0\web\src\domains\members\application\queries\SkillQueryService.ts
+  18:37  warning  'limit' is assigned a value but never used  @typescript-eslint/no-unused-vars
+
+C:\Users\Reymark\Documents\Antigravity-Project\stellar-guardian-3.0\web\src\domains\members\components\CommunityDirectory.tsx
+  28:37  warning  Using `<img>` could result in slower LCP and higher bandwidth. Consider using `<Image />` from `next/image` or a custom image loader to automatically optimize images. This may incur additional usage or cost from your provider. See: https://nextjs.org/docs/messages/no-img-element  @next/next/no-img-element
+  41:53  error    Unexpected any. Specify a different type                                                                                                                                                                                                                                                 @typescript-eslint/no-explicit-any
+
+C:\Users\Reymark\Documents\Antigravity-Project\stellar-guardian-3.0\web\src\domains\members\components\MemberProfileDrawer.tsx
+  95:39  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+C:\Users\Reymark\Documents\Antigravity-Project\stellar-guardian-3.0\web\src\domains\members\components\MembersPageLayout.tsx
+  9:9  warning  'currentView' is assigned a value but never used  @typescript-eslint/no-unused-vars
+
+C:\Users\Reymark\Documents\Antigravity-Project\stellar-guardian-3.0\web\src\domains\networking\application\commands\InviteToTeamUseCase.ts
+  14:17  warning  'command' is defined but never used  @typescript-eslint/no-unused-vars
+  14:47  warning  'ctx' is defined but never used      @typescript-eslint/no-unused-vars
+
+C:\Users\Reymark\Documents\Antigravity-Project\stellar-guardian-3.0\web\src\domains\networking\application\queries\SuggestedMembersQueryHandler.ts
+  14:72  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+C:\Users\Reymark\Documents\Antigravity-Project\stellar-guardian-3.0\web\src\domains\networking\application\queries\TeamRecommendationQueryHandler.ts
+  14:74  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+C:\Users\Reymark\Documents\Antigravity-Project\stellar-guardian-3.0\web\src\domains\networking\application\services\DiscoveryService.ts
+  24:40  error    Unexpected any. Specify a different type          @typescript-eslint/no-explicit-any
+  24:63  error    Unexpected any. Specify a different type          @typescript-eslint/no-explicit-any
+  25:9   error    'score' is never reassigned. Use 'const' instead  prefer-const
+  52:52  warning  'limit' is assigned a value but never used        @typescript-eslint/no-unused-vars
+  52:81  error    Unexpected any. Specify a different type          @typescript-eslint/no-explicit-any
+  57:52  warning  'limit' is assigned a value but never used        @typescript-eslint/no-unused-vars
+  57:81  error    Unexpected any. Specify a different type          @typescript-eslint/no-explicit-any
+  62:33  warning  'eventId' is defined but never used               @typescript-eslint/no-unused-vars
+  62:59  error    Unexpected any. Specify a different type          @typescript-eslint/no-explicit-any
+
+C:\Users\Reymark\Documents\Antigravity-Project\stellar-guardian-3.0\web\src\domains\rankings\services\FinalizationService.test.ts
+  5:32  warning  'EVAL_DATA' is assigned a value but never used  @typescript-eslint/no-unused-vars
+
+C:\Users\Reymark\Documents\Antigravity-Project\stellar-guardian-3.0\web\src\domains\rankings\services\FinalizationService.ts
+  32:31  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  33:31  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  43:74  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+C:\Users\Reymark\Documents\Antigravity-Project\stellar-guardian-3.0\web\src\domains\submissions\application\commands\GenerateUploadUrlUseCase.ts
+  4:85  warning  'contentType' is defined but never used  @typescript-eslint/no-unused-vars
+
+C:\Users\Reymark\Documents\Antigravity-Project\stellar-guardian-3.0\web\src\domains\submissions\application\commands\UpdateDraftUseCase.ts
+  6:101  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+C:\Users\Reymark\Documents\Antigravity-Project\stellar-guardian-3.0\web\src\domains\submissions\application\queries\GetSubmissionHubQueryHandler.ts
+  26:17  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+C:\Users\Reymark\Documents\Antigravity-Project\stellar-guardian-3.0\web\src\domains\submissions\application\queries\GetValidationPanelQueryHandler.ts
+  24:17  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  34:72  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  46:53  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+C:\Users\Reymark\Documents\Antigravity-Project\stellar-guardian-3.0\web\src\domains\submissions\components\ProjectDetailView.tsx
+  37:11  warning  Using `<img>` could result in slower LCP and higher bandwidth. Consider using `<Image />` from `next/image` or a custom image loader to automatically optimize images. This may incur additional usage or cost from your provider. See: https://nextjs.org/docs/messages/no-img-element  @next/next/no-img-element
+
+C:\Users\Reymark\Documents\Antigravity-Project\stellar-guardian-3.0\web\src\domains\submissions\components\ProjectGallery.tsx
+  19:15  warning  Using `<img>` could result in slower LCP and higher bandwidth. Consider using `<Image />` from `next/image` or a custom image loader to automatically optimize images. This may incur additional usage or cost from your provider. See: https://nextjs.org/docs/messages/no-img-element  @next/next/no-img-element
+  44:13  warning  Using `<img>` could result in slower LCP and higher bandwidth. Consider using `<Image />` from `next/image` or a custom image loader to automatically optimize images. This may incur additional usage or cost from your provider. See: https://nextjs.org/docs/messages/no-img-element  @next/next/no-img-element
+
+C:\Users\Reymark\Documents\Antigravity-Project\stellar-guardian-3.0\web\src\domains\submissions\lib\AutoSaveManager.ts
+   3:14  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  18:45  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+C:\Users\Reymark\Documents\Antigravity-Project\stellar-guardian-3.0\web\src\domains\teams\application\commands\ArchiveTeamUseCase.ts
+  38:32  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  54:16  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+C:\Users\Reymark\Documents\Antigravity-Project\stellar-guardian-3.0\web\src\domains\teams\application\commands\RequestToJoinTeamUseCase.ts
+  15:17  warning  'command' is defined but never used  @typescript-eslint/no-unused-vars
+  15:52  warning  'ctx' is defined but never used      @typescript-eslint/no-unused-vars
+
+C:\Users\Reymark\Documents\Antigravity-Project\stellar-guardian-3.0\web\src\domains\teams\application\commands\UpdateTeamUseCase.ts
+  39:32  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  48:36  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  49:40  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+C:\Users\Reymark\Documents\Antigravity-Project\stellar-guardian-3.0\web\src\domains\teams\application\queries\GetTeamQuery.ts
+  13:50  warning  'ctx' is defined but never used  @typescript-eslint/no-unused-vars
+
+C:\Users\Reymark\Documents\Antigravity-Project\stellar-guardian-3.0\web\src\domains\teams\application\queries\ListTeamsQuery.ts
+  13:66  warning  'ctx' is defined but never used  @typescript-eslint/no-unused-vars
+
+C:\Users\Reymark\Documents\Antigravity-Project\stellar-guardian-3.0\web\src\domains\teams\application\queries\RecruitingTeamsQueryHandler.ts
+  17:17  warning  'query' is defined but never used  @typescript-eslint/no-unused-vars
+
+C:\Users\Reymark\Documents\Antigravity-Project\stellar-guardian-3.0\web\src\domains\teams\application\queries\TeamSearchQueryHandler.ts
+  14:41  warning  'ctx' is defined but never used  @typescript-eslint/no-unused-vars
+
+C:\Users\Reymark\Documents\Antigravity-Project\stellar-guardian-3.0\web\src\domains\teams\domain\TeamSearchSpecification.ts
+   4:63  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   7:30  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  16:43  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  18:19  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+C:\Users\Reymark\Documents\Antigravity-Project\stellar-guardian-3.0\web\src\domains\teams\infrastructure\PostgresTeamRepository.ts
+  51:23  error    Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  65:46  warning  'ctx' is defined but never used           @typescript-eslint/no-unused-vars
+  66:23  error    Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  78:90  warning  'ctx' is defined but never used           @typescript-eslint/no-unused-vars
+
+C:\Users\Reymark\Documents\Antigravity-Project\stellar-guardian-3.0\web\src\shared\kernel\api\middleware\IdempotencyService.ts
+  8:13  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+C:\Users\Reymark\Documents\Antigravity-Project\stellar-guardian-3.0\web\src\shared\kernel\api\middleware\withPipeline.ts
+  13:34  warning  '_TParams' is defined but never used  @typescript-eslint/no-unused-vars
+  41:31  warning  '_policy' is defined but never used   @typescript-eslint/no-unused-vars
+  41:48  warning  '_userId' is defined but never used   @typescript-eslint/no-unused-vars
+  41:66  warning  '_ip' is defined but never used       @typescript-eslint/no-unused-vars
+
+C:\Users\Reymark\Documents\Antigravity-Project\stellar-guardian-3.0\web\src\shared\kernel\events\OutboxPublisher.ts
+  22:42  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  23:51  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+C:\Users\Reymark\Documents\Antigravity-Project\stellar-guardian-3.0\web\tests\e2e\judging\judge-workspace.spec.ts
+   1:16  warning  'expect' is defined but never used               @typescript-eslint/no-unused-vars
+   2:10  warning  'setupJudgingFixture' is defined but never used  @typescript-eslint/no-unused-vars
+   5:7   warning  'judgeAuth' is defined but never used            @typescript-eslint/no-unused-vars
+   6:7   warning  'workspaceData' is defined but never used        @typescript-eslint/no-unused-vars
+   8:28  warning  'page' is defined but never used                 @typescript-eslint/no-unused-vars
+  18:89  warning  'page' is defined but never used                 @typescript-eslint/no-unused-vars
+  24:62  warning  'page' is defined but never used                 @typescript-eslint/no-unused-vars
+  31:83  warning  'page' is defined but never used                 @typescript-eslint/no-unused-vars
+
+C:\Users\Reymark\Documents\Antigravity-Project\stellar-guardian-3.0\web\tests\e2e\submissions\participant-journey.spec.ts
+  2:8   warning  'AxeBuilder' is defined but never used  @typescript-eslint/no-unused-vars
+  5:34  warning  'auth' is defined but never used        @typescript-eslint/no-unused-vars
+
+Γ£û 249 problems (147 errors, 102 warnings)
+  2 errors and 1 warning potentially fixable with the `--fix` option.
+

@@ -53,9 +53,7 @@ export class StellarChainAdapter implements ChainAdapter {
 
   private guardMainnet(): void {
     if (this.networkMode === "mainnet" && !isMainnetEnabled()) {
-      throw new Error(
-        "Mainnet financial operations are disabled in this environment (Req 34.3).",
-      );
+      throw new Error("Mainnet financial operations are disabled in this environment (Req 34.3).");
     }
   }
 
@@ -69,10 +67,10 @@ export class StellarChainAdapter implements ChainAdapter {
   }
 
   verifySignature(publicKey: string, data: Buffer, signature: Buffer): boolean {
-    // Dynamic import is used at call-sites that need the SDK
-    // For synchronous verification, we use the pre-imported Keypair
-    const { Keypair } = require("@stellar/stellar-sdk");
+    // Use dynamic import pattern — Keypair is lightweight and synchronous at call-site
     try {
+      // eslint-disable-next-line @typescript-eslint/no-require-imports
+      const { Keypair } = require("@stellar/stellar-sdk") as typeof import("@stellar/stellar-sdk");
       const keypair = Keypair.fromPublicKey(publicKey);
       return keypair.verify(data, signature);
     } catch {
@@ -91,7 +89,11 @@ export class StellarChainAdapter implements ChainAdapter {
       );
       return nativeBalance?.balance ?? "0";
     } catch (err) {
-      console.error("[StellarClient] getBalance failed:", account, err instanceof Error ? err.message : err);
+      console.error(
+        "[StellarClient] getBalance failed:",
+        account,
+        err instanceof Error ? err.message : err,
+      );
       return "0";
     }
   }
@@ -146,14 +148,12 @@ export class StellarChainAdapter implements ChainAdapter {
       throw new Error("Stellar caps operations at 100 per transaction (Req 8.6).");
     }
 
-    const { Horizon, TransactionBuilder, Operation, Asset, Networks } = await import(
-      "@stellar/stellar-sdk"
-    );
+    const { Horizon, TransactionBuilder, Operation, Asset, Networks } =
+      await import("@stellar/stellar-sdk");
     const server = new Horizon.Server(HORIZON_URLS[this.networkMode]);
     const sourceAccount = await server.loadAccount(source);
 
-    const networkPassphrase =
-      this.networkMode === "mainnet" ? Networks.PUBLIC : Networks.TESTNET;
+    const networkPassphrase = this.networkMode === "mainnet" ? Networks.PUBLIC : Networks.TESTNET;
 
     let builder = new TransactionBuilder(sourceAccount, {
       fee: String(100 * payments.length), // baseFee * operationCount

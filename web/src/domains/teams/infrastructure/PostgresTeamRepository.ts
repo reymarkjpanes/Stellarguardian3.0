@@ -9,7 +9,6 @@ import { TeamSearchQuery } from "../application/queries/TeamSearchQuery";
 import postgres from "postgres";
 
 export class PostgresTeamRepository implements TeamWriteRepository, TeamReadRepository {
-  
   // -- WRITE REPOSITORY --
 
   async findById(tx: postgres.Sql, id: string): Promise<Team | null> {
@@ -37,18 +36,26 @@ export class PostgresTeamRepository implements TeamWriteRepository, TeamReadRepo
       visibility: teamRow.visibility,
       maxMembers: teamRow.max_members,
       version: teamRow.version,
-      members: members.map(m => ({
+      members: members.map((m) => ({
         eventMemberId: m.event_member_id,
         role: m.role,
-        status: m.status
-      }))
+        status: m.status,
+      })),
     };
 
     return new Team(props);
   }
 
   async create(tx: postgres.Sql, team: Omit<Team, "id">, ctx: RequestContext): Promise<string> {
-    const t = team as any; // Cast for simplicity since Omit loses getter methods
+    const t = team as unknown as {
+      props: {
+        eventId: string;
+        name: string;
+        status: string;
+        visibility: string;
+        maxMembers: number;
+      };
+    };
     const result = await tx`
       INSERT INTO teams (
         event_id, name, status, visibility, max_members, created_by
@@ -59,11 +66,11 @@ export class PostgresTeamRepository implements TeamWriteRepository, TeamReadRepo
     `;
     const row = result[0];
     if (!row) throw new Error("Failed to create team");
-    return row.id;
+    return row.id as string;
   }
 
-  async update(tx: postgres.Sql, team: Team, ctx: RequestContext): Promise<void> {
-    const t = team as any;
+  async update(tx: postgres.Sql, team: Team, _ctx: RequestContext): Promise<void> {
+    const t = team as unknown as { props: { status: string; visibility: string; version: number } };
     const result = await tx`
       UPDATE teams
       SET status = ${t.props.status}, visibility = ${t.props.visibility}, version = version + 1
@@ -71,11 +78,19 @@ export class PostgresTeamRepository implements TeamWriteRepository, TeamReadRepo
     `;
 
     if (result.count === 0) {
-      throw new ConflictError("Concurrency Conflict: The team has been updated by another request.");
+      throw new ConflictError(
+        "Concurrency Conflict: The team has been updated by another request.",
+      );
     }
   }
 
-  async addMember(tx: postgres.Sql, teamId: string, eventMemberId: string, role: string, ctx: RequestContext): Promise<void> {
+  async addMember(
+    tx: postgres.Sql,
+    teamId: string,
+    eventMemberId: string,
+    role: string,
+    ctx: RequestContext,
+  ): Promise<void> {
     await tx`
       INSERT INTO team_memberships (
         team_id, event_member_id, role, status
@@ -87,7 +102,11 @@ export class PostgresTeamRepository implements TeamWriteRepository, TeamReadRepo
 
   // -- READ REPOSITORY --
 
-  async findTeamDetail(sql: postgres.Sql, eventId: string, teamId: string): Promise<TeamDetailDTO | null> {
+  async findTeamDetail(
+    sql: postgres.Sql,
+    eventId: string,
+    teamId: string,
+  ): Promise<TeamDetailDTO | null> {
     const teams = await sql`
       SELECT id, name, status, visibility, max_members, created_at
       FROM teams
@@ -112,18 +131,22 @@ export class PostgresTeamRepository implements TeamWriteRepository, TeamReadRepo
       memberCount: members.length,
       maxMembers: t.max_members,
       createdAt: t.created_at,
-      members: members.map(m => ({
+      members: members.map((m) => ({
         eventMemberId: m.event_member_id,
         role: m.role,
         name: "Unknown", // Would join users/event_members table
-        joinedAt: m.created_at
-      }))
+        joinedAt: m.created_at,
+      })),
     };
   }
 
-  async listTeams(sql: postgres.Sql, eventId: string, params: CursorPaginationParams): Promise<PaginatedResult<TeamListDTO>> {
+  async listTeams(
+    sql: postgres.Sql,
+    eventId: string,
+    params: CursorPaginationParams,
+  ): Promise<PaginatedResult<TeamListDTO>> {
     const limit = params.limit || 20;
-    
+
     // Simplistic pagination just for the skeleton
     const teams = await sql`
       SELECT id, name, status, visibility, max_members, created_at
@@ -136,7 +159,7 @@ export class PostgresTeamRepository implements TeamWriteRepository, TeamReadRepo
     const hasMore = teams.length > limit;
     const items = hasMore ? teams.slice(0, limit) : teams;
 
-    const dtos: TeamListDTO[] = items.map(t => ({
+    const dtos: TeamListDTO[] = items.map((t) => ({
       id: t.id,
       name: t.name,
       status: t.status,
@@ -144,17 +167,20 @@ export class PostgresTeamRepository implements TeamWriteRepository, TeamReadRepo
       lookingForMembers: true,
       memberCount: 1, // Mock
       maxMembers: t.max_members,
-      createdAt: t.created_at
+      createdAt: t.created_at,
     }));
 
     return {
       items: dtos,
       hasMore,
-      nextCursor: hasMore ? dtos[dtos.length - 1]?.id : undefined
+      nextCursor: hasMore ? dtos[dtos.length - 1]?.id : undefined,
     };
   }
 
-  async searchTeams(sql: postgres.Sql, query: TeamSearchQuery): Promise<PaginatedResult<TeamListDTO>> {
+  async searchTeams(
+    sql: postgres.Sql,
+    query: TeamSearchQuery,
+  ): Promise<PaginatedResult<TeamListDTO>> {
     const limit = query.limit || 20;
     const visibility = query.visibility;
 
@@ -180,7 +206,7 @@ export class PostgresTeamRepository implements TeamWriteRepository, TeamReadRepo
     const hasMore = teams.length > limit;
     const items = hasMore ? teams.slice(0, limit) : teams;
 
-    const dtos: TeamListDTO[] = items.map(t => ({
+    const dtos: TeamListDTO[] = items.map((t) => ({
       id: t.id,
       name: t.name,
       status: t.status,
@@ -188,14 +214,13 @@ export class PostgresTeamRepository implements TeamWriteRepository, TeamReadRepo
       lookingForMembers: true,
       memberCount: 1, // Mock
       maxMembers: t.max_members,
-      createdAt: t.created_at
+      createdAt: t.created_at,
     }));
 
     return {
       items: dtos,
       hasMore,
-      nextCursor: hasMore ? dtos[dtos.length - 1]?.id : undefined
+      nextCursor: hasMore ? dtos[dtos.length - 1]?.id : undefined,
     };
   }
 }
-

@@ -85,7 +85,19 @@ export async function POST(request: NextRequest) {
 /**
  * Route domain events to their handlers.
  */
-async function processEvent(event: any, supabase: any): Promise<void> {
+interface DomainEventRow {
+  id: string;
+  type: string;
+  payload: Record<string, unknown>;
+  attempts: number;
+  max_attempts: number;
+  next_retry_at: string;
+}
+
+async function processEvent(
+  event: DomainEventRow,
+  supabase: ReturnType<typeof createServiceClient>,
+): Promise<void> {
   const payload = event.payload;
 
   switch (event.type) {
@@ -112,7 +124,9 @@ async function processEvent(event: any, supabase: any): Promise<void> {
           .select("id")
           .eq("id", eventRow.organizer_id)
           .single();
-        const { data: { user: authUser } } = await supabase.auth.admin.getUserById(eventRow.organizer_id);
+        const {
+          data: { user: authUser },
+        } = await supabase.auth.admin.getUserById(eventRow.organizer_id);
         if (authUser?.email) {
           await sendNotificationEmail(
             authUser.email,

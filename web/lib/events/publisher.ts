@@ -1,6 +1,6 @@
 /**
  * Domain Event Publisher
- * 
+ *
  * Decouples core business logic from side effects like Audit and Notifications.
  * Instead of TeamService calling NotificationService directly, TeamService publishes
  * a DomainEvent, and the publisher routes it to the appropriate handlers.
@@ -11,10 +11,40 @@ import { createNotification } from "@/lib/services/notification";
 
 export type DomainEvent =
   | { type: "TeamCreated"; eventId: string; teamId: string; captainId: string; teamName: string }
-  | { type: "TeamJoinRequestResolved"; eventId: string; teamId: string; userId: string; action: "accept" | "reject"; resolvedBy: string }
-  | { type: "SubmissionCreated"; eventId: string; teamId: string | null; submitterId: string; submissionId: string; version: number }
-  | { type: "FundingCompleted"; eventId: string; escrowId: string; txHash: string; amount: string; fundingWallet: string; newState: string; actorId: string }
-  | { type: "PrizeReleased"; eventId: string; escrowId: string; paidCount: number; heldCount: number; actorId: string };
+  | {
+      type: "TeamJoinRequestResolved";
+      eventId: string;
+      teamId: string;
+      userId: string;
+      action: "accept" | "reject";
+      resolvedBy: string;
+    }
+  | {
+      type: "SubmissionCreated";
+      eventId: string;
+      teamId: string | null;
+      submitterId: string;
+      submissionId: string;
+      version: number;
+    }
+  | {
+      type: "FundingCompleted";
+      eventId: string;
+      escrowId: string;
+      txHash: string;
+      amount: string;
+      fundingWallet: string;
+      newState: string;
+      actorId: string;
+    }
+  | {
+      type: "PrizeReleased";
+      eventId: string;
+      escrowId: string;
+      paidCount: number;
+      heldCount: number;
+      actorId: string;
+    };
 
 export async function publishDomainEvent(event: DomainEvent): Promise<void> {
   try {
@@ -86,8 +116,14 @@ export async function publishDomainEvent(event: DomainEvent): Promise<void> {
         });
         break;
 
-      default:
-        console.warn("[DomainEventPublisher] Unhandled event type:", (event as any).type);
+      default: {
+        // TypeScript exhaustive check — event is `never` here if all cases are covered
+        const exhaustive: never = event;
+        console.warn(
+          "[DomainEventPublisher] Unhandled event type:",
+          (exhaustive as { type: string }).type,
+        );
+      }
     }
   } catch (error) {
     // Non-blocking error handling for side effects

@@ -8,14 +8,16 @@ import { PostgresUnitOfWork, sql } from "@/src/shared/kernel/database";
 import { successResponse } from "@/src/shared/kernel/api/ApiResponse";
 import { withPipeline } from "@/src/shared/kernel/api/middleware/withPipeline";
 
-export const GET = withPipeline(
-  async (request, ctx, params) => {
-    const { eventId, teamId } = params as any;
+interface TeamParams {
+  eventId: string;
+  teamId: string;
+}
 
-    const mockReadRepo: any = {
-      findTeamDetail: async () => ({ id: teamId, name: "Sample Team" })
-    };
+export const GET = withPipeline<TeamParams>(
+  async (_request, ctx, params) => {
+    const { eventId, teamId } = params;
 
+    const mockReadRepo = new PostgresTeamRepository();
     const queryService = new GetTeamQuery(sql, mockReadRepo);
     const result = await queryService.execute(eventId, teamId, ctx);
 
@@ -23,27 +25,30 @@ export const GET = withPipeline(
   },
   {
     requireAuth: true,
-    rateLimitPolicy: "AuthenticatedRead"
-  }
+    rateLimitPolicy: "AuthenticatedRead",
+  },
 );
 
-export const PATCH = withPipeline(
+export const PATCH = withPipeline<TeamParams>(
   async (request, ctx, params, body) => {
-    const { teamId } = params as any;
-    
+    const { teamId } = params;
+
     const uow = new PostgresUnitOfWork();
-    const repo = new PostgresTeamRepository(); 
+    const repo = new PostgresTeamRepository();
     const eventBus = new OutboxPublisher(sql);
-    
+
     const version = request.headers.get("if-match");
 
     const useCase = new UpdateTeamUseCase(uow, repo, eventBus);
 
-    await useCase.execute({
-      teamId,
-      version: version ? parseInt(version, 10) : undefined,
-      ...body
-    }, ctx);
+    await useCase.execute(
+      {
+        teamId,
+        version: version ? parseInt(version, 10) : undefined,
+        ...(body as Record<string, unknown>),
+      },
+      ctx,
+    );
 
     return NextResponse.json(successResponse(null), { status: 200 });
   },
@@ -51,6 +56,6 @@ export const PATCH = withPipeline(
     requireAuth: true,
     rateLimitPolicy: "AuthenticatedWrite",
     idempotent: true,
-    bodySchema: UpdateTeamSchema
-  }
+    bodySchema: UpdateTeamSchema,
+  },
 );

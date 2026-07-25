@@ -2,7 +2,12 @@ import { UnitOfWork } from "@/src/shared/kernel/database";
 import { EventPublisher } from "@/src/shared/kernel/events/EventBus";
 import { RequestContext } from "@/src/shared/kernel/context/RequestContext";
 import { TeamWriteRepository } from "../../domain/repositories/TeamWriteRepository";
-import { NotFoundError, UnauthorizedError, StateTransitionError, ConflictError } from "@/src/shared/kernel/errors/DomainError";
+import {
+  NotFoundError,
+  UnauthorizedError,
+  StateTransitionError,
+  ConflictError,
+} from "@/src/shared/kernel/errors/DomainError";
 import { createTeamStateMachine } from "../../domain/TeamStateMachine";
 import postgres from "postgres";
 import { permissionService } from "@packages/shared-kernel/domain/PermissionService";
@@ -18,40 +23,43 @@ export class ArchiveTeamUseCase {
   constructor(
     private uow: UnitOfWork,
     private teamRepository: TeamWriteRepository,
-    private eventPublisher: EventPublisher
+    private eventPublisher: EventPublisher,
   ) {}
 
   async execute(command: ArchiveTeamCommand, ctx: RequestContext): Promise<void> {
     return this.uow.execute(async (tx: postgres.Sql) => {
-      
       const team = await this.teamRepository.findById(tx, command.teamId);
       if (!team) {
         throw new NotFoundError("Team not found");
       }
 
       if (command.version !== undefined && team.version !== command.version) {
-        throw new ConflictError("Concurrency Conflict: The team has been updated by another request.");
+        throw new ConflictError(
+          "Concurrency Conflict: The team has been updated by another request.",
+        );
       }
 
       // Ensure actor is captain
       const canArchive = permissionService.can(Permission.ArchiveTeam, {
-        role: ctx.user.role as any,
+        role: ctx.user.role as TeamStatusType,
         isCaptain: team.isCaptain(ctx.user.id),
-        teamStatus: team.status as TeamStatusType
+        teamStatus: team.status as TeamStatusType,
       });
 
       if (!canArchive) {
-        throw new UnauthorizedError("Only the captain or an organizer can archive the team.", { code: "TEAM_CAPTAIN_REQUIRED" });
+        throw new UnauthorizedError("Only the captain or an organizer can archive the team.", {
+          code: "TEAM_CAPTAIN_REQUIRED",
+        });
       }
 
       const stateMachine = createTeamStateMachine(team.status as TeamStatusType);
-      
+
       const canTransition = stateMachine.canTransition("Archived" as TeamStatusType);
       if (!canTransition) {
         throw new StateTransitionError("Team cannot be archived from its current state.");
       }
 
-      (team as any).props.status = "Archived";
+      (team.props as { status: string }).status = "Archived";
 
       await this.teamRepository.update(tx, team, ctx);
 
@@ -63,8 +71,8 @@ export class ArchiveTeamUseCase {
         timestamp: new Date().toISOString(),
         metadata: {
           requestId: ctx.requestId,
-          correlationId: ctx.correlationId
-        }
+          correlationId: ctx.correlationId,
+        },
       });
     });
   }

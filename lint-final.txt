@@ -1,0 +1,262 @@
+﻿
+C:\Users\Reymark\Documents\Antigravity-Project\stellar-guardian-3.0\web\app\(app)\invitations\accept\page.tsx
+  75:7  error  Error: Calling setState synchronously within an effect can trigger cascading renders
+
+Effects are intended to synchronize state between React and external systems such as manually updating the DOM, state management libraries, or other platform APIs. In general, the body of an effect should do one or both of the following:
+* Update external systems with the latest state from React.
+* Subscribe for updates from some external system, calling setState in a callback function when external state changes.
+
+Calling setState synchronously within an effect body causes cascading renders that can hurt performance, and is not recommended. (https://react.dev/learn/you-might-not-need-an-effect).
+
+C:\Users\Reymark\Documents\Antigravity-Project\stellar-guardian-3.0\web\app\(app)\invitations\accept\page.tsx:75:7
+  73 |   useEffect(() => {
+  74 |     if (token) {
+> 75 |       loadPreview(token);
+     |       ^^^^^^^^^^^ Avoid calling setState() directly within an effect
+  76 |     }
+  77 |   }, [token, loadPreview]);
+  78 |  react-hooks/set-state-in-effect
+
+C:\Users\Reymark\Documents\Antigravity-Project\stellar-guardian-3.0\web\app\(app)\notifications\page.tsx
+  55:5  error  Error: Calling setState synchronously within an effect can trigger cascading renders
+
+Effects are intended to synchronize state between React and external systems such as manually updating the DOM, state management libraries, or other platform APIs. In general, the body of an effect should do one or both of the following:
+* Update external systems with the latest state from React.
+* Subscribe for updates from some external system, calling setState in a callback function when external state changes.
+
+Calling setState synchronously within an effect body causes cascading renders that can hurt performance, and is not recommended. (https://react.dev/learn/you-might-not-need-an-effect).
+
+C:\Users\Reymark\Documents\Antigravity-Project\stellar-guardian-3.0\web\app\(app)\notifications\page.tsx:55:5
+  53 |
+  54 |   useEffect(() => {
+> 55 |     loadNotifications();
+     |     ^^^^^^^^^^^^^^^^^ Avoid calling setState() directly within an effect
+  56 |   }, [loadNotifications]);
+  57 |
+  58 |   async function markAsRead(id: string) {  react-hooks/set-state-in-effect
+
+C:\Users\Reymark\Documents\Antigravity-Project\stellar-guardian-3.0\web\app\(app)\workspaces\[slug]\members\page.tsx
+  22:10  warning  'inviteEmail' is assigned a value but never used     @typescript-eslint/no-unused-vars
+  22:23  warning  'setInviteEmail' is assigned a value but never used  @typescript-eslint/no-unused-vars
+  23:10  warning  'inviteRole' is assigned a value but never used      @typescript-eslint/no-unused-vars
+  23:22  warning  'setInviteRole' is assigned a value but never used   @typescript-eslint/no-unused-vars
+  24:10  warning  'inviting' is assigned a value but never used        @typescript-eslint/no-unused-vars
+  24:20  warning  'setInviting' is assigned a value but never used     @typescript-eslint/no-unused-vars
+  25:17  warning  'setError' is assigned a value but never used        @typescript-eslint/no-unused-vars
+
+C:\Users\Reymark\Documents\Antigravity-Project\stellar-guardian-3.0\web\app\(app)\workspaces\[slug]\settings\page.tsx
+  8:10  warning  'createBrowserClient' is defined but never used  @typescript-eslint/no-unused-vars
+
+C:\Users\Reymark\Documents\Antigravity-Project\stellar-guardian-3.0\web\app\(auth)\login\page.tsx
+  18:10  warning  '_captchaToken' is assigned a value but never used  @typescript-eslint/no-unused-vars
+
+C:\Users\Reymark\Documents\Antigravity-Project\stellar-guardian-3.0\web\app\(auth)\reset-password\page.tsx
+  12:10  warning  'createBrowserClient' is defined but never used  @typescript-eslint/no-unused-vars
+
+C:\Users\Reymark\Documents\Antigravity-Project\stellar-guardian-3.0\web\app\(auth)\signup\page.tsx
+  22:10  warning  '_captchaToken' is assigned a value but never used  @typescript-eslint/no-unused-vars
+
+C:\Users\Reymark\Documents\Antigravity-Project\stellar-guardian-3.0\web\app\actions\judging.actions.ts
+  13:3  warning  '_submissionId' is defined but never used  @typescript-eslint/no-unused-vars
+
+C:\Users\Reymark\Documents\Antigravity-Project\stellar-guardian-3.0\web\app\actions\prize-allocation.actions.ts
+  123:28  warning  '_cid' is defined but never used  @typescript-eslint/no-unused-vars
+
+C:\Users\Reymark\Documents\Antigravity-Project\stellar-guardian-3.0\web\app\api\auth\reset-password\route.ts
+  43:12  warning  'error' is defined but never used  @typescript-eslint/no-unused-vars
+
+C:\Users\Reymark\Documents\Antigravity-Project\stellar-guardian-3.0\web\app\api\cron\process-events\route.ts
+  119:23  warning  'user' is assigned a value but never used  @typescript-eslint/no-unused-vars
+
+C:\Users\Reymark\Documents\Antigravity-Project\stellar-guardian-3.0\web\app\api\events\[id]\members\[memberId]\route.ts
+  6:33  warning  'AvailabilitySchema' is defined but never used  @typescript-eslint/no-unused-vars
+
+C:\Users\Reymark\Documents\Antigravity-Project\stellar-guardian-3.0\web\app\api\events\[id]\submissions\route.ts
+  8:10  warning  'NextRequest' is defined but never used  @typescript-eslint/no-unused-vars
+
+C:\Users\Reymark\Documents\Antigravity-Project\stellar-guardian-3.0\web\components\comments\comment-thread.tsx
+  31:40  warning  React Hook useEffect has a missing dependency: 'loadComments'. Either include it or remove the dependency array  react-hooks/exhaustive-deps
+
+C:\Users\Reymark\Documents\Antigravity-Project\stellar-guardian-3.0\web\components\events\judging\ScoringPanel.tsx
+   9:37  warning  'Save' is defined but never used                   @typescript-eslint/no-unused-vars
+  10:61  warning  'declareConflictAction' is defined but never used  @typescript-eslint/no-unused-vars
+
+C:\Users\Reymark\Documents\Antigravity-Project\stellar-guardian-3.0\web\components\events\members\invite-drawer.tsx
+  42:12  error  Error: Calling setState synchronously within an effect can trigger cascading renders
+
+Effects are intended to synchronize state between React and external systems such as manually updating the DOM, state management libraries, or other platform APIs. In general, the body of an effect should do one or both of the following:
+* Update external systems with the latest state from React.
+* Subscribe for updates from some external system, calling setState in a callback function when external state changes.
+
+Calling setState synchronously within an effect body causes cascading renders that can hurt performance, and is not recommended. (https://react.dev/learn/you-might-not-need-an-effect).
+
+C:\Users\Reymark\Documents\Antigravity-Project\stellar-guardian-3.0\web\components\events\members\invite-drawer.tsx:42:12
+  40 |     if (isOpen) {
+  41 |       document.body.style.overflow = "hidden";
+> 42 |       void loadInvitations();
+     |            ^^^^^^^^^^^^^^^ Avoid calling setState() directly within an effect
+  43 |     } else {
+  44 |       document.body.style.overflow = "unset";
+  45 |     }  react-hooks/set-state-in-effect
+
+C:\Users\Reymark\Documents\Antigravity-Project\stellar-guardian-3.0\web\components\events\overview\activity-feed-card.tsx
+  38:40  warning  'i' is defined but never used  @typescript-eslint/no-unused-vars
+
+C:\Users\Reymark\Documents\Antigravity-Project\stellar-guardian-3.0\web\components\events\sponsor-display.tsx
+  67:19  warning  Using `<img>` could result in slower LCP and higher bandwidth. Consider using `<Image />` from `next/image` or a custom image loader to automatically optimize images. This may incur additional usage or cost from your provider. See: https://nextjs.org/docs/messages/no-img-element  @next/next/no-img-element
+
+C:\Users\Reymark\Documents\Antigravity-Project\stellar-guardian-3.0\web\components\settings\session-info.tsx
+  14:19  warning  'setSuccess' is assigned a value but never used  @typescript-eslint/no-unused-vars
+
+C:\Users\Reymark\Documents\Antigravity-Project\stellar-guardian-3.0\web\components\ui\button.tsx
+  11:17  warning  'variant' is assigned a value but never used  @typescript-eslint/no-unused-vars
+  11:38  warning  'size' is assigned a value but never used     @typescript-eslint/no-unused-vars
+
+C:\Users\Reymark\Documents\Antigravity-Project\stellar-guardian-3.0\web\components\workspaces\webhook-manager.tsx
+  25:40  warning  React Hook useEffect has a missing dependency: 'loadWebhooks'. Either include it or remove the dependency array  react-hooks/exhaustive-deps
+
+C:\Users\Reymark\Documents\Antigravity-Project\stellar-guardian-3.0\web\lib\__tests__\cron-auth.test.ts
+  9:32  warning  'vi' is defined but never used  @typescript-eslint/no-unused-vars
+
+C:\Users\Reymark\Documents\Antigravity-Project\stellar-guardian-3.0\web\lib\auth\__tests__\mfa-guard.test.ts
+  10:36  warning  'beforeEach' is defined but never used  @typescript-eslint/no-unused-vars
+
+C:\Users\Reymark\Documents\Antigravity-Project\stellar-guardian-3.0\web\lib\engines\business-rules\event-rules.ts
+  1:10  warning  'EventState' is defined but never used  @typescript-eslint/no-unused-vars
+
+C:\Users\Reymark\Documents\Antigravity-Project\stellar-guardian-3.0\web\lib\engines\business-rules\team-rules.ts
+  34:11  warning  'eventTeams' is assigned a value but never used  @typescript-eslint/no-unused-vars
+  35:61  warning  'userId' is defined but never used               @typescript-eslint/no-unused-vars
+
+C:\Users\Reymark\Documents\Antigravity-Project\stellar-guardian-3.0\web\lib\engines\workflow\event-workflow.ts
+  19:7  warning  'TERMINAL_STATES' is assigned a value but never used  @typescript-eslint/no-unused-vars
+
+C:\Users\Reymark\Documents\Antigravity-Project\stellar-guardian-3.0\web\lib\logger.ts
+  21:13  warning  'timestamp' is assigned a value but never used  @typescript-eslint/no-unused-vars
+
+C:\Users\Reymark\Documents\Antigravity-Project\stellar-guardian-3.0\web\lib\services\evaluation.ts
+  12:41  warning  'NotFoundError' is defined but never used  @typescript-eslint/no-unused-vars
+
+C:\Users\Reymark\Documents\Antigravity-Project\stellar-guardian-3.0\web\lib\services\file-validation.ts
+  139:3  warning  '_buffer' is defined but never used    @typescript-eslint/no-unused-vars
+  140:3  warning  '_filename' is defined but never used  @typescript-eslint/no-unused-vars
+
+C:\Users\Reymark\Documents\Antigravity-Project\stellar-guardian-3.0\web\lib\services\legal.ts
+  120:9  warning  'threshold' is assigned a value but never used  @typescript-eslint/no-unused-vars
+
+C:\Users\Reymark\Documents\Antigravity-Project\stellar-guardian-3.0\web\lib\services\matchmaking.service.ts
+  11:31  warning  '_eventMemberId' is defined but never used  @typescript-eslint/no-unused-vars
+  11:55  warning  '_filters' is defined but never used        @typescript-eslint/no-unused-vars
+  20:33  warning  '_teamId' is defined but never used         @typescript-eslint/no-unused-vars
+  20:50  warning  '_filters' is defined but never used        @typescript-eslint/no-unused-vars
+
+C:\Users\Reymark\Documents\Antigravity-Project\stellar-guardian-3.0\web\lib\services\team.ts
+  13:42  warning  'ForbiddenError' is defined but never used  @typescript-eslint/no-unused-vars
+
+C:\Users\Reymark\Documents\Antigravity-Project\stellar-guardian-3.0\web\lib\state-machine\event.property.test.ts
+  19:8  warning  'TransitionResult' is defined but never used  @typescript-eslint/no-unused-vars
+
+C:\Users\Reymark\Documents\Antigravity-Project\stellar-guardian-3.0\web\lib\state-machine\event.test.ts
+  12:3   warning  'EVENT_TERMINAL' is defined but never used  @typescript-eslint/no-unused-vars
+  15:15  warning  'EventState' is defined but never used      @typescript-eslint/no-unused-vars
+
+C:\Users\Reymark\Documents\Antigravity-Project\stellar-guardian-3.0\web\lib\supabase\database.types.ts
+  1:0  error  Parsing error: File appears to be binary
+
+C:\Users\Reymark\Documents\Antigravity-Project\stellar-guardian-3.0\web\src\app\api\v1\events\[eventId]\members\route.ts
+   7:5   warning  'params' is defined but never used           @typescript-eslint/no-unused-vars
+  11:11  warning  'cursor' is assigned a value but never used  @typescript-eslint/no-unused-vars
+  12:11  warning  'skills' is assigned a value but never used  @typescript-eslint/no-unused-vars
+  23:12  warning  'error' is defined but never used            @typescript-eslint/no-unused-vars
+
+C:\Users\Reymark\Documents\Antigravity-Project\stellar-guardian-3.0\web\src\domains\escrow\adapters\MockStellarAdapter.ts
+  38:25  warning  '_address' is defined but never used        @typescript-eslint/no-unused-vars
+  75:70  warning  'instructions' is defined but never used    @typescript-eslint/no-unused-vars
+  98:22  warning  '_address' is defined but never used        @typescript-eslint/no-unused-vars
+  98:40  warning  '_targetAddress' is defined but never used  @typescript-eslint/no-unused-vars
+
+C:\Users\Reymark\Documents\Antigravity-Project\stellar-guardian-3.0\web\src\domains\judging\domain\EvaluationAggregate.ts
+  1:36  warning  'EvaluationEvent' is defined but never used  @typescript-eslint/no-unused-vars
+
+C:\Users\Reymark\Documents\Antigravity-Project\stellar-guardian-3.0\web\src\domains\judging\domain\EvaluationStateMachine.ts
+  1:10  warning  'randomUUID' is defined but never used  @typescript-eslint/no-unused-vars
+
+C:\Users\Reymark\Documents\Antigravity-Project\stellar-guardian-3.0\web\src\domains\judging\services\JudgingService.ts
+  2:10  warning  'EvaluationAggregate' is defined but never used  @typescript-eslint/no-unused-vars
+
+C:\Users\Reymark\Documents\Antigravity-Project\stellar-guardian-3.0\web\src\domains\members\application\queries\MemberDirectoryQueryHandler.ts
+  18:17  warning  'query' is defined but never used  @typescript-eslint/no-unused-vars
+
+C:\Users\Reymark\Documents\Antigravity-Project\stellar-guardian-3.0\web\src\domains\members\application\queries\SkillQueryService.ts
+  18:37  warning  'limit' is assigned a value but never used  @typescript-eslint/no-unused-vars
+
+C:\Users\Reymark\Documents\Antigravity-Project\stellar-guardian-3.0\web\src\domains\members\components\CommunityDirectory.tsx
+  28:37  warning  Using `<img>` could result in slower LCP and higher bandwidth. Consider using `<Image />` from `next/image` or a custom image loader to automatically optimize images. This may incur additional usage or cost from your provider. See: https://nextjs.org/docs/messages/no-img-element  @next/next/no-img-element
+
+C:\Users\Reymark\Documents\Antigravity-Project\stellar-guardian-3.0\web\src\domains\members\components\MembersPageLayout.tsx
+  9:9  warning  'currentView' is assigned a value but never used  @typescript-eslint/no-unused-vars
+
+C:\Users\Reymark\Documents\Antigravity-Project\stellar-guardian-3.0\web\src\domains\networking\application\commands\InviteToTeamUseCase.ts
+  14:17  warning  'command' is defined but never used  @typescript-eslint/no-unused-vars
+  14:47  warning  'ctx' is defined but never used      @typescript-eslint/no-unused-vars
+
+C:\Users\Reymark\Documents\Antigravity-Project\stellar-guardian-3.0\web\src\domains\networking\application\services\DiscoveryService.ts
+  55:53  warning  '_limit' is assigned a value but never used  @typescript-eslint/no-unused-vars
+  59:53  warning  '_limit' is assigned a value but never used  @typescript-eslint/no-unused-vars
+  63:33  warning  '_eventId' is defined but never used         @typescript-eslint/no-unused-vars
+
+C:\Users\Reymark\Documents\Antigravity-Project\stellar-guardian-3.0\web\src\domains\rankings\services\FinalizationService.test.ts
+  5:32  warning  'EVAL_DATA' is assigned a value but never used  @typescript-eslint/no-unused-vars
+
+C:\Users\Reymark\Documents\Antigravity-Project\stellar-guardian-3.0\web\src\domains\submissions\application\commands\GenerateUploadUrlUseCase.ts
+  4:85  warning  'contentType' is defined but never used  @typescript-eslint/no-unused-vars
+
+C:\Users\Reymark\Documents\Antigravity-Project\stellar-guardian-3.0\web\src\domains\submissions\components\ProjectDetailView.tsx
+  37:11  warning  Using `<img>` could result in slower LCP and higher bandwidth. Consider using `<Image />` from `next/image` or a custom image loader to automatically optimize images. This may incur additional usage or cost from your provider. See: https://nextjs.org/docs/messages/no-img-element  @next/next/no-img-element
+
+C:\Users\Reymark\Documents\Antigravity-Project\stellar-guardian-3.0\web\src\domains\submissions\components\ProjectGallery.tsx
+  19:15  warning  Using `<img>` could result in slower LCP and higher bandwidth. Consider using `<Image />` from `next/image` or a custom image loader to automatically optimize images. This may incur additional usage or cost from your provider. See: https://nextjs.org/docs/messages/no-img-element  @next/next/no-img-element
+  44:13  warning  Using `<img>` could result in slower LCP and higher bandwidth. Consider using `<Image />` from `next/image` or a custom image loader to automatically optimize images. This may incur additional usage or cost from your provider. See: https://nextjs.org/docs/messages/no-img-element  @next/next/no-img-element
+
+C:\Users\Reymark\Documents\Antigravity-Project\stellar-guardian-3.0\web\src\domains\teams\application\commands\RequestToJoinTeamUseCase.ts
+  15:17  warning  'command' is defined but never used  @typescript-eslint/no-unused-vars
+  15:52  warning  'ctx' is defined but never used      @typescript-eslint/no-unused-vars
+
+C:\Users\Reymark\Documents\Antigravity-Project\stellar-guardian-3.0\web\src\domains\teams\application\queries\GetTeamQuery.ts
+  13:50  warning  'ctx' is defined but never used  @typescript-eslint/no-unused-vars
+
+C:\Users\Reymark\Documents\Antigravity-Project\stellar-guardian-3.0\web\src\domains\teams\application\queries\ListTeamsQuery.ts
+  13:66  warning  'ctx' is defined but never used  @typescript-eslint/no-unused-vars
+
+C:\Users\Reymark\Documents\Antigravity-Project\stellar-guardian-3.0\web\src\domains\teams\application\queries\RecruitingTeamsQueryHandler.ts
+  17:17  warning  'query' is defined but never used  @typescript-eslint/no-unused-vars
+
+C:\Users\Reymark\Documents\Antigravity-Project\stellar-guardian-3.0\web\src\domains\teams\application\queries\TeamSearchQueryHandler.ts
+  14:41  warning  'ctx' is defined but never used  @typescript-eslint/no-unused-vars
+
+C:\Users\Reymark\Documents\Antigravity-Project\stellar-guardian-3.0\web\src\domains\teams\infrastructure\PostgresTeamRepository.ts
+  65:46  warning  '_ctx' is defined but never used  @typescript-eslint/no-unused-vars
+  78:90  warning  'ctx' is defined but never used   @typescript-eslint/no-unused-vars
+
+C:\Users\Reymark\Documents\Antigravity-Project\stellar-guardian-3.0\web\src\shared\kernel\api\middleware\withPipeline.ts
+  13:34  warning  '_TParams' is defined but never used  @typescript-eslint/no-unused-vars
+  41:31  warning  '_policy' is defined but never used   @typescript-eslint/no-unused-vars
+  41:48  warning  '_userId' is defined but never used   @typescript-eslint/no-unused-vars
+  41:66  warning  '_ip' is defined but never used       @typescript-eslint/no-unused-vars
+
+C:\Users\Reymark\Documents\Antigravity-Project\stellar-guardian-3.0\web\tests\e2e\judging\judge-workspace.spec.ts
+   1:16  warning  'expect' is defined but never used               @typescript-eslint/no-unused-vars
+   2:10  warning  'setupJudgingFixture' is defined but never used  @typescript-eslint/no-unused-vars
+   5:7   warning  'judgeAuth' is defined but never used            @typescript-eslint/no-unused-vars
+   6:7   warning  'workspaceData' is defined but never used        @typescript-eslint/no-unused-vars
+   8:28  warning  'page' is defined but never used                 @typescript-eslint/no-unused-vars
+  18:89  warning  'page' is defined but never used                 @typescript-eslint/no-unused-vars
+  24:62  warning  'page' is defined but never used                 @typescript-eslint/no-unused-vars
+  31:83  warning  'page' is defined but never used                 @typescript-eslint/no-unused-vars
+
+C:\Users\Reymark\Documents\Antigravity-Project\stellar-guardian-3.0\web\tests\e2e\submissions\participant-journey.spec.ts
+  2:8   warning  'AxeBuilder' is defined but never used  @typescript-eslint/no-unused-vars
+  5:34  warning  'auth' is defined but never used        @typescript-eslint/no-unused-vars
+
+Γ£û 96 problems (4 errors, 92 warnings)
+

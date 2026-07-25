@@ -5,7 +5,7 @@ export interface IdempotencyRecord {
   userId: string;
   route: string;
   requestHash: string;
-  response: any;
+  response: unknown;
   statusCode: number;
 }
 

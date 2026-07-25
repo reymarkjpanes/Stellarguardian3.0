@@ -28,12 +28,9 @@ function FinalizeModal({ open, onClose, onConfirm }: FinalizeModalProps) {
 
   const isMatch = confirmText === "FINALIZE";
 
-  // Reset state whenever modal opens
+  // Focus the input whenever the modal opens
   useEffect(() => {
     if (open) {
-      setConfirmText("");
-      setIsSubmitting(false);
-      // Defer focus so the portal has painted
       setTimeout(() => inputRef.current?.focus(), 50);
     }
   }, [open]);
@@ -43,7 +40,7 @@ function FinalizeModal({ open, onClose, onConfirm }: FinalizeModalProps) {
     (e: KeyboardEvent) => {
       if (e.key === "Escape" && !isSubmitting) onClose();
     },
-    [isSubmitting, onClose]
+    [isSubmitting, onClose],
   );
 
   useEffect(() => {
@@ -55,7 +52,9 @@ function FinalizeModal({ open, onClose, onConfirm }: FinalizeModalProps) {
   // Prevent body scroll while modal is open
   useEffect(() => {
     document.body.style.overflow = open ? "hidden" : "";
-    return () => { document.body.style.overflow = ""; };
+    return () => {
+      document.body.style.overflow = "";
+    };
   }, [open]);
 
   const handleConfirm = async () => {
@@ -83,6 +82,7 @@ function FinalizeModal({ open, onClose, onConfirm }: FinalizeModalProps) {
       style={{ backgroundColor: "rgba(0,0,0,0.6)", backdropFilter: "blur(3px)" }}
     >
       <div
+        key={open ? "open" : "closed"}
         role="dialog"
         aria-modal="true"
         aria-labelledby="finalize-modal-title"
@@ -95,10 +95,7 @@ function FinalizeModal({ open, onClose, onConfirm }: FinalizeModalProps) {
         onClick={(e) => e.stopPropagation()}
       >
         {/* Top danger strip */}
-        <div
-          className="h-1 w-full rounded-t-xl"
-          style={{ backgroundColor: "var(--error)" }}
-        />
+        <div className="h-1 w-full rounded-t-xl" style={{ backgroundColor: "var(--error)" }} />
 
         <div className="p-6 space-y-5">
           {/* Header */}
@@ -108,11 +105,7 @@ function FinalizeModal({ open, onClose, onConfirm }: FinalizeModalProps) {
                 className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-full"
                 style={{ backgroundColor: "var(--error-bg)" }}
               >
-                <Lock
-                  className="h-4 w-4"
-                  style={{ color: "var(--error)" }}
-                  aria-hidden="true"
-                />
+                <Lock className="h-4 w-4" style={{ color: "var(--error)" }} aria-hidden="true" />
               </div>
               <div>
                 <h2
@@ -127,14 +120,10 @@ function FinalizeModal({ open, onClose, onConfirm }: FinalizeModalProps) {
                   className="mt-1 text-sm leading-relaxed"
                   style={{ color: "var(--text-secondary)" }}
                 >
-                  This will{" "}
-                  <strong style={{ color: "var(--text)" }}>
-                    lock all evaluations
-                  </strong>{" "}
+                  This will <strong style={{ color: "var(--text)" }}>lock all evaluations</strong>{" "}
                   and freeze the rankings{" "}
-                  <strong style={{ color: "var(--text)" }}>permanently</strong>.
-                  Draft and Flagged evaluations will be ignored. This action cannot
-                  be undone.
+                  <strong style={{ color: "var(--text)" }}>permanently</strong>. Draft and Flagged
+                  evaluations will be ignored. This action cannot be undone.
                 </p>
               </div>
             </div>
@@ -146,9 +135,7 @@ function FinalizeModal({ open, onClose, onConfirm }: FinalizeModalProps) {
               aria-label="Close"
               className="shrink-0 rounded-md p-1 transition-colors disabled:pointer-events-none"
               style={{ color: "var(--text-muted)" }}
-              onMouseEnter={(e) =>
-                ((e.currentTarget as HTMLElement).style.color = "var(--text)")
-              }
+              onMouseEnter={(e) => ((e.currentTarget as HTMLElement).style.color = "var(--text)")}
               onMouseLeave={(e) =>
                 ((e.currentTarget as HTMLElement).style.color = "var(--text-muted)")
               }
@@ -193,14 +180,10 @@ function FinalizeModal({ open, onClose, onConfirm }: FinalizeModalProps) {
               className="w-full rounded-lg border px-3 py-2.5 text-sm font-mono transition-colors placeholder:font-sans disabled:opacity-50"
               style={{
                 backgroundColor: "var(--input-bg)",
-                borderColor: isMatch
-                  ? "var(--error)"
-                  : "var(--input-border)",
+                borderColor: isMatch ? "var(--error)" : "var(--input-border)",
                 color: "var(--text)",
                 outline: "none",
-                boxShadow: isMatch
-                  ? "0 0 0 1px var(--error)"
-                  : undefined,
+                boxShadow: isMatch ? "0 0 0 1px var(--error)" : undefined,
               }}
             />
           </div>
@@ -212,12 +195,9 @@ function FinalizeModal({ open, onClose, onConfirm }: FinalizeModalProps) {
               disabled={isSubmitting}
               className="rounded-lg px-4 py-2 text-sm font-medium transition-colors disabled:pointer-events-none disabled:opacity-50"
               style={{ color: "var(--text-secondary)" }}
-              onMouseEnter={(e) =>
-                ((e.currentTarget as HTMLElement).style.color = "var(--text)")
-              }
+              onMouseEnter={(e) => ((e.currentTarget as HTMLElement).style.color = "var(--text)")}
               onMouseLeave={(e) =>
-                ((e.currentTarget as HTMLElement).style.color =
-                  "var(--text-secondary)")
+                ((e.currentTarget as HTMLElement).style.color = "var(--text-secondary)")
               }
             >
               Cancel
@@ -227,9 +207,7 @@ function FinalizeModal({ open, onClose, onConfirm }: FinalizeModalProps) {
               disabled={!isMatch || isSubmitting}
               className="inline-flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-semibold transition-all disabled:pointer-events-none disabled:opacity-40"
               style={{
-                backgroundColor: isMatch && !isSubmitting
-                  ? "var(--error)"
-                  : "var(--error-bg)",
+                backgroundColor: isMatch && !isSubmitting ? "var(--error)" : "var(--error-bg)",
                 color: isMatch && !isSubmitting ? "#fff" : "var(--error)",
               }}
               onMouseEnter={(e) => {
@@ -256,11 +234,7 @@ function FinalizeModal({ open, onClose, onConfirm }: FinalizeModalProps) {
                       stroke="currentColor"
                       strokeWidth="4"
                     />
-                    <path
-                      className="opacity-75"
-                      fill="currentColor"
-                      d="M4 12a8 8 0 018-8v8H4z"
-                    />
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
                   </svg>
                   Finalizing…
                 </>
@@ -275,9 +249,7 @@ function FinalizeModal({ open, onClose, onConfirm }: FinalizeModalProps) {
   );
 
   // Render into document.body via portal so it escapes any overflow:hidden parents
-  return typeof document !== "undefined"
-    ? createPortal(modal, document.body)
-    : null;
+  return typeof document !== "undefined" ? createPortal(modal, document.body) : null;
 }
 
 // ---------------------------------------------------------------------------
@@ -302,15 +274,12 @@ export function FinalizationActionBox({
       >
         <div className="flex items-start justify-between gap-4">
           <div className="space-y-1.5">
-            <h3
-              className="text-base font-semibold"
-              style={{ color: "var(--error)" }}
-            >
+            <h3 className="text-base font-semibold" style={{ color: "var(--error)" }}>
               Finalize Judging &amp; Generate Rankings
             </h3>
             <p className="text-sm max-w-xl" style={{ color: "var(--text-secondary)" }}>
-              Permanently locks all submitted evaluations, generates final ranking
-              snapshots, and closes the Judging phase. This action cannot be undone.
+              Permanently locks all submitted evaluations, generates final ranking snapshots, and
+              closes the Judging phase. This action cannot be undone.
             </p>
             {warningMessage && (
               <div
@@ -331,12 +300,8 @@ export function FinalizationActionBox({
               backgroundColor: "var(--error)",
               color: "#fff",
             }}
-            onMouseEnter={(e) =>
-              ((e.currentTarget as HTMLElement).style.opacity = "0.88")
-            }
-            onMouseLeave={(e) =>
-              ((e.currentTarget as HTMLElement).style.opacity = "1")
-            }
+            onMouseEnter={(e) => ((e.currentTarget as HTMLElement).style.opacity = "0.88")}
+            onMouseLeave={(e) => ((e.currentTarget as HTMLElement).style.opacity = "1")}
           >
             <Lock className="h-3.5 w-3.5" aria-hidden="true" />
             Finalize Event
@@ -344,11 +309,7 @@ export function FinalizationActionBox({
         </div>
       </div>
 
-      <FinalizeModal
-        open={open}
-        onClose={() => setOpen(false)}
-        onConfirm={onFinalize}
-      />
+      <FinalizeModal open={open} onClose={() => setOpen(false)} onConfirm={onFinalize} />
     </>
   );
 }
