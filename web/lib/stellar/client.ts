@@ -90,7 +90,8 @@ export class StellarChainAdapter implements ChainAdapter {
         (b: { asset_type: string; balance: string }) => b.asset_type === "native",
       );
       return nativeBalance?.balance ?? "0";
-    } catch {
+    } catch (err) {
+      console.error("[StellarClient] getBalance failed:", account, err instanceof Error ? err.message : err);
       return "0";
     }
   }
