@@ -23,28 +23,29 @@ export default function EventEditPage() {
   const [prizePool, setPrizePool] = useState("");
   const [deadline, setDeadline] = useState("");
 
-  useEffect(() => { loadEvent(); }, [eventId]);
+  useEffect(() => {
+    async function loadEvent() {
+      const supabase = createBrowserClient();
+      const { data: event } = await supabase.from("events").select("*").eq("id", eventId).single();
 
-  async function loadEvent() {
-    const supabase = createBrowserClient();
-    const { data: event } = await supabase
-      .from("events")
-      .select("*")
-      .eq("id", eventId)
-      .single();
+      if (!event) {
+        router.push("/dashboard");
+        return;
+      }
 
-    if (!event) { router.push("/dashboard"); return; }
+      setTitle(event.title);
+      setDescription(event.description);
+      setCategory(event.category);
+      setFormat(event.format);
+      setTeamSizeMin(event.team_size_min);
+      setTeamSizeMax(event.team_size_max);
+      setPrizePool(event.prize_pool_target?.toString() ?? "");
+      setDeadline(event.registration_deadline?.slice(0, 16) ?? "");
+      setLoading(false);
+    }
 
-    setTitle(event.title);
-    setDescription(event.description);
-    setCategory(event.category);
-    setFormat(event.format);
-    setTeamSizeMin(event.team_size_min);
-    setTeamSizeMax(event.team_size_max);
-    setPrizePool(event.prize_pool_target?.toString() ?? "");
-    setDeadline(event.registration_deadline?.slice(0, 16) ?? "");
-    setLoading(false);
-  }
+    loadEvent();
+  }, [eventId, router]);
 
   async function handleSave(e: React.FormEvent) {
     e.preventDefault();
@@ -55,7 +56,10 @@ export default function EventEditPage() {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        title, description, category, format,
+        title,
+        description,
+        category,
+        format,
         team_size_min: teamSizeMin,
         team_size_max: teamSizeMax,
         prize_pool_target: prizePool ? Number(prizePool) : null,
@@ -87,59 +91,153 @@ export default function EventEditPage() {
       <form onSubmit={handleSave} className="space-y-6">
         <fieldset className="card p-6 space-y-4">
           <div>
-            <label htmlFor="evt-title" className="block text-sm font-medium text-[var(--text-secondary)] mb-1">Title</label>
-            <input id="evt-title" type="text" value={title} onChange={(e) => setTitle(e.target.value)} required
-              className="w-full rounded-md border border-[var(--border)] bg-[var(--bg)] px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--accent)]" />
+            <label
+              htmlFor="evt-title"
+              className="block text-sm font-medium text-[var(--text-secondary)] mb-1"
+            >
+              Title
+            </label>
+            <input
+              id="evt-title"
+              type="text"
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+              required
+              className="w-full rounded-md border border-[var(--border)] bg-[var(--bg)] px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--accent)]"
+            />
           </div>
           <div>
-            <label htmlFor="evt-desc" className="block text-sm font-medium text-[var(--text-secondary)] mb-1">Description</label>
-            <textarea id="evt-desc" value={description} onChange={(e) => setDescription(e.target.value)} rows={5} required
-              className="w-full rounded-md border border-[var(--border)] bg-[var(--bg)] px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--accent)]" />
+            <label
+              htmlFor="evt-desc"
+              className="block text-sm font-medium text-[var(--text-secondary)] mb-1"
+            >
+              Description
+            </label>
+            <textarea
+              id="evt-desc"
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              rows={5}
+              required
+              className="w-full rounded-md border border-[var(--border)] bg-[var(--bg)] px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--accent)]"
+            />
           </div>
           <div className="grid gap-4 sm:grid-cols-2">
             <div>
-              <label htmlFor="evt-cat" className="block text-sm font-medium text-[var(--text-secondary)] mb-1">Category</label>
-              <input id="evt-cat" type="text" value={category} onChange={(e) => setCategory(e.target.value)} required
-                className="w-full rounded-md border border-[var(--border)] bg-[var(--bg)] px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--accent)]" />
+              <label
+                htmlFor="evt-cat"
+                className="block text-sm font-medium text-[var(--text-secondary)] mb-1"
+              >
+                Category
+              </label>
+              <input
+                id="evt-cat"
+                type="text"
+                value={category}
+                onChange={(e) => setCategory(e.target.value)}
+                required
+                className="w-full rounded-md border border-[var(--border)] bg-[var(--bg)] px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--accent)]"
+              />
             </div>
             <div>
-              <label htmlFor="evt-fmt" className="block text-sm font-medium text-[var(--text-secondary)] mb-1">Format</label>
-              <input id="evt-fmt" type="text" value={format} onChange={(e) => setFormat(e.target.value)} required
-                className="w-full rounded-md border border-[var(--border)] bg-[var(--bg)] px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--accent)]" />
+              <label
+                htmlFor="evt-fmt"
+                className="block text-sm font-medium text-[var(--text-secondary)] mb-1"
+              >
+                Format
+              </label>
+              <input
+                id="evt-fmt"
+                type="text"
+                value={format}
+                onChange={(e) => setFormat(e.target.value)}
+                required
+                className="w-full rounded-md border border-[var(--border)] bg-[var(--bg)] px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--accent)]"
+              />
             </div>
           </div>
           <div className="grid gap-4 sm:grid-cols-3">
             <div>
-              <label htmlFor="evt-min" className="block text-sm font-medium text-[var(--text-secondary)] mb-1">Min Team Size</label>
-              <input id="evt-min" type="number" min={1} value={teamSizeMin} onChange={(e) => setTeamSizeMin(+e.target.value)}
-                className="w-full rounded-md border border-[var(--border)] bg-[var(--bg)] px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--accent)]" />
+              <label
+                htmlFor="evt-min"
+                className="block text-sm font-medium text-[var(--text-secondary)] mb-1"
+              >
+                Min Team Size
+              </label>
+              <input
+                id="evt-min"
+                type="number"
+                min={1}
+                value={teamSizeMin}
+                onChange={(e) => setTeamSizeMin(+e.target.value)}
+                className="w-full rounded-md border border-[var(--border)] bg-[var(--bg)] px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--accent)]"
+              />
             </div>
             <div>
-              <label htmlFor="evt-max" className="block text-sm font-medium text-[var(--text-secondary)] mb-1">Max Team Size</label>
-              <input id="evt-max" type="number" min={1} value={teamSizeMax} onChange={(e) => setTeamSizeMax(+e.target.value)}
-                className="w-full rounded-md border border-[var(--border)] bg-[var(--bg)] px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--accent)]" />
+              <label
+                htmlFor="evt-max"
+                className="block text-sm font-medium text-[var(--text-secondary)] mb-1"
+              >
+                Max Team Size
+              </label>
+              <input
+                id="evt-max"
+                type="number"
+                min={1}
+                value={teamSizeMax}
+                onChange={(e) => setTeamSizeMax(+e.target.value)}
+                className="w-full rounded-md border border-[var(--border)] bg-[var(--bg)] px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--accent)]"
+              />
             </div>
             <div>
-              <label htmlFor="evt-prize" className="block text-sm font-medium text-[var(--text-secondary)] mb-1">Prize Pool (XLM)</label>
-              <input id="evt-prize" type="number" min={0} step="any" value={prizePool} onChange={(e) => setPrizePool(e.target.value)}
-                className="w-full rounded-md border border-[var(--border)] bg-[var(--bg)] px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--accent)]" />
+              <label
+                htmlFor="evt-prize"
+                className="block text-sm font-medium text-[var(--text-secondary)] mb-1"
+              >
+                Prize Pool (XLM)
+              </label>
+              <input
+                id="evt-prize"
+                type="number"
+                min={0}
+                step="any"
+                value={prizePool}
+                onChange={(e) => setPrizePool(e.target.value)}
+                className="w-full rounded-md border border-[var(--border)] bg-[var(--bg)] px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--accent)]"
+              />
             </div>
           </div>
           <div>
-            <label htmlFor="evt-deadline" className="block text-sm font-medium text-[var(--text-secondary)] mb-1">Registration Deadline</label>
-            <input id="evt-deadline" type="datetime-local" value={deadline} onChange={(e) => setDeadline(e.target.value)}
-              className="w-full rounded-md border border-[var(--border)] bg-[var(--bg)] px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--accent)]" />
+            <label
+              htmlFor="evt-deadline"
+              className="block text-sm font-medium text-[var(--text-secondary)] mb-1"
+            >
+              Registration Deadline
+            </label>
+            <input
+              id="evt-deadline"
+              type="datetime-local"
+              value={deadline}
+              onChange={(e) => setDeadline(e.target.value)}
+              className="w-full rounded-md border border-[var(--border)] bg-[var(--bg)] px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--accent)]"
+            />
           </div>
         </fieldset>
 
         {error && <p className="text-sm text-[var(--error)]">{error}</p>}
 
         <div className="flex gap-3">
-          <button type="submit" disabled={saving}
-            className="btn-primary px-5 py-2 text-sm font-medium rounded-md disabled:opacity-50">
+          <button
+            type="submit"
+            disabled={saving}
+            className="btn-primary px-5 py-2 text-sm font-medium rounded-md disabled:opacity-50"
+          >
             {saving ? "Saving..." : "Save Changes"}
           </button>
-          <a href={`/events/${eventId}`} className="rounded-md border border-[var(--border)] px-5 py-2 text-sm font-medium text-[var(--text)] hover:bg-[var(--bg-muted)]">
+          <a
+            href={`/events/${eventId}`}
+            className="rounded-md border border-[var(--border)] px-5 py-2 text-sm font-medium text-[var(--text)] hover:bg-[var(--bg-muted)]"
+          >
             Cancel
           </a>
         </div>

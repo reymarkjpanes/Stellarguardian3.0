@@ -122,6 +122,8 @@ export default function CreateEventPage() {
   }, [form]);
 
   // Load workspaces
+  // Load workspaces on mount — intentionally runs once
+   
   useEffect(() => {
     async function load() {
       const supabase = createBrowserClient();
@@ -142,8 +144,8 @@ export default function CreateEventPage() {
         return { workspace_id: m.workspace_id, role: m.role, name: ws?.name ?? "" };
       });
       setWorkspaces(combined);
-      if (combined.length > 0 && !form.workspace_id && combined[0]) {
-        setForm((f) => ({ ...f, workspace_id: combined[0]!.workspace_id }));
+      if (combined.length > 0 && combined[0]) {
+        setForm((f) => (f.workspace_id ? f : { ...f, workspace_id: combined[0]!.workspace_id }));
       }
     }
     load();
@@ -622,7 +624,9 @@ export default function CreateEventPage() {
                       >
                         <option value="captain_receives">Captain receives full amount</option>
                         <option value="equal_split">Split equally among team members</option>
-                        <option value="custom">Custom allocation (set during winner assignment)</option>
+                        <option value="custom">
+                          Custom allocation (set during winner assignment)
+                        </option>
                       </select>
                       <p className="text-xs text-[var(--text-muted)] mt-1">
                         Determines how prizes are distributed when a team wins.
@@ -666,7 +670,15 @@ export default function CreateEventPage() {
                         },
                         { label: "Network", value: form.network_mode },
                         { label: "Review window", value: `${form.review_window_hours} hours` },
-                        { label: "Prize split", value: form.prize_split_policy === "captain_receives" ? "Captain receives" : form.prize_split_policy === "equal_split" ? "Equal split" : "Custom" },
+                        {
+                          label: "Prize split",
+                          value:
+                            form.prize_split_policy === "captain_receives"
+                              ? "Captain receives"
+                              : form.prize_split_policy === "equal_split"
+                                ? "Equal split"
+                                : "Custom",
+                        },
                         {
                           label: "Tags",
                           value: form.tags.length > 0 ? form.tags.join(", ") : "None",

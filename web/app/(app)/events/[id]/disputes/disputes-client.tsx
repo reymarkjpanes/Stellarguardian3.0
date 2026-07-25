@@ -58,7 +58,6 @@ export function DisputesClient({
   eventState,
   disputes: initialDisputes,
   userRole,
-  userId: _userId,
 }: Props) {
   const router = useRouter();
   const isParticipant = userRole === "Participant";

@@ -391,7 +391,7 @@ mod tests {
         // Give organizer 1_000_000_000 stroops (100 XLM)
         mint_token(&env, &token_addr, &admin, &organizer, 1_000_000_000);
 
-        let contract_id = env.register_contract(None, EscrowContract);
+        let contract_id = env.register(EscrowContract, ());
 
         TestSetup { env, contract_id, admin, organizer, token_addr }
     }

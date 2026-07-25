@@ -115,7 +115,8 @@ export function SubmissionsClient({
   submissionDeadline,
   submissions,
   userRole,
-  userId: _userId,
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  userId,
   teamId,
   teamName,
 }: Props) {

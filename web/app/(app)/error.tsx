@@ -17,12 +17,10 @@ export default function AppError({
         <span className="text-xl">⚠</span>
       </div>
       <div className="space-y-2">
-        <h1 className="text-xl font-semibold text-[var(--text)]">
-          Something went wrong
-        </h1>
+        <h1 className="text-xl font-semibold text-[var(--text)]">Something went wrong</h1>
         <p className="text-sm text-[var(--text-muted)] max-w-md mx-auto">
-          We couldn't load this page. This might be a temporary connectivity issue
-          with our database or blockchain services.
+          We couldn&apos;t load this page. This might be a temporary connectivity issue with our
+          database or blockchain services.
         </p>
       </div>
       <div className="flex items-center justify-center gap-3">
@@ -40,9 +38,7 @@ export default function AppError({
         </a>
       </div>
       {error.digest && (
-        <p className="text-xs font-mono text-[var(--text-muted)]">
-          Reference: {error.digest}
-        </p>
+        <p className="text-xs font-mono text-[var(--text-muted)]">Reference: {error.digest}</p>
       )}
     </div>
   );

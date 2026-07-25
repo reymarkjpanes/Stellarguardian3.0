@@ -10,9 +10,7 @@ export default function PrivacyPage() {
           <h1 className="text-3xl font-semibold tracking-tight text-[var(--text)]">
             Privacy Policy
           </h1>
-          <p className="text-sm text-[var(--text-muted)] mt-2">
-            Last updated: July 21, 2026
-          </p>
+          <p className="text-sm text-[var(--text-muted)] mt-2">Last updated: July 21, 2026</p>
         </div>
 
         <section className="space-y-4">
@@ -38,9 +36,10 @@ export default function PrivacyPage() {
         <section className="space-y-4">
           <h2 className="text-lg font-medium text-[var(--text)]">3. How We Use Your Information</h2>
           <p className="text-sm text-[var(--text-secondary)] leading-relaxed">
-            Your information is used to: provide platform services (event management, team formation,
-            judging, prize distribution); verify wallet ownership; send notifications about events you
-            participate in; maintain security and prevent fraud; comply with legal obligations.
+            Your information is used to: provide platform services (event management, team
+            formation, judging, prize distribution); verify wallet ownership; send notifications
+            about events you participate in; maintain security and prevent fraud; comply with legal
+            obligations.
           </p>
         </section>
 
@@ -57,10 +56,10 @@ export default function PrivacyPage() {
           <h2 className="text-lg font-medium text-[var(--text)]">5. Data Retention</h2>
           <p className="text-sm text-[var(--text-secondary)] leading-relaxed">
             Account data is retained while your account is active. Event data is retained per the
-            event's configured retention period (default: 90 days after completion). Blockchain
-            transactions are permanent and cannot be deleted from the Stellar ledger. You may request
-            account deletion, which will remove your personal data within 30 days while preserving
-            anonymized audit records.
+            event&apos;s configured retention period (default: 90 days after completion). Blockchain
+            transactions are permanent and cannot be deleted from the Stellar ledger. You may
+            request account deletion, which will remove your personal data within 30 days while
+            preserving anonymized audit records.
           </p>
         </section>
 
@@ -68,8 +67,8 @@ export default function PrivacyPage() {
           <h2 className="text-lg font-medium text-[var(--text)]">6. Your Rights</h2>
           <p className="text-sm text-[var(--text-secondary)] leading-relaxed">
             You have the right to: access your personal data; correct inaccurate data; request
-            deletion of your account; export your data; withdraw consent for optional processing.
-            To exercise these rights, contact privacy@stellarguardian.io.
+            deletion of your account; export your data; withdraw consent for optional processing. To
+            exercise these rights, contact privacy@stellarguardian.io.
           </p>
         </section>
 

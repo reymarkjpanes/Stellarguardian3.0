@@ -480,7 +480,6 @@ function SendXlmForm({ senderPublicKey }: { senderPublicKey: string }) {
  * Profile edit form — allows updating display name via PATCH /api/users/me.
  */
 function ProfileEditForm({
-  userId,
   initialName,
   email,
   onUpdate,
@@ -717,6 +716,7 @@ function MfaSection() {
         <div className="flex justify-center rounded-lg bg-white p-4">
           {/* QR code rendered as a data URI — the TOTP URI encodes the secret */}
           <div className="text-center space-y-2">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
               src={`https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(qrUri)}`}
               alt="TOTP QR Code"

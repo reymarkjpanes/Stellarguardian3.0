@@ -1,7 +1,6 @@
-import React from "react";
 import { ProjectGallery } from "@/src/domains/submissions/components/ProjectGallery";
 
-export default function ProjectsPage({ params }: { params: { id: string } }) {
+export default function ProjectsPage() {
   // Mock data for demo purposes. In reality, fetch via CQRS ListPublicSubmissionsQuery.
   const projects = [
     {
@@ -11,7 +10,8 @@ export default function ProjectsPage({ params }: { params: { id: string } }) {
       teamName: "Team Alpha",
       status: "Finalized",
       tags: ["DeFi", "React", "Rust"],
-      coverUrl: "https://images.unsplash.com/photo-1551288049-bebda4e38f71?auto=format&fit=crop&w=800&q=80"
+      coverUrl:
+        "https://images.unsplash.com/photo-1551288049-bebda4e38f71?auto=format&fit=crop&w=800&q=80",
     },
     {
       id: "proj_2",
@@ -20,8 +20,8 @@ export default function ProjectsPage({ params }: { params: { id: string } }) {
       teamName: "Beta Builders",
       status: "Submitted",
       tags: ["NFT", "Solidity", "Next.js"],
-      coverUrl: null
-    }
+      coverUrl: null,
+    },
   ];
 
   return (
@@ -41,7 +41,7 @@ export default function ProjectsPage({ params }: { params: { id: string } }) {
       <main className="-mt-32 relative z-10">
         <div className="max-w-7xl mx-auto pb-12 px-4 sm:px-6 lg:px-8">
           <div className="bg-white rounded-lg shadow-xl overflow-hidden">
-             <ProjectGallery projects={projects} />
+            <ProjectGallery projects={projects} />
           </div>
         </div>
       </main>

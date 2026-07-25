@@ -41,11 +41,8 @@ export function EventDetailClient({
   isOrganizer,
   myMembership,
   userId,
-  judgeCount: _judgeCount,
-  hasVerifiedOrganizer: _hasVerifiedOrganizer,
   hasVerifiedWallet,
   submissionStatus,
-  reviewWindowHours: _reviewWindowHours,
 }: EventDetailClientProps) {
   const router = useRouter();
   const [actionLoading, setActionLoading] = useState(false);

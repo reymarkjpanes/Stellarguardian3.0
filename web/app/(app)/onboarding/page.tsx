@@ -6,6 +6,7 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { createBrowserClient } from "@/lib/supabase/client";
 
 type Step = "profile" | "wallet" | "workspace" | "done";
@@ -20,8 +21,13 @@ export default function OnboardingPage() {
   useEffect(() => {
     async function checkProfile() {
       const supabase = createBrowserClient();
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) { router.push("/login"); return; }
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      if (!user) {
+        router.push("/login");
+        return;
+      }
 
       const { data: profile } = await supabase
         .from("users")
@@ -75,11 +81,15 @@ export default function OnboardingPage() {
       <div className="flex items-center justify-center gap-2">
         {(["profile", "wallet", "workspace"] as Step[]).map((s, idx) => (
           <div key={s} className="flex items-center gap-2">
-            <div className={`h-2.5 w-2.5 rounded-full ${
-              step === s ? "bg-[var(--accent)]" :
-              (["profile", "wallet", "workspace"].indexOf(step) > idx) ? "bg-green-400" :
-              "bg-[var(--bg-muted)]"
-            }`} />
+            <div
+              className={`h-2.5 w-2.5 rounded-full ${
+                step === s
+                  ? "bg-[var(--accent)]"
+                  : ["profile", "wallet", "workspace"].indexOf(step) > idx
+                    ? "bg-green-400"
+                    : "bg-[var(--bg-muted)]"
+              }`}
+            />
             {idx < 2 && <div className="w-8 h-px bg-[var(--border)]" />}
           </div>
         ))}
@@ -91,12 +101,15 @@ export default function OnboardingPage() {
           <div className="text-center">
             <h1 className="text-2xl font-semibold tracking-tight">Welcome to Stellar Guardian</h1>
             <p className="text-sm text-[var(--text-muted)] mt-2">
-              Let's set up your profile to get started.
+              Let&apos;s set up your profile to get started.
             </p>
           </div>
           <form onSubmit={handleProfileSave} className="card p-6 space-y-4">
             <div>
-              <label htmlFor="onb-name" className="block text-sm font-medium text-[var(--text-secondary)] mb-1">
+              <label
+                htmlFor="onb-name"
+                className="block text-sm font-medium text-[var(--text-secondary)] mb-1"
+              >
                 Display Name
               </label>
               <input
@@ -111,8 +124,14 @@ export default function OnboardingPage() {
             </div>
             <div className="text-xs text-[var(--text-muted)]">
               By continuing, you agree to our{" "}
-              <a href="/terms" className="text-[var(--accent)] hover:underline">Terms of Service</a>{" "}
-              and <a href="/privacy" className="text-[var(--accent)] hover:underline">Privacy Policy</a>.
+              <a href="/terms" className="text-[var(--accent)] hover:underline">
+                Terms of Service
+              </a>{" "}
+              and{" "}
+              <a href="/privacy" className="text-[var(--accent)] hover:underline">
+                Privacy Policy
+              </a>
+              .
             </div>
             {error && <p className="text-sm text-[var(--error)]">{error}</p>}
             <button
@@ -140,10 +159,7 @@ export default function OnboardingPage() {
               You can connect your Freighter wallet now, or do it later from Settings.
             </p>
             <div className="flex gap-3 justify-center">
-              <a
-                href="/settings"
-                className="btn-primary px-5 py-2 text-sm font-medium rounded-md"
-              >
+              <a href="/settings" className="btn-primary px-5 py-2 text-sm font-medium rounded-md">
                 Connect Wallet
               </a>
               <button
@@ -161,27 +177,27 @@ export default function OnboardingPage() {
       {step === "workspace" && (
         <div className="space-y-6">
           <div className="text-center">
-            <h1 className="text-2xl font-semibold tracking-tight">You're All Set!</h1>
+            <h1 className="text-2xl font-semibold tracking-tight">You&apos;re All Set!</h1>
             <p className="text-sm text-[var(--text-muted)] mt-2">
               Create a workspace to organize events, or browse existing ones.
             </p>
           </div>
           <div className="card p-6 space-y-4">
             <div className="grid gap-3 sm:grid-cols-2">
-              <a
+              <Link
                 href="/workspaces/new"
                 className="card p-4 text-center hover:border-[var(--accent)] transition-colors"
               >
                 <p className="font-medium text-[var(--text)]">Create Workspace</p>
                 <p className="text-xs text-[var(--text-muted)] mt-1">Organize your own events</p>
-              </a>
-              <a
+              </Link>
+              <Link
                 href="/discover"
                 className="card p-4 text-center hover:border-[var(--accent)] transition-colors"
               >
                 <p className="font-medium text-[var(--text)]">Discover Events</p>
                 <p className="text-xs text-[var(--text-muted)] mt-1">Join as a participant</p>
-              </a>
+              </Link>
             </div>
             <button
               onClick={finishOnboarding}
