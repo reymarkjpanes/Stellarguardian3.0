@@ -32,6 +32,7 @@ export class IdempotencyService {
   }
 
   async saveRecord(record: IdempotencyRecord, ttlSeconds: number = 86400): Promise<void> {
+    // postgres.js requires serialisable values; wrap response as JSON
     await sql`
       INSERT INTO idempotency_keys (
         key, user_id, route, request_hash, response, status_code, expires_at
@@ -40,7 +41,7 @@ export class IdempotencyService {
         ${record.userId}, 
         ${record.route}, 
         ${record.requestHash}, 
-        ${record.response}, 
+        ${sql.json(record.response as Record<string, unknown>)}, 
         ${record.statusCode}, 
         NOW() + ${`${ttlSeconds} seconds`}::INTERVAL
       )

@@ -114,16 +114,11 @@ async function processEvent(
           userId: eventRow.organizer_id,
           category: "escrow",
           title: "Event funded successfully",
-          body: `${payload.amount} XLM confirmed for "${eventRow.title}".`,
-          eventId: payload.eventId,
+          body: `${String(payload.amount)} XLM confirmed for "${eventRow.title}".`,
+          eventId: payload.eventId as string,
         });
 
         // Also send email for financial events
-        const { data: user } = await supabase
-          .from("users")
-          .select("id")
-          .eq("id", eventRow.organizer_id)
-          .single();
         const {
           data: { user: authUser },
         } = await supabase.auth.admin.getUserById(eventRow.organizer_id);
@@ -131,8 +126,8 @@ async function processEvent(
           await sendNotificationEmail(
             authUser.email,
             `Event funded: ${eventRow.title}`,
-            `${payload.amount} XLM has been confirmed in escrow for your event "${eventRow.title}".`,
-            `${process.env.NEXT_PUBLIC_SITE_URL}/events/${payload.eventId}`,
+            `${String(payload.amount)} XLM has been confirmed in escrow for your event "${eventRow.title}".`,
+            `${process.env.NEXT_PUBLIC_SITE_URL}/events/${payload.eventId as string}`,
           );
         }
       }
@@ -152,8 +147,8 @@ async function processEvent(
           userId: eventRow.organizer_id,
           category: "disbursement",
           title: "Prize disbursement complete",
-          body: `${payload.paidCount} winner(s) paid for "${eventRow.title}".`,
-          eventId: payload.eventId,
+          body: `${String(payload.paidCount)} winner(s) paid for "${eventRow.title}".`,
+          eventId: payload.eventId as string,
         });
       }
       break;

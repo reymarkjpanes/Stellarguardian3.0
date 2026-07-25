@@ -10,7 +10,11 @@ interface ProgressiveChecklistProps {
   requirements: RequirementRow[];
   assets: AssetRow[];
   onSave: (reqId: string, assetData: AssetSaveData) => void;
-  onUpload: (reqId: string, file: File, onProgress: (p: number) => void) => Promise<void>;
+  onUpload: (
+    reqId: string,
+    file: File,
+    onProgress: (p: number) => void,
+  ) => Promise<void | { storagePath: string; publicUrl?: string }>;
 }
 
 export function ProgressiveChecklist({
@@ -120,8 +124,9 @@ export function ProgressiveChecklist({
                   <button
                     onClick={() => {
                       const nextIdx = idx + 1;
-                      if (nextIdx < requirements.length) {
-                        setExpandedId(requirements[nextIdx].id);
+                      const nextReq = requirements[nextIdx];
+                      if (nextReq) {
+                        setExpandedId(nextReq.id);
                       } else {
                         setExpandedId(null);
                       }

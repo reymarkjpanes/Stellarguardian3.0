@@ -19,7 +19,7 @@ export async function saveEvaluationDraftAction(
   // Given we just need the RPC, direct call is fine.
   const { error } = await supabase.rpc("save_draft_evaluation", {
     p_eval_id: evaluationId,
-    p_scores_json: scores as Record<string, unknown>,
+    p_scores_json: scores as unknown as Record<string, unknown>,
     p_draft_notes: draftNotes || null,
     p_expected_version: expectedVersion,
   });
@@ -53,7 +53,7 @@ export async function submitEvaluationAction(
 
   const { error } = await supabase.rpc("submit_evaluation", {
     p_eval_id: evaluationId,
-    p_scores_json: scores as Record<string, unknown>,
+    p_scores_json: scores as unknown as Record<string, unknown>,
     p_participant_feedback: participantFeedback || null,
     p_organizer_notes: organizerNotes || null,
     p_total_score: totalScore,

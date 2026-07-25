@@ -108,19 +108,21 @@ export function MemberProfileDrawer({
               Top Skills
             </h3>
             <div className="flex flex-wrap gap-2">
-              {member.skills?.map((s: { id: string; name: string; experienceLevel?: string }) => (
-                <span
-                  key={s.id}
-                  className="px-2.5 py-1 rounded-md bg-secondary text-secondary-foreground text-sm font-medium"
-                >
-                  {s.name}{" "}
-                  {s.experienceLevel && (
-                    <span className="text-muted-foreground font-normal opacity-75">
-                      · {s.experienceLevel}
-                    </span>
-                  )}
-                </span>
-              ))}
+              {member.skills?.map(
+                (s: { id: string; name: string; experienceLevel?: string | null }) => (
+                  <span
+                    key={s.id}
+                    className="px-2.5 py-1 rounded-md bg-secondary text-secondary-foreground text-sm font-medium"
+                  >
+                    {s.name}{" "}
+                    {s.experienceLevel && (
+                      <span className="text-muted-foreground font-normal opacity-75">
+                        · {s.experienceLevel}
+                      </span>
+                    )}
+                  </span>
+                ),
+              )}
             </div>
           </section>
         </div>

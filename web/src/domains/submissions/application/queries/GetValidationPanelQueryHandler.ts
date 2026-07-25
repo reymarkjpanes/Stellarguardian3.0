@@ -27,15 +27,6 @@ export class GetValidationPanelQueryHandler {
       .eq("event_id", eventId)
       .maybeSingle();
 
-    let assets: AssetRow[] = [];
-    if (submission) {
-      const { data: assetData } = await supabase
-        .from("submission_assets")
-        .select("*")
-        .eq("submission_id", submission.id);
-      assets = assetData ?? [];
-    }
-
     type DbRequirement = {
       id: string;
       name: string;
@@ -56,6 +47,15 @@ export class GetValidationPanelQueryHandler {
       storage_path?: string;
       metadata?: Record<string, unknown>;
     };
+
+    let assets: DbAsset[] = [];
+    if (submission) {
+      const { data: assetData } = await supabase
+        .from("submission_assets")
+        .select("*")
+        .eq("submission_id", submission.id);
+      assets = (assetData ?? []) as DbAsset[];
+    }
 
     const reqs: SubmissionRequirement[] = ((requirements ?? []) as DbRequirement[]).map((r) => ({
       id: r.id,

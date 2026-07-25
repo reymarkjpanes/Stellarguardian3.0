@@ -1,6 +1,9 @@
 import { NextResponse } from "next/server";
 import { CreateTeamSchema } from "@/src/domains/teams/api/schema";
-import { CreateTeamUseCase } from "@/src/domains/teams/application/commands/CreateTeamUseCase";
+import {
+  CreateTeamUseCase,
+  CreateTeamCommand,
+} from "@/src/domains/teams/application/commands/CreateTeamUseCase";
 import { ListTeamsQuery } from "@/src/domains/teams/application/queries/ListTeamsQuery";
 import { PostgresTeamRepository } from "@/src/domains/teams/infrastructure/PostgresTeamRepository";
 import { OutboxPublisher } from "@/src/shared/kernel/events/OutboxPublisher";
@@ -58,7 +61,10 @@ export const POST = withPipeline<EventParams>(
 
     const useCase = new CreateTeamUseCase(uow, repo, eventBus);
 
-    const teamId = await useCase.execute({ eventId, ...(body as Record<string, unknown>) }, ctx);
+    const teamId = await useCase.execute(
+      { eventId, ...(body as Omit<CreateTeamCommand, "eventId">) },
+      ctx,
+    );
 
     return NextResponse.json(successResponse({ id: teamId }), { status: 201 });
   },

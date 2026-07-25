@@ -39,7 +39,11 @@ interface RequirementProps {
   requirement: RequirementRow;
   asset: AssetRow | undefined;
   onSave: (reqId: string, assetData: AssetSaveData) => void;
-  onUpload?: (reqId: string, file: File, onProgress: (p: number) => void) => Promise<void>;
+  onUpload?: (
+    reqId: string,
+    file: File,
+    onProgress: (p: number) => void,
+  ) => Promise<void | { storagePath: string; publicUrl?: string }>;
 }
 
 export function TextRequirement({ requirement, asset, onSave }: RequirementProps) {

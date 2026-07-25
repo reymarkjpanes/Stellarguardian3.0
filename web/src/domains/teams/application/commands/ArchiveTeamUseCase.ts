@@ -13,6 +13,7 @@ import postgres from "postgres";
 import { permissionService } from "@packages/shared-kernel/domain/PermissionService";
 import { Permission } from "@packages/shared-kernel/constants/permissions";
 import { TeamStatusType } from "@packages/shared-kernel/constants/statuses";
+import { Role } from "@packages/shared-kernel/constants/roles";
 
 export interface ArchiveTeamCommand {
   teamId: string;
@@ -41,7 +42,7 @@ export class ArchiveTeamUseCase {
 
       // Ensure actor is captain
       const canArchive = permissionService.can(Permission.ArchiveTeam, {
-        role: ctx.user.role as TeamStatusType,
+        role: ctx.user.role as Role,
         isCaptain: team.isCaptain(ctx.user.id),
         teamStatus: team.status as TeamStatusType,
       });

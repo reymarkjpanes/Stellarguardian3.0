@@ -80,7 +80,7 @@ export class EvaluationRepository {
       organizerNotes: row.organizer_notes as string | undefined,
       draftNotes: row.draft_notes as string | undefined,
       totalScore: (row.total_score as number) || 0,
-      rubricVersion: row.rubric_version as string | undefined,
+      rubricVersion: row.rubric_version as number | undefined,
       version: row.version as number,
       createdAt: new Date(row.created_at as string),
       updatedAt: new Date(row.updated_at as string),

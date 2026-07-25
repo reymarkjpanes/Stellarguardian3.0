@@ -33,8 +33,14 @@ export class SubmissionService {
 
     let teamId: string | null = null;
     if (teamMembership) {
-      const teamEvent = (teamMembership as { team_id: string; teams: { event_id: string } | null })
-        .teams;
+      // Supabase returns joined rows as an array; normalise to a single object
+      const rawTeams = (
+        teamMembership as unknown as {
+          team_id: string;
+          teams: { event_id: string }[] | { event_id: string } | null;
+        }
+      ).teams;
+      const teamEvent = Array.isArray(rawTeams) ? (rawTeams[0] ?? null) : rawTeams;
       if (teamEvent?.event_id === eventId) {
         teamId = teamMembership.team_id;
       }
