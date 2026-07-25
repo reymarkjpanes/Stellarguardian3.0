@@ -10,14 +10,17 @@ export const metadata: Metadata = {
 /**
  * Inline script to set the theme class before paint, preventing flash.
  * Reads from localStorage and applies .dark or .light immediately.
+ * Default: dark (when no preference is stored).
  */
 const themeScript = `
   (function() {
     try {
       var theme = localStorage.getItem('theme');
-      var resolved = theme === 'dark' ? 'dark' : theme === 'light' ? 'light' : (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+      var resolved = theme === 'light' ? 'light' : theme === 'dark' ? 'dark' : 'dark';
       document.documentElement.classList.add(resolved);
-    } catch(e) {}
+    } catch(e) {
+      document.documentElement.classList.add('dark');
+    }
   })();
 `;
 
@@ -32,7 +35,7 @@ export default async function RootLayout({
   const nonce = headersList.get("x-nonce") || "";
 
   return (
-    <html lang="en" suppressHydrationWarning>
+    <html lang="en" className="dark" suppressHydrationWarning>
       <head>
         <script suppressHydrationWarning nonce={nonce} dangerouslySetInnerHTML={{ __html: themeScript }} />
       </head>

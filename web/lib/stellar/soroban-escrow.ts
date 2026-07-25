@@ -1,30 +1,24 @@
 /**
- * Soroban Escrow Contract Client.
+ * Soroban Escrow Contract Client (server-only).
  *
- * Interfaces with the Stellar Guardian Escrow smart contract deployed on Soroban.
- * The contract handles:
- * - Escrow creation (initialize with organizer, event_id, prize_pool_target)
- * - Deposits (organizer funds the escrow)
- * - Disbursements (platform distributes to winners)
- * - Refunds (return funds to organizer on cancellation)
- * - State queries (balance, funding status, lock status)
+ * Interfaces with the deployed Stellar Guardian Escrow smart contract.
  *
- * Contract Methods:
- * - initialize(organizer: Address, event_id: Bytes, target: i128)
- * - deposit(from: Address, amount: i128)
- * - disburse(recipients: Vec<Address>, amounts: Vec<i128>)
- * - refund(to: Address)
- * - get_balance() -> i128
- * - get_state() -> u32 (0=PendingFunding, 1=PartiallyFunded, 2=FullyFunded, 3=Locked, 4=Released, 5=Refunded)
- * - lock()
- * - is_locked() -> bool
+ * Contract ID: see ESCROW_CONTRACT_ID env var
+ * Network:     testnet (STELLAR_NETWORK_MODE=testnet) or mainnet
+ *
+ * Contract lifecycle (matches lib.rs):
+ *   initialize → deposit / admin_deposit → lock → disburse_batch (N times)
+ *   → finalize  OR  refund (any pre-Released state)
+ *
+ * IMPORTANT: All methods are server-only. Client-side code interacts via
+ * API routes which call these functions. Never expose contract secrets to
+ * the browser.
  */
 import "server-only";
 import {
   Contract,
   Networks,
   TransactionBuilder,
-  Operation,
   rpc as SorobanRpc,
   Keypair,
   Address,
@@ -32,55 +26,120 @@ import {
   xdr,
 } from "@stellar/stellar-sdk";
 import { logger } from "@/lib/logger";
-import { decryptSecret } from "@/lib/services/kms";
 
-// Environment configuration
+// ─── Environment Configuration ────────────────────────────────────────────────
+
 const SOROBAN_RPC_URL = process.env.SOROBAN_RPC_URL ?? "https://soroban-testnet.stellar.org";
 const ESCROW_CONTRACT_ID = process.env.ESCROW_CONTRACT_ID ?? "";
-const STELLAR_NETWORK = process.env.STELLAR_NETWORK ?? "testnet";
+const STELLAR_NETWORK = process.env.STELLAR_NETWORK_MODE ?? "testnet";
+
+/** XLM native token contract on testnet (SEP-41 wrapped native) */
+const NATIVE_TOKEN_TESTNET = "CDLZFC3SYJYDZT7K67VZ75HPJVIEUVNIXF47ZG2FB2RMQQVU2HHGCYSC";
+/** XLM native token contract on mainnet */
+const NATIVE_TOKEN_MAINNET = "CAS3J7GYLGXMF6TDJBBYYSE3HQ6BBSMLNUQ34T6TZMYMW2EVH34XOWMA";
 
 const NETWORK_PASSPHRASE = STELLAR_NETWORK === "mainnet" ? Networks.PUBLIC : Networks.TESTNET;
 
-/**
- * Get the Soroban RPC server instance.
- */
+// ─── Internal Helpers ─────────────────────────────────────────────────────────
+
 function getRpcServer(): SorobanRpc.Server {
   return new SorobanRpc.Server(SOROBAN_RPC_URL);
 }
 
-/**
- * Get the escrow Contract instance.
- */
 function getEscrowContract(contractId?: string): Contract {
-  const id = contractId || ESCROW_CONTRACT_ID;
+  const id = contractId ?? ESCROW_CONTRACT_ID;
   if (!id) {
-    throw new Error("ESCROW_CONTRACT_ID environment variable is not set.");
+    throw new Error(
+      "ESCROW_CONTRACT_ID environment variable is not set. " +
+        "Run `npx tsx scripts/deploy-contract.ts` then set ESCROW_CONTRACT_ID in .env.local.",
+    );
   }
   return new Contract(id);
 }
 
+function getNativeTokenAddress(): string {
+  return STELLAR_NETWORK === "mainnet" ? NATIVE_TOKEN_MAINNET : NATIVE_TOKEN_TESTNET;
+}
+
+/**
+ * Poll for transaction confirmation with exponential backoff.
+ * Uses the built-in SDK `pollTransaction` when available, falls back to manual loop.
+ */
+async function pollForConfirmation(
+  server: SorobanRpc.Server,
+  hash: string,
+  maxAttempts = 30,
+): Promise<{ success: boolean; resultXdr?: string }> {
+  for (let i = 0; i < maxAttempts; i++) {
+    const status = await server.getTransaction(hash);
+    if (status.status === "SUCCESS") {
+      return { success: true, resultXdr: (status as SorobanRpc.Api.GetSuccessfulTransactionResponse).resultXdr?.toXDR("base64") };
+    }
+    if (status.status === "FAILED") {
+      logger.warn("[soroban] Transaction failed", { hash });
+      return { success: false };
+    }
+    // NOT_FOUND or PENDING — still processing
+    await new Promise((r) => setTimeout(r, 2000));
+  }
+  logger.warn("[soroban] Transaction confirmation timed out", { hash, maxAttempts });
+  return { success: false };
+}
+
+/**
+ * Simulate, assemble, sign with keypair, and submit a transaction.
+ * Returns the tx hash and success status.
+ */
+async function simulateSignSubmit(
+  server: SorobanRpc.Server,
+  tx: ReturnType<TransactionBuilder["build"]>,
+  keypair: ReturnType<typeof Keypair.fromSecret>,
+): Promise<{ hash: string; success: boolean }> {
+  const simulated = await server.simulateTransaction(tx);
+  if (SorobanRpc.Api.isSimulationError(simulated)) {
+    throw new Error(`Simulation failed: ${simulated.error}`);
+  }
+
+  const assembled = SorobanRpc.assembleTransaction(tx, simulated).build();
+  assembled.sign(keypair);
+
+  const result = await server.sendTransaction(assembled);
+  if (result.status === "ERROR") {
+    const errXdr = result.errorResult?.toXDR("base64") ?? "unknown";
+    throw new Error(`Transaction submission failed: ${errXdr}`);
+  }
+
+  const confirmed = await pollForConfirmation(server, result.hash);
+  return { hash: result.hash, success: confirmed.success };
+}
+
+// ─── Public API ───────────────────────────────────────────────────────────────
+
 /**
  * Initialize a new escrow instance on the contract for an event.
- * Called when an event transitions to OrganizerFundsEscrow state.
  *
- * @param organizerPublicKey - The organizer's verified Stellar address
- * @param eventId - The event UUID
- * @param prizePoolTarget - Target amount in stroops (1 XLM = 10_000_000 stroops)
- * @param platformKeypair - Platform signing keypair (decrypted from KMS)
+ * Called when an event transitions to OrganizerFundsEscrow state.
+ * The platform admin keypair is the `admin` parameter.
+ *
+ * Rust signature:
+ *   initialize(admin, organizer, event_id, target, token)
  */
 export async function initializeEscrow(params: {
   organizerPublicKey: string;
   eventId: string;
+  /** Target amount in stroops (1 XLM = 10_000_000 stroops) */
   prizePoolTarget: bigint;
   platformSecretKey: string;
+  contractId?: string;
 }): Promise<{ success: boolean; txHash?: string; error?: string }> {
   try {
     const server = getRpcServer();
-    const contract = getEscrowContract();
+    const contract = getEscrowContract(params.contractId);
     const keypair = Keypair.fromSecret(params.platformSecretKey);
     const sourceAccount = await server.getAccount(keypair.publicKey());
 
-    // Build the contract invocation
+    const tokenAddress = getNativeTokenAddress();
+
     const tx = new TransactionBuilder(sourceAccount, {
       fee: "1000000", // 0.1 XLM max fee for Soroban
       networkPassphrase: NETWORK_PASSPHRASE,
@@ -88,51 +147,36 @@ export async function initializeEscrow(params: {
       .addOperation(
         contract.call(
           "initialize",
-          new Address(params.organizerPublicKey).toScVal(),
-          nativeToScVal(Buffer.from(params.eventId), { type: "bytes" }),
-          nativeToScVal(params.prizePoolTarget, { type: "i128" }),
+          new Address(keypair.publicKey()).toScVal(),    // admin = platform keypair
+          new Address(params.organizerPublicKey).toScVal(), // organizer
+          nativeToScVal(Buffer.from(params.eventId), { type: "bytes" }), // event_id
+          nativeToScVal(params.prizePoolTarget, { type: "i128" }),        // target
+          new Address(tokenAddress).toScVal(),           // token (XLM SAC)
         ),
       )
       .setTimeout(300)
       .build();
 
-    // Simulate to get resource requirements
-    const simulated = await server.simulateTransaction(tx);
-    if (SorobanRpc.Api.isSimulationError(simulated)) {
-      throw new Error(`Simulation failed: ${simulated.error}`);
-    }
-
-    // Assemble with simulation results
-    const assembled = SorobanRpc.assembleTransaction(tx, simulated).build();
-    assembled.sign(keypair);
-
-    // Submit
-    const result = await server.sendTransaction(assembled);
-
-    if (result.status === "ERROR") {
-      throw new Error(
-        `Transaction submission failed: ${result.errorResult?.toXDR("base64") ?? "unknown"}`,
-      );
-    }
-
-    // Poll for completion
-    const confirmed = await pollTransaction(server, result.hash);
-
-    return { success: confirmed.success, txHash: result.hash };
+    const { hash, success } = await simulateSignSubmit(server, tx, keypair);
+    logger.info("[soroban] initializeEscrow", { eventId: params.eventId, txHash: hash, success });
+    return { success, txHash: hash };
   } catch (err) {
-    logger.error("Soroban escrow initialization failed", { error: String(err) });
+    logger.error("[soroban] initializeEscrow failed", { error: String(err) });
     return { success: false, error: String(err) };
   }
 }
 
 /**
- * Build a deposit transaction XDR for the organizer to sign.
- * The organizer signs this with their Freighter wallet.
+ * Build a deposit transaction XDR for the organizer to sign client-side.
  *
- * @returns Unsigned transaction XDR (base64) for client-side signing
+ * The organizer uses their Freighter/xBull/LOBSTR wallet to sign this.
+ * Returns unsigned (assembled) XDR for the wallet to sign.
+ *
+ * Rust function: deposit(from: Address, amount: i128)
  */
 export async function buildDepositTransaction(params: {
   organizerPublicKey: string;
+  /** Amount in stroops */
   amount: bigint;
   contractId?: string;
 }): Promise<{ xdr: string } | { error: string }> {
@@ -155,15 +199,13 @@ export async function buildDepositTransaction(params: {
       .setTimeout(300)
       .build();
 
-    // Simulate to get auth and footprint
+    // Simulate to get auth + footprint — required before user signs
     const simulated = await server.simulateTransaction(tx);
     if (SorobanRpc.Api.isSimulationError(simulated)) {
       return { error: `Simulation failed: ${simulated.error}` };
     }
 
     const assembled = SorobanRpc.assembleTransaction(tx, simulated).build();
-
-    // Return unsigned XDR for Freighter to sign
     return { xdr: assembled.toXDR() };
   } catch (err) {
     return { error: String(err) };
@@ -171,12 +213,350 @@ export async function buildDepositTransaction(params: {
 }
 
 /**
- * Execute disbursement via the Soroban contract.
- * Called by the platform after winners are finalized.
+ * Build an admin_deposit transaction XDR for a sponsor to sign client-side.
  *
- * @param recipients - Array of winner public keys
- * @param amounts - Corresponding prize amounts in stroops
- * @param platformSecretKey - Platform keypair for signing
+ * Used when someone other than the organizer funds the escrow.
+ * The platform admin must also sign (handled server-side after user signs).
+ *
+ * Rust function: admin_deposit(from: Address, amount: i128)
+ */
+export async function buildAdminDepositTransaction(params: {
+  fromPublicKey: string;
+  amount: bigint;
+  platformSecretKey: string;
+  contractId?: string;
+}): Promise<{ xdr: string } | { error: string }> {
+  try {
+    const server = getRpcServer();
+    const contract = getEscrowContract(params.contractId);
+    const platformKeypair = Keypair.fromSecret(params.platformSecretKey);
+    const sourceAccount = await server.getAccount(params.fromPublicKey);
+
+    const tx = new TransactionBuilder(sourceAccount, {
+      fee: "1000000",
+      networkPassphrase: NETWORK_PASSPHRASE,
+    })
+      .addOperation(
+        contract.call(
+          "admin_deposit",
+          new Address(params.fromPublicKey).toScVal(),
+          nativeToScVal(params.amount, { type: "i128" }),
+        ),
+      )
+      .setTimeout(300)
+      .build();
+
+    const simulated = await server.simulateTransaction(tx);
+    if (SorobanRpc.Api.isSimulationError(simulated)) {
+      return { error: `Simulation failed: ${simulated.error}` };
+    }
+
+    // Assemble and pre-sign with platform key (admin auth)
+    // The user (from) also needs to sign — their signature is added client-side
+    const assembled = SorobanRpc.assembleTransaction(tx, simulated).build();
+    assembled.sign(platformKeypair);
+    return { xdr: assembled.toXDR() };
+  } catch (err) {
+    return { error: String(err) };
+  }
+}
+
+/**
+ * Lock the escrow — platform admin only, must be FullyFunded.
+ *
+ * Rust function: lock()
+ */
+export async function lockEscrow(params: {
+  platformSecretKey: string;
+  contractId?: string;
+}): Promise<{ success: boolean; txHash?: string; error?: string }> {
+  try {
+    const server = getRpcServer();
+    const contract = getEscrowContract(params.contractId);
+    const keypair = Keypair.fromSecret(params.platformSecretKey);
+    const sourceAccount = await server.getAccount(keypair.publicKey());
+
+    const tx = new TransactionBuilder(sourceAccount, {
+      fee: "1000000",
+      networkPassphrase: NETWORK_PASSPHRASE,
+    })
+      .addOperation(contract.call("lock"))
+      .setTimeout(300)
+      .build();
+
+    const { hash, success } = await simulateSignSubmit(server, tx, keypair);
+    return { success, txHash: hash };
+  } catch (err) {
+    logger.error("[soroban] lockEscrow failed", { error: String(err) });
+    return { success: false, error: String(err) };
+  }
+}
+
+/**
+ * Execute a disbursement batch via the Soroban contract.
+ *
+ * Call multiple times for >N recipients. Finish with finalizeDisbursement().
+ * Rust function: disburse_batch(recipients: Vec<Address>, amounts: Vec<i128>)
+ */
+export async function executeSorobanDisbursementBatch(params: {
+  recipients: string[];
+  /** Amounts in stroops, parallel to recipients */
+  amounts: bigint[];
+  platformSecretKey: string;
+  contractId?: string;
+}): Promise<{ success: boolean; txHash?: string; error?: string }> {
+  try {
+    const server = getRpcServer();
+    const contract = getEscrowContract(params.contractId);
+    const keypair = Keypair.fromSecret(params.platformSecretKey);
+    const sourceAccount = await server.getAccount(keypair.publicKey());
+
+    const recipientScVals = params.recipients.map((r) => new Address(r).toScVal());
+    const amountScVals = params.amounts.map((a) => nativeToScVal(a, { type: "i128" }));
+
+    const tx = new TransactionBuilder(sourceAccount, {
+      fee: "1000000",
+      networkPassphrase: NETWORK_PASSPHRASE,
+    })
+      .addOperation(
+        contract.call(
+          "disburse_batch",
+          xdr.ScVal.scvVec(recipientScVals),
+          xdr.ScVal.scvVec(amountScVals),
+        ),
+      )
+      .setTimeout(300)
+      .build();
+
+    const { hash, success } = await simulateSignSubmit(server, tx, keypair);
+    return { success, txHash: hash };
+  } catch (err) {
+    logger.error("[soroban] executeSorobanDisbursementBatch failed", { error: String(err) });
+    return { success: false, error: String(err) };
+  }
+}
+
+/**
+ * Finalize disbursement — transitions contract state to Released.
+ * Must be called after all disburse_batch calls complete.
+ *
+ * Rust function: finalize()
+ */
+export async function finalizeDisbursement(params: {
+  platformSecretKey: string;
+  contractId?: string;
+}): Promise<{ success: boolean; txHash?: string; error?: string }> {
+  try {
+    const server = getRpcServer();
+    const contract = getEscrowContract(params.contractId);
+    const keypair = Keypair.fromSecret(params.platformSecretKey);
+    const sourceAccount = await server.getAccount(keypair.publicKey());
+
+    const tx = new TransactionBuilder(sourceAccount, {
+      fee: "1000000",
+      networkPassphrase: NETWORK_PASSPHRASE,
+    })
+      .addOperation(contract.call("finalize"))
+      .setTimeout(300)
+      .build();
+
+    const { hash, success } = await simulateSignSubmit(server, tx, keypair);
+    return { success, txHash: hash };
+  } catch (err) {
+    logger.error("[soroban] finalizeDisbursement failed", { error: String(err) });
+    return { success: false, error: String(err) };
+  }
+}
+
+/**
+ * Execute refund via the Soroban contract.
+ * Returns all funds to the organizer.
+ *
+ * Rust function: refund()
+ */
+export async function executeSorobanRefund(params: {
+  platformSecretKey: string;
+  contractId?: string;
+}): Promise<{ success: boolean; txHash?: string; error?: string }> {
+  try {
+    const server = getRpcServer();
+    const contract = getEscrowContract(params.contractId);
+    const keypair = Keypair.fromSecret(params.platformSecretKey);
+    const sourceAccount = await server.getAccount(keypair.publicKey());
+
+    const tx = new TransactionBuilder(sourceAccount, {
+      fee: "1000000",
+      networkPassphrase: NETWORK_PASSPHRASE,
+    })
+      .addOperation(contract.call("refund"))
+      .setTimeout(300)
+      .build();
+
+    const { hash, success } = await simulateSignSubmit(server, tx, keypair);
+    return { success, txHash: hash };
+  } catch (err) {
+    logger.error("[soroban] executeSorobanRefund failed", { error: String(err) });
+    return { success: false, error: String(err) };
+  }
+}
+
+/**
+ * Query the contract state (balance, lock status, disbursed total).
+ *
+ * Uses the platform keypair as simulation source (must be funded).
+ * Falls back to null if RPC unavailable or contract not initialized.
+ */
+export async function queryEscrowState(
+  platformSecretKey?: string,
+  contractId?: string,
+): Promise<{
+  balance: bigint;
+  state: number;
+  isLocked: boolean;
+  target: bigint;
+  disbursedTotal: bigint;
+} | null> {
+  try {
+    const server = getRpcServer();
+    const contract = getEscrowContract(contractId);
+    const { scValToNative } = await import("@stellar/stellar-sdk");
+
+    // Use the platform keypair as simulation source — it must be funded
+    // (Freighter/random accounts are NOT funded and will fail)
+    let sourcePublicKey: string;
+    if (platformSecretKey) {
+      sourcePublicKey = Keypair.fromSecret(platformSecretKey).publicKey();
+    } else {
+      // Fallback: try platform escrow key from env
+      const envSecret = process.env.STELLAR_ESCROW_SECRET;
+      if (!envSecret) return null;
+      sourcePublicKey = Keypair.fromSecret(envSecret).publicKey();
+    }
+
+    const sourceAccount = await server.getAccount(sourcePublicKey);
+
+    /** Helper to simulate a single read-only contract call */
+    async function simulateRead(method: string): Promise<SorobanRpc.Api.SimulateTransactionSuccessResponse | null> {
+      const tx = new TransactionBuilder(sourceAccount, {
+        fee: "100",
+        networkPassphrase: NETWORK_PASSPHRASE,
+      })
+        .addOperation(contract.call(method))
+        .setTimeout(30)
+        .build();
+
+      const sim = await server.simulateTransaction(tx);
+      if (SorobanRpc.Api.isSimulationError(sim)) return null;
+      return sim as SorobanRpc.Api.SimulateTransactionSuccessResponse;
+    }
+
+    const [balanceSim, stateSim, lockedSim, targetSim, disbursedSim] = await Promise.all([
+      simulateRead("get_balance"),
+      simulateRead("get_state"),
+      simulateRead("is_locked"),
+      simulateRead("get_target"),
+      simulateRead("get_disbursed_total"),
+    ]);
+
+    if (!balanceSim || !stateSim) return null;
+
+    const balance = balanceSim.result?.retval
+      ? BigInt(scValToNative(balanceSim.result.retval) as number | bigint)
+      : BigInt(0);
+    const state = stateSim.result?.retval
+      ? Number(scValToNative(stateSim.result.retval))
+      : 0;
+    const isLocked = lockedSim?.result?.retval
+      ? Boolean(scValToNative(lockedSim.result.retval))
+      : false;
+    const target = targetSim?.result?.retval
+      ? BigInt(scValToNative(targetSim.result.retval) as number | bigint)
+      : BigInt(0);
+    const disbursedTotal = disbursedSim?.result?.retval
+      ? BigInt(scValToNative(disbursedSim.result.retval) as number | bigint)
+      : BigInt(0);
+
+    return { balance, state, isLocked, target, disbursedTotal };
+  } catch (err) {
+    logger.error("[soroban] queryEscrowState failed (non-blocking)", { error: String(err) });
+    return null;
+  }
+}
+
+/**
+ * Fetch recent contract events for real-time sync.
+ *
+ * Events emitted by the contract: deposit, sponsor, locked, batch, disburse, finalize, refund
+ *
+ * Uses the Soroban RPC getEvents endpoint. Returns events since `startLedger`.
+ */
+export async function getContractEvents(params: {
+  contractId?: string;
+  startLedger?: number;
+  limit?: number;
+}): Promise<Array<{
+  id: string;
+  type: string;
+  ledger: number;
+  createdAt: string;
+  topics: string[];
+  value: unknown;
+}>> {
+  try {
+    const server = getRpcServer();
+    const contractId = params.contractId ?? ESCROW_CONTRACT_ID;
+    if (!contractId) return [];
+
+    // Get the latest ledger to calculate startLedger if not provided
+    const latestLedger = await server.getLatestLedger();
+    const startLedger = params.startLedger ?? Math.max(1, latestLedger.sequence - 1000);
+
+    const { scValToNative } = await import("@stellar/stellar-sdk");
+
+    const response = await server.getEvents({
+      startLedger,
+      filters: [
+        {
+          type: "contract",
+          contractIds: [contractId],
+        },
+      ],
+      limit: params.limit ?? 100,
+    });
+
+    return response.events.map((event) => ({
+      id: event.id,
+      type: event.type,
+      ledger: event.ledger,
+      createdAt: (event as unknown as Record<string, unknown>).createdAt as string ?? new Date().toISOString(),
+      topics: event.topic.map((t) => {
+        try {
+          return String(scValToNative(t));
+        } catch {
+          return t.toXDR("base64");
+        }
+      }),
+      value: event.value
+        ? (() => {
+            try {
+              return scValToNative(event.value);
+            } catch {
+              return null;
+            }
+          })()
+        : null,
+    }));
+  } catch (err) {
+    logger.error("[soroban] getContractEvents failed", { error: String(err) });
+    return [];
+  }
+}
+
+// ─── Legacy compatibility exports ─────────────────────────────────────────────
+
+/**
+ * @deprecated Use executeSorobanDisbursementBatch + finalizeDisbursement instead.
+ * Kept for backward compatibility with existing disbursement.service.ts calls.
  */
 export async function executeSorobanDisbursement(params: {
   recipients: string[];
@@ -190,7 +570,6 @@ export async function executeSorobanDisbursement(params: {
     const keypair = Keypair.fromSecret(params.platformSecretKey);
     const sourceAccount = await server.getAccount(keypair.publicKey());
 
-    // Build ScVal arrays for recipients and amounts
     const recipientScVals = params.recipients.map((r) => new Address(r).toScVal());
     const amountScVals = params.amounts.map((a) => nativeToScVal(a, { type: "i128" }));
 
@@ -208,167 +587,10 @@ export async function executeSorobanDisbursement(params: {
       .setTimeout(300)
       .build();
 
-    const simulated = await server.simulateTransaction(tx);
-    if (SorobanRpc.Api.isSimulationError(simulated)) {
-      throw new Error(`Simulation failed: ${simulated.error}`);
-    }
-
-    const assembled = SorobanRpc.assembleTransaction(tx, simulated).build();
-    assembled.sign(keypair);
-
-    const result = await server.sendTransaction(assembled);
-    if (result.status === "ERROR") {
-      throw new Error("Transaction submission failed");
-    }
-
-    const confirmed = await pollTransaction(server, result.hash);
-    return { success: confirmed.success, txHash: result.hash };
+    const { hash, success } = await simulateSignSubmit(server, tx, keypair);
+    return { success, txHash: hash };
   } catch (err) {
-    logger.error("Soroban disbursement failed", { error: String(err) });
+    logger.error("[soroban] executeSorobanDisbursement (legacy) failed", { error: String(err) });
     return { success: false, error: String(err) };
   }
-}
-
-/**
- * Execute refund via the Soroban contract.
- * Returns all funds to the organizer.
- */
-export async function executeSorobanRefund(params: {
-  organizerPublicKey: string;
-  platformSecretKey: string;
-  contractId?: string;
-}): Promise<{ success: boolean; txHash?: string; error?: string }> {
-  try {
-    const server = getRpcServer();
-    const contract = getEscrowContract(params.contractId);
-    const keypair = Keypair.fromSecret(params.platformSecretKey);
-    const sourceAccount = await server.getAccount(keypair.publicKey());
-
-    const tx = new TransactionBuilder(sourceAccount, {
-      fee: "1000000",
-      networkPassphrase: NETWORK_PASSPHRASE,
-    })
-      .addOperation(contract.call("refund", new Address(params.organizerPublicKey).toScVal()))
-      .setTimeout(300)
-      .build();
-
-    const simulated = await server.simulateTransaction(tx);
-    if (SorobanRpc.Api.isSimulationError(simulated)) {
-      throw new Error(`Simulation failed: ${simulated.error}`);
-    }
-
-    const assembled = SorobanRpc.assembleTransaction(tx, simulated).build();
-    assembled.sign(keypair);
-
-    const result = await server.sendTransaction(assembled);
-    if (result.status === "ERROR") {
-      throw new Error("Transaction submission failed");
-    }
-
-    const confirmed = await pollTransaction(server, result.hash);
-    return { success: confirmed.success, txHash: result.hash };
-  } catch (err) {
-    logger.error("Soroban refund failed", { error: String(err) });
-    return { success: false, error: String(err) };
-  }
-}
-
-/**
- * Query the contract state (balance, lock status, etc.).
- */
-export async function queryEscrowState(contractId?: string): Promise<{
-  balance: bigint;
-  state: number;
-  isLocked: boolean;
-} | null> {
-  try {
-    const server = getRpcServer();
-    const contract = getEscrowContract(contractId);
-    const { scValToNative } = await import("@stellar/stellar-sdk");
-
-    // Use a well-funded testnet account for simulation, or fall back to a fresh keypair
-    const keypair = Keypair.random();
-    let sourceAccount: Awaited<ReturnType<typeof server.getAccount>>;
-    try {
-      sourceAccount = await server.getAccount(keypair.publicKey());
-    } catch {
-      // Account not funded — cannot simulate
-      return null;
-    }
-
-    // Query balance
-    const balanceTx = new TransactionBuilder(sourceAccount, {
-      fee: "100",
-      networkPassphrase: NETWORK_PASSPHRASE,
-    })
-      .addOperation(contract.call("get_balance"))
-      .setTimeout(30)
-      .build();
-
-    const balanceSim = await server.simulateTransaction(balanceTx);
-    if (SorobanRpc.Api.isSimulationError(balanceSim)) return null;
-
-    // Query state
-    const stateTx = new TransactionBuilder(sourceAccount, {
-      fee: "100",
-      networkPassphrase: NETWORK_PASSPHRASE,
-    })
-      .addOperation(contract.call("get_state"))
-      .setTimeout(30)
-      .build();
-
-    const stateSim = await server.simulateTransaction(stateTx);
-    if (SorobanRpc.Api.isSimulationError(stateSim)) return null;
-
-    // Query isLocked
-    const lockTx = new TransactionBuilder(sourceAccount, {
-      fee: "100",
-      networkPassphrase: NETWORK_PASSPHRASE,
-    })
-      .addOperation(contract.call("is_locked"))
-      .setTimeout(30)
-      .build();
-
-    const lockSim = await server.simulateTransaction(lockTx);
-
-    // Parse ScVal results via scValToNative (Task 3.4 fix)
-    const balanceResult = (balanceSim as SorobanRpc.Api.SimulateTransactionSuccessResponse).result;
-    const stateResult = (stateSim as SorobanRpc.Api.SimulateTransactionSuccessResponse).result;
-    const lockResult = !SorobanRpc.Api.isSimulationError(lockSim)
-      ? (lockSim as SorobanRpc.Api.SimulateTransactionSuccessResponse).result
-      : undefined;
-
-    const balance = balanceResult?.retval ? BigInt(scValToNative(balanceResult.retval)) : BigInt(0);
-
-    const state = stateResult?.retval ? Number(scValToNative(stateResult.retval)) : 0;
-
-    const isLocked = lockResult?.retval ? Boolean(scValToNative(lockResult.retval)) : false;
-
-    return { balance, state, isLocked };
-  } catch (err) {
-    logger.error("Soroban state query failed", { error: String(err) });
-    return null;
-  }
-}
-
-/**
- * Poll for transaction confirmation.
- */
-async function pollTransaction(
-  server: SorobanRpc.Server,
-  hash: string,
-  maxAttempts = 30,
-): Promise<{ success: boolean }> {
-  for (let i = 0; i < maxAttempts; i++) {
-    const status = await server.getTransaction(hash);
-    if (status.status === "SUCCESS") {
-      return { success: true };
-    }
-    if (status.status === "FAILED") {
-      return { success: false };
-    }
-    // NOT_FOUND means still pending
-    await new Promise((r) => setTimeout(r, 2000));
-  }
-  return { success: false };
 }

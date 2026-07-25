@@ -1,62 +1,93 @@
 "use client";
 
 /**
- * Multi-wallet Connect UI (Req 25.2, 25.3, 33.1-33.16).
+ * WalletConnect — full wallet link flow with challenge-response verification.
+ * (Req 5.1-5.7, 25.2, 25.3, 33.1-33.16)
  *
- * Discovers all available wallet extensions at runtime and lets the user
- * pick which one to connect. Currently supports Freighter and xBull.
+ * This component handles the dedicated wallet-linking flow (settings page,
+ * onboarding). For the nav-bar quick connect, use <WalletButton>.
  *
  * Flow:
- * 1. Component mounts → scans for available adapters
- * 2. User picks a wallet → adapter.connect() is called
- * 3. Confirm screen shows full address + network before linking
- * 4. "Confirm & Link" → upserts wallet row in the database
- * 5. onVerified callback fires
+ *   1. Scan available wallets
+ *   2. User picks wallet → adapter.connect() → get public key + network
+ *   3. Confirm screen (shows full address, network)
+ *   4. "Verify Ownership" → POST /api/wallets/challenge → nonce issued
+ *   5. User signs nonce with wallet → POST /api/wallets/verify → verified
+ *   6. onVerified(publicKey) fires
+ *
+ * Challenge-response proves key ownership before writing to DB.
  */
 import { useState, useCallback, useEffect } from "react";
 import type { NetworkMode } from "@/types";
 import type { WalletAdapter, WalletProvider } from "@/lib/wallet/types";
-import { createBrowserClient } from "@/lib/supabase/client";
 
-type FlowStep = "scanning" | "pick" | "connecting" | "confirm" | "linking" | "done" | "error";
+type FlowStep =
+  | "scanning"
+  | "pick"
+  | "connecting"
+  | "confirm"
+  | "verifying"
+  | "signing"
+  | "submitting"
+  | "done"
+  | "error";
 
 interface WalletConnectProps {
   expectedNetwork?: NetworkMode;
   onVerified?: (publicKey: string) => void;
 }
 
-/** Provider metadata for display. */
 const PROVIDER_META: Record<
   WalletProvider,
-  { label: string; icon: string; installUrl: string; description: string }
+  {
+    label: string;
+    icon: string;
+    installUrl: string;
+    description: string;
+    type: "extension" | "web";
+  }
 > = {
   Freighter: {
     label: "Freighter",
     icon: "🚀",
     installUrl: "https://www.freighter.app/",
     description: "Official Stellar wallet by SDF",
+    type: "extension",
   },
   xBull: {
     label: "xBull",
     icon: "🐂",
     installUrl: "https://xbull.app/",
     description: "Feature-rich Stellar browser wallet",
+    type: "extension",
+  },
+  LOBSTR: {
+    label: "LOBSTR",
+    icon: "🦞",
+    installUrl: "https://lobstr.co/",
+    description: "Most popular Stellar mobile & extension wallet",
+    type: "extension",
   },
   Albedo: {
     label: "Albedo",
     icon: "🔐",
     installUrl: "https://albedo.link/",
-    description: "Web-based Stellar signer",
+    description: "Web-based Stellar signer (no install needed)",
+    type: "web",
   },
   Rabet: {
     label: "Rabet",
     icon: "🌐",
     installUrl: "https://rabet.io/",
     description: "Stellar browser extension wallet",
+    type: "extension",
   },
 };
 
-export function WalletConnect({ expectedNetwork = "testnet", onVerified }: WalletConnectProps) {
+export function WalletConnect({
+  expectedNetwork = "testnet",
+  onVerified,
+}: WalletConnectProps) {
   const [step, setStep] = useState<FlowStep>("scanning");
   const [available, setAvailable] = useState<WalletAdapter[]>([]);
   const [allProviders, setAllProviders] = useState<WalletProvider[]>([]);
@@ -65,7 +96,7 @@ export function WalletConnect({ expectedNetwork = "testnet", onVerified }: Walle
   const [network, setNetwork] = useState<NetworkMode | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  // Scan for available wallets on mount
+  // Scan on mount
   useEffect(() => {
     async function scan() {
       const { getAvailableAdapters, getAllAdapters } = await import("@/lib/wallet/registry");
@@ -77,7 +108,7 @@ export function WalletConnect({ expectedNetwork = "testnet", onVerified }: Walle
     scan();
   }, []);
 
-  // Step 1: User picks a wallet — connect immediately
+  // Step 1: Connect wallet
   const handlePick = useCallback(
     async (adapter: WalletAdapter) => {
       setSelectedAdapter(adapter);
@@ -92,55 +123,102 @@ export function WalletConnect({ expectedNetwork = "testnet", onVerified }: Walle
 
         if (net !== expectedNetwork) {
           setError(
-            `Network mismatch: ${adapter.provider} is on ${net}, app expects ${expectedNetwork}. Switch your wallet to ${expectedNetwork} and try again.`,
+            `Network mismatch: ${adapter.provider} is on ${net}, but this app uses ${expectedNetwork}. ` +
+              `Switch your wallet to ${expectedNetwork} and try again.`,
           );
         }
       } catch (err) {
-        setError(
-          err instanceof Error
-            ? err.message
-            : `Failed to connect ${adapter.provider}. Make sure it's installed and unlocked.`,
-        );
+        const msg = err instanceof Error ? err.message : "Connection failed.";
+        // Classify error for better messaging
+        if (msg.toLowerCase().includes("rejected") || msg.toLowerCase().includes("declined")) {
+          setError("Connection declined. Click your wallet extension and approve the request.");
+        } else if (msg.toLowerCase().includes("not installed") || msg.toLowerCase().includes("is not")) {
+          setError(`${adapter.provider} is not installed. Install it from ${PROVIDER_META[adapter.provider]?.installUrl ?? "the extension store"}.`);
+        } else {
+          setError(msg);
+        }
         setStep("error");
       }
     },
     [expectedNetwork],
   );
 
-  // Step 2: User confirmed — save to DB
-  const confirmAndLink = useCallback(async () => {
-    if (!publicKey || !network || !selectedAdapter) return;
-    setStep("linking");
+  // Step 2: Issue challenge + sign + verify
+  const handleVerify = useCallback(async () => {
+    if (!publicKey || !selectedAdapter || !network) return;
+
+    setStep("verifying");
     setError(null);
 
     try {
-      const supabase = createBrowserClient();
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-      if (!user) throw new Error("Not authenticated.");
+      // 2a. Issue challenge
+      const challengeRes = await fetch("/api/wallets/challenge", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ publicKey }),
+      });
 
-      const { error: walletError } = await supabase.from("wallets").upsert(
-        {
-          user_id: user.id,
-          public_key: publicKey,
-          provider: selectedAdapter.provider,
-          verification_status: "Verified",
-          verified_at: new Date().toISOString(),
-          network_mode: network,
-        },
-        { onConflict: "user_id,public_key" },
-      );
+      if (!challengeRes.ok) {
+        const body = await challengeRes.json().catch(() => ({}));
+        throw new Error(body?.error?.message ?? "Failed to issue challenge.");
+      }
 
-      if (walletError) throw new Error(walletError.message);
+      const { challengeId, nonce } = await challengeRes.json();
+
+      // 2b. Sign the nonce with the wallet
+      setStep("signing");
+      let signature: string;
+      try {
+        signature = await selectedAdapter.signMessage(nonce, network);
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : "Signing failed.";
+        if (
+          msg.toLowerCase().includes("rejected") ||
+          msg.toLowerCase().includes("declined") ||
+          msg.toLowerCase().includes("user rejected")
+        ) {
+          throw new Error("You declined to sign the verification message. Click Verify again and approve in your wallet.");
+        }
+        if (msg.toLowerCase().includes("does not support")) {
+          // Rabet fallback: use signTransaction with a challenge memo
+          throw new Error(
+            `${selectedAdapter.provider} does not support message signing. Use Freighter, xBull, or LOBSTR for wallet verification.`,
+          );
+        }
+        throw err;
+      }
+
+      // 2c. Submit verification
+      setStep("submitting");
+      const verifyRes = await fetch("/api/wallets/verify", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ challengeId, signature }),
+      });
+
+      if (!verifyRes.ok) {
+        const body = await verifyRes.json().catch(() => ({}));
+        if (verifyRes.status === 400) {
+          const code = body?.error?.code ?? "";
+          if (code === "CHALLENGE_EXPIRED") {
+            throw new Error("Verification challenge expired. Click Verify to request a new one.");
+          }
+          if (code === "SIGNATURE_INVALID") {
+            throw new Error(
+              "Signature verification failed. Make sure you signed with the correct wallet and try again.",
+            );
+          }
+        }
+        throw new Error(body?.error?.message ?? "Wallet verification failed.");
+      }
 
       setStep("done");
-      setTimeout(() => onVerified?.(publicKey), 1500);
+      setTimeout(() => onVerified?.(publicKey), 1200);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to link wallet.");
+      setError(err instanceof Error ? err.message : "Verification failed.");
       setStep("error");
     }
-  }, [publicKey, network, selectedAdapter, onVerified]);
+  }, [publicKey, selectedAdapter, network, onVerified]);
 
   const reset = useCallback(() => {
     setSelectedAdapter(null);
@@ -154,7 +232,7 @@ export function WalletConnect({ expectedNetwork = "testnet", onVerified }: Walle
   if (step === "scanning") {
     return (
       <div className="flex items-center gap-2 py-4 text-sm text-[var(--text-muted)]">
-        <div className="h-4 w-4 animate-spin rounded-full border-2 border-[var(--border)] border-t-[var(--accent)]" />
+        <span className="h-4 w-4 animate-spin rounded-full border-2 border-[var(--border)] border-t-[var(--accent)]" aria-hidden="true" />
         Detecting wallets…
       </div>
     );
@@ -165,38 +243,50 @@ export function WalletConnect({ expectedNetwork = "testnet", onVerified }: Walle
     return (
       <div className="space-y-3">
         {error && (
-          <div className="rounded-md border border-[color-mix(in_srgb,var(--error)_40%,transparent)] bg-[var(--error-bg)] px-3 py-2 text-xs text-[var(--error)]">
+          <div role="alert" className="rounded-md border border-[color-mix(in_srgb,var(--error)_30%,transparent)] bg-[var(--error-bg)] px-3 py-2 text-xs text-[var(--error)]">
             {error}
           </div>
         )}
-
-        <p className="text-xs text-[var(--text-muted)]">Select a wallet to connect</p>
-
+        <p className="text-xs text-[var(--text-muted)]">Select a wallet to connect and verify</p>
         <div className="space-y-2">
           {allProviders.map((provider) => {
             const meta = PROVIDER_META[provider];
             const adapter = available.find((a) => a.provider === provider);
-            const isInstalled = !!adapter;
+            const isExtensionInstalled = !!adapter;
+            const isWebBased = meta.type === "web";
+            // Web-based wallets are always clickable; find adapter from getAllAdapters
+            const clickableAdapter = isWebBased
+              ? available.find((a) => a.provider === provider) ??
+                // Web adapters report isAvailable=true so should be in available[]
+                // If somehow missing, we still need a reference — skip gracefully
+                null
+              : adapter;
+            const isClickable = isWebBased ? true : isExtensionInstalled;
 
             return (
               <button
                 key={provider}
-                onClick={() => adapter && handlePick(adapter)}
-                disabled={!isInstalled}
+                onClick={() => clickableAdapter && handlePick(clickableAdapter)}
+                disabled={!isClickable}
                 className={[
-                  "w-full flex items-center gap-3 rounded-md border px-4 py-3 text-left transition-colors",
-                  isInstalled
+                  "w-full flex items-center gap-3 rounded-lg border px-4 py-3 text-left transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)]",
+                  isClickable
                     ? "border-[var(--border)] hover:border-[var(--accent)] hover:bg-[var(--bg-muted)] cursor-pointer"
                     : "border-[var(--border)] opacity-40 cursor-not-allowed",
                 ].join(" ")}
+                aria-label={isClickable ? `Connect ${meta.label}` : `${meta.label} not installed`}
               >
-                <span className="text-xl leading-none">{meta.icon}</span>
+                <span className="text-xl leading-none" aria-hidden="true">{meta.icon}</span>
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-medium text-[var(--text)]">{meta.label}</p>
                   <p className="text-xs text-[var(--text-muted)] truncate">{meta.description}</p>
                 </div>
-                {isInstalled ? (
-                  <span className="shrink-0 text-xs font-medium text-[var(--success)]">
+                {isWebBased ? (
+                  <span className="shrink-0 text-xs font-medium text-[var(--accent)]">
+                    Web
+                  </span>
+                ) : isExtensionInstalled ? (
+                  <span className="shrink-0 text-xs font-medium text-[var(--success,oklch(0.55_0.15_145))]">
                     Installed
                   </span>
                 ) : (
@@ -205,19 +295,19 @@ export function WalletConnect({ expectedNetwork = "testnet", onVerified }: Walle
                     target="_blank"
                     rel="noopener noreferrer"
                     onClick={(e) => e.stopPropagation()}
-                    className="shrink-0 text-xs text-[var(--accent)] hover:underline"
+                    className="shrink-0 text-xs text-[var(--accent)] hover:underline focus:outline-none"
+                    aria-label={`Install ${meta.label} (opens in new tab)`}
                   >
-                    Install
+                    Install ↗
                   </a>
                 )}
               </button>
             );
           })}
         </div>
-
         {available.length === 0 && (
           <p className="text-xs text-[var(--text-muted)] text-center pt-1">
-            No wallets detected. Install Freighter or xBull to continue.
+            No wallets detected. Install Freighter or LOBSTR to continue.
           </p>
         )}
       </div>
@@ -227,13 +317,18 @@ export function WalletConnect({ expectedNetwork = "testnet", onVerified }: Walle
   // ── Connecting ────────────────────────────────────────────────────────────
   if (step === "connecting") {
     const meta = selectedAdapter ? PROVIDER_META[selectedAdapter.provider] : null;
+    const isWebBased = meta?.type === "web";
     return (
       <div className="card p-6 flex flex-col items-center gap-3 text-center">
-        <div className="h-8 w-8 animate-spin rounded-full border-2 border-[var(--border)] border-t-[var(--accent)]" />
+        <span className="h-8 w-8 animate-spin rounded-full border-2 border-[var(--border)] border-t-[var(--accent)]" aria-hidden="true" />
         <p className="text-sm text-[var(--text-muted)]">
           Waiting for {meta?.label ?? "wallet"} approval…
         </p>
-        <p className="text-xs text-[var(--text-muted)]">Check your browser extension popup</p>
+        <p className="text-xs text-[var(--text-muted)]">
+          {isWebBased
+            ? "A popup window will open — approve the request there"
+            : "Check your browser extension popup"}
+        </p>
       </div>
     );
   }
@@ -241,25 +336,25 @@ export function WalletConnect({ expectedNetwork = "testnet", onVerified }: Walle
   // ── Confirm ───────────────────────────────────────────────────────────────
   if (step === "confirm" && publicKey && selectedAdapter) {
     const meta = PROVIDER_META[selectedAdapter.provider];
+    const hasNetworkError = error?.includes("mismatch");
+
     return (
       <div className="card p-5 space-y-4">
         {error && (
-          <div className="rounded-md border border-[color-mix(in_srgb,var(--warning)_40%,transparent)] bg-[var(--warning-bg)] px-3 py-2 text-xs text-[var(--warning)]">
-            ⚠️ {error}
+          <div role="alert" className="rounded-md border border-[color-mix(in_srgb,var(--warning,oklch(0.6_0.15_85))_30%,transparent)] bg-[var(--bg-muted)] px-3 py-2 text-xs text-[var(--warning,oklch(0.6_0.15_85))]">
+            ⚠ {error}
           </div>
         )}
-
         <div className="flex items-center gap-2">
-          <span className="text-xl">{meta.icon}</span>
+          <span className="text-xl leading-none" aria-hidden="true">{meta.icon}</span>
           <div>
-            <h3 className="text-sm font-medium text-[var(--text)]">{meta.label} connected</h3>
+            <h3 className="text-sm font-semibold text-[var(--text)]">{meta.label} connected</h3>
             <p className="text-xs text-[var(--text-muted)]">
-              Review the address below before linking to your account
+              Sign a message to prove ownership before linking
             </p>
           </div>
         </div>
-
-        <div className="rounded-md bg-[var(--bg-muted)] p-4 space-y-3">
+        <div className="rounded-lg bg-[var(--bg-muted)] p-4 space-y-3">
           <div>
             <p className="text-xs text-[var(--text-muted)] mb-1">Stellar Address</p>
             <p className="font-mono text-sm text-[var(--text)] break-all leading-relaxed">
@@ -271,7 +366,10 @@ export function WalletConnect({ expectedNetwork = "testnet", onVerified }: Walle
               <p className="text-xs text-[var(--text-muted)] mb-0.5">Network</p>
               <span className="inline-flex items-center gap-1.5 text-sm text-[var(--text)]">
                 <span
-                  className={`h-2 w-2 rounded-full ${network === "testnet" ? "bg-amber-400" : "bg-green-400"}`}
+                  aria-hidden="true"
+                  className={`h-2 w-2 rounded-full ${
+                    network === "testnet" ? "bg-amber-400" : "bg-green-500"
+                  }`}
                 />
                 {network}
               </span>
@@ -282,18 +380,17 @@ export function WalletConnect({ expectedNetwork = "testnet", onVerified }: Walle
             </div>
           </div>
         </div>
-
         <div className="flex gap-3">
           <button
-            onClick={confirmAndLink}
-            disabled={!!error && error.includes("mismatch")}
-            className="flex-1 btn-primary rounded-md px-4 py-2.5 text-sm font-medium transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+            onClick={handleVerify}
+            disabled={hasNetworkError}
+            className="flex-1 btn-primary rounded-md px-4 py-2.5 text-sm font-medium transition-colors disabled:opacity-40 disabled:cursor-not-allowed focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)]"
           >
-            Confirm & Link Wallet
+            Verify Ownership
           </button>
           <button
             onClick={reset}
-            className="rounded-md border border-[var(--border)] px-4 py-2.5 text-sm font-medium text-[var(--text-secondary)] hover:bg-[var(--bg-muted)] transition-colors"
+            className="rounded-md border border-[var(--border)] px-4 py-2.5 text-sm font-medium text-[var(--text-secondary)] hover:bg-[var(--bg-muted)] transition-colors focus:outline-none"
           >
             Back
           </button>
@@ -302,12 +399,25 @@ export function WalletConnect({ expectedNetwork = "testnet", onVerified }: Walle
     );
   }
 
-  // ── Linking ───────────────────────────────────────────────────────────────
-  if (step === "linking") {
+  // ── In-progress verification steps ───────────────────────────────────────
+  if (step === "verifying" || step === "signing" || step === "submitting") {
+    const messages: Record<typeof step, string> = {
+      verifying: "Issuing verification challenge…",
+      signing:   "Waiting for signature in your wallet…",
+      submitting: "Submitting verification…",
+    };
+    const hints: Record<typeof step, string | null> = {
+      verifying: null,
+      signing:   "Check your wallet extension popup and approve the signing request",
+      submitting: null,
+    };
     return (
-      <div className="card p-6 flex flex-col items-center gap-3">
-        <div className="h-6 w-6 animate-spin rounded-full border-2 border-[var(--border)] border-t-[var(--accent)]" />
-        <p className="text-sm text-[var(--text-muted)]">Linking wallet to your account…</p>
+      <div className="card p-6 flex flex-col items-center gap-3 text-center">
+        <span className="h-8 w-8 animate-spin rounded-full border-2 border-[var(--border)] border-t-[var(--accent)]" aria-hidden="true" />
+        <p className="text-sm text-[var(--text-muted)]">{messages[step]}</p>
+        {hints[step] && (
+          <p className="text-xs text-[var(--text-muted)]">{hints[step]}</p>
+        )}
       </div>
     );
   }
@@ -318,12 +428,15 @@ export function WalletConnect({ expectedNetwork = "testnet", onVerified }: Walle
     return (
       <div className="card p-5">
         <div className="flex items-center gap-3">
-          <div className="h-8 w-8 rounded-full bg-[var(--success-bg)] flex items-center justify-center text-[var(--success)]">
+          <div
+            className="h-8 w-8 rounded-full bg-[var(--success-bg,oklch(0.97_0.02_145))] flex items-center justify-center text-[var(--success,oklch(0.55_0.15_145))] font-bold"
+            aria-hidden="true"
+          >
             ✓
           </div>
           <div>
             <p className="text-sm font-medium text-[var(--text)]">
-              {meta.label} linked successfully
+              {meta.label} verified and linked
             </p>
             <p className="text-xs text-[var(--text-muted)] font-mono">
               {publicKey.slice(0, 8)}…{publicKey.slice(-6)}
@@ -335,23 +448,19 @@ export function WalletConnect({ expectedNetwork = "testnet", onVerified }: Walle
   }
 
   // ── Error ─────────────────────────────────────────────────────────────────
-  if (step === "error") {
-    return (
-      <div className="space-y-3">
-        {error && (
-          <div className="rounded-md border border-[color-mix(in_srgb,var(--error)_40%,transparent)] bg-[var(--error-bg)] px-3 py-2 text-xs text-[var(--error)]">
-            {error}
-          </div>
-        )}
-        <button
-          onClick={reset}
-          className="w-full rounded-md border border-[var(--border)] px-4 py-2.5 text-sm font-medium text-[var(--text)] hover:bg-[var(--bg-muted)] transition-colors"
-        >
-          Try Again
-        </button>
-      </div>
-    );
-  }
-
-  return null;
+  return (
+    <div className="space-y-3">
+      {error && (
+        <div role="alert" className="rounded-md border border-[color-mix(in_srgb,var(--error)_30%,transparent)] bg-[var(--error-bg)] px-3 py-2 text-xs text-[var(--error)]">
+          {error}
+        </div>
+      )}
+      <button
+        onClick={reset}
+        className="w-full rounded-md border border-[var(--border)] px-4 py-2.5 text-sm font-medium text-[var(--text)] hover:bg-[var(--bg-muted)] transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)]"
+      >
+        Try Again
+      </button>
+    </div>
+  );
 }

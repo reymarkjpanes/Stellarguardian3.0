@@ -7,6 +7,7 @@ import { NextRequest } from "next/server";
 import { handleApiError } from "@/lib/errors";
 import { paginatedResponse } from "@/lib/errors/responses";
 import { discoverEvents } from "@/lib/services/discovery";
+import { createServiceClient } from "@/lib/supabase/service";
 
 export async function GET(request: NextRequest) {
   try {
@@ -19,8 +20,27 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // TODO: Validate API key against database and track usage
-    // For now, accept any non-empty key for development
+    // Validate API key against database and track usage (Req 32.2)
+    const supabase = createServiceClient();
+    const { data: keyRecord, error: keyError } = await supabase
+      .from("api_keys")
+      .select("id, workspace_id, is_active, rate_limit")
+      .eq("key_hash", await hashApiKey(apiKey))
+      .maybeSingle();
+
+    if (keyError || !keyRecord || !keyRecord.is_active) {
+      return Response.json(
+        { error: { code: "UNAUTHENTICATED", message: "Invalid or inactive API key." } },
+        { status: 401 },
+      );
+    }
+
+    // Track usage (non-blocking)
+    void supabase
+      .from("api_keys")
+      .update({ last_used_at: new Date().toISOString() })
+      .eq("id", keyRecord.id)
+      .then();
 
     const url = new URL(request.url);
     const result = await discoverEvents({
@@ -38,4 +58,16 @@ export async function GET(request: NextRequest) {
   } catch (error) {
     return handleApiError(error);
   }
+}
+
+/**
+ * Hash an API key using SHA-256 for secure storage comparison.
+ * Keys are stored hashed — never in plaintext.
+ */
+async function hashApiKey(key: string): Promise<string> {
+  const encoder = new TextEncoder();
+  const data = encoder.encode(key);
+  const hashBuffer = await crypto.subtle.digest("SHA-256", data);
+  const hashArray = Array.from(new Uint8Array(hashBuffer));
+  return hashArray.map((b) => b.toString(16).padStart(2, "0")).join("");
 }

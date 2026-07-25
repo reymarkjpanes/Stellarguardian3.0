@@ -66,6 +66,7 @@ export async function verifyChallenge(
   userId: string,
   challengeId: string,
   signature: string,
+  options?: { provider?: string; networkMode?: string },
 ): Promise<{ publicKey: string; verified: boolean }> {
   const supabase = createServiceClient();
 
@@ -152,14 +153,17 @@ export async function verifyChallenge(
     .eq("id", challengeId);
 
   // Upsert wallet record as Verified (Req 5.6)
+  const walletProvider = options?.provider ?? "Freighter";
+  const walletNetwork = options?.networkMode ?? (process.env.STELLAR_NETWORK_MODE ?? "testnet");
+
   const { error: walletError } = await supabase.from("wallets").upsert(
     {
       user_id: userId,
       public_key: publicKey,
-      provider: "Freighter", // Default; can be enhanced to accept provider param
+      provider: walletProvider,
       verification_status: "Verified",
       verified_at: new Date().toISOString(),
-      network_mode: "testnet", // Default; determined at verification time
+      network_mode: walletNetwork,
     },
     { onConflict: "user_id,public_key" },
   );

@@ -53,7 +53,7 @@ export const GET = apiHandler({ requireAuth: true }, async ({ params, user }) =>
     invitations.map((i) => ({
       id: i.id,
       team_id: i.team_id,
-      team_name: (i.teams as { name: string } | null)?.name ?? "Unknown Team",
+      team_name: (i.teams as unknown as { name: string } | null)?.name ?? "Unknown Team",
       inviter_user_id: i.inviter_user_id,
       inviter_display_name: inviterMap.get(i.inviter_user_id) ?? "Unknown",
       inviter_role: (i.inviter_role as string) ?? "Captain",

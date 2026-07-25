@@ -192,6 +192,47 @@ export class StellarEscrowAdapter implements EscrowProvider {
   }
 
   async refundEscrow(address: string, targetAddress: string): Promise<{ txHash: string }> {
-    throw new Error('refundEscrow not implemented');
+    // Load the escrow account to get the current balance
+    const account = await this.server.loadAccount(address);
+    const nativeBalance = account.balances.find(b => b.asset_type === 'native');
+    const balance = nativeBalance ? parseFloat(nativeBalance.balance) : 0;
+
+    if (balance <= 0) {
+      throw new Error('Escrow account has no balance to refund.');
+    }
+
+    // Reserve minimum balance for the transaction fee + base reserve
+    const feeStats = await this.server.feeStats();
+    const baseFee = parseInt(feeStats.fee_charged.mode, 10) || Number(StellarSdk.BASE_FEE || 100);
+    const feeXlm = baseFee / 1e7;
+    // Stellar requires 1 XLM base reserve; refund everything above fees
+    const refundAmount = Math.max(0, balance - feeXlm - 1).toFixed(7);
+
+    if (parseFloat(refundAmount) <= 0) {
+      throw new Error('Escrow balance is too low to cover refund fees.');
+    }
+
+    const txBuilder = new StellarSdk.TransactionBuilder(account, {
+      fee: baseFee.toString(),
+      networkPassphrase: this.networkPassphrase,
+    });
+
+    txBuilder.addOperation(StellarSdk.Operation.payment({
+      destination: targetAddress,
+      asset: StellarSdk.Asset.native(),
+      amount: refundAmount,
+    }));
+
+    txBuilder.setTimeout(180);
+    const transaction = txBuilder.build();
+
+    const signedTransaction = await this.signer.sign(transaction) as StellarSdk.Transaction;
+
+    try {
+      const response = await this.server.submitTransaction(signedTransaction);
+      return { txHash: response.hash };
+    } catch (err: any) {
+      throw new Error(`Refund broadcast failed: ${err?.response?.data?.extras?.result_codes?.transaction || err.message}`);
+    }
   }
 }

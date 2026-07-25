@@ -223,45 +223,54 @@ export default function EventEscrowPage() {
       const { publicKey } = await wallet.connect();
 
       setFundingStep("signing");
-      const { Horizon, TransactionBuilder, Operation, Asset, Networks } =
-        await import("@stellar/stellar-sdk");
-      const networkMode = escrow.network;
-      const horizonUrl =
-        networkMode === "public"
-          ? "https://horizon.stellar.org"
-          : "https://horizon-testnet.stellar.org";
-      const networkPassphrase = networkMode === "public" ? Networks.PUBLIC : Networks.TESTNET;
 
-      const server = new Horizon.Server(horizonUrl);
-      const sourceAccount = await server.loadAccount(publicKey);
+      // Build the deposit transaction via the Soroban contract (not raw Horizon payment).
+      // This calls the escrow contract's `deposit(from, amount)` function, ensuring
+      // funds are properly tracked on-chain within the contract's state.
+      const amountXlm = parseFloat(fundAmount);
+      if (isNaN(amountXlm) || amountXlm <= 0) throw new Error("Invalid amount.");
 
-      const transaction = new TransactionBuilder(sourceAccount, {
-        fee: "100",
-        networkPassphrase,
-      })
-        .addOperation(
-          Operation.payment({
-            destination: escrow.contract_address,
-            asset: Asset.native(),
-            amount: fundAmount,
-          }),
-        )
-        .setTimeout(180)
-        .build();
+      // Convert XLM to stroops (1 XLM = 10_000_000 stroops) for the contract call
+      const amountStroops = BigInt(Math.round(amountXlm * 10_000_000));
 
+      // Request the server to build the deposit transaction via the Soroban contract
+      const buildResponse = await fetch(`/api/escrow/${escrow.id}/build-deposit`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          organizerPublicKey: publicKey,
+          amountStroops: amountStroops.toString(),
+        }),
+      });
+
+      if (!buildResponse.ok) {
+        const err = await buildResponse.json();
+        throw new Error(err.error?.message ?? "Failed to build deposit transaction.");
+      }
+
+      const { xdr: unsignedXdr } = await buildResponse.json();
+
+      // Sign with the user's wallet
+      const networkMode = escrow.network === "public" ? "mainnet" as const : "testnet" as const;
       const signedXdr = await wallet.signTransaction(
-        transaction.toXDR(),
-        networkMode === "public" ? "mainnet" : "testnet",
+        unsignedXdr,
+        networkMode,
       );
 
-      const { TransactionBuilder: TB } = await import("@stellar/stellar-sdk");
-      const signedTx = TB.fromXDR(signedXdr, networkPassphrase);
-      const submitResult = await server.submitTransaction(signedTx);
-      if (!submitResult.successful) throw new Error("Transaction failed on Horizon.");
+      // Submit the signed transaction via the server
+      const submitResponse = await fetch("/api/stellar/submit", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ signedXdr }),
+      });
+
+      if (!submitResponse.ok) {
+        const err = await submitResponse.json();
+        throw new Error(err.error?.message ?? "Transaction submission failed.");
+      }
 
       setFundingStep("done");
       setFundAmount("");
-      alert("Funding sent! Click 'Verify Funding' to confirm receipt on the backend.");
     } catch (err) {
       setFundingError(err instanceof Error ? err.message : "Funding failed.");
       setFundingStep("error");
@@ -272,6 +281,8 @@ export default function EventEscrowPage() {
     if (!escrow) return;
     setActionLoading("verify");
     setActionError(null);
+    // Reset funding step so user can fund again after verification
+    if (fundingStep === "done" || fundingStep === "error") setFundingStep("idle");
     try {
       await verifyFundingAction(escrow.id);
       await loadData();
@@ -288,7 +299,7 @@ export default function EventEscrowPage() {
     setActionError(null);
     try {
       const res = await simulatePayoutBatchAction(payoutBatch.id);
-      setSimulationResult(res as SimulationResult);
+      setSimulationResult(res as unknown as SimulationResult);
       await loadData();
     } catch (err) {
       setActionError(err instanceof Error ? err.message : "Simulation failed.");

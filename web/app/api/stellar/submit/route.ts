@@ -28,7 +28,7 @@ export async function POST(request: NextRequest) {
   let signed_xdr: string;
   try {
     const body = await request.json();
-    signed_xdr = body.signed_xdr;
+    signed_xdr = body.signed_xdr ?? body.signedXdr;
     if (!signed_xdr || typeof signed_xdr !== "string") {
       return NextResponse.json(
         { error: "Missing or invalid signed_xdr field." },

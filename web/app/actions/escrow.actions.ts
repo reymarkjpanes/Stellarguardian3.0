@@ -1,13 +1,16 @@
 'use server';
 
 import { createServerClient as createClient } from '@/lib/supabase/server';
+import { createServiceClient } from '@/lib/supabase/service';
 import { EscrowService } from '@/src/domains/escrow/services/EscrowService';
 import { StellarEscrowAdapter } from '@/src/domains/escrow/adapters/StellarEscrowAdapter';
 import { EnvKeyManager } from '@/src/domains/escrow/adapters/EnvKeyManager';
 
-function getEscrowService(supabase: any) {
+function getEscrowService() {
+  const supabase = createServiceClient();
   const keyManager = new EnvKeyManager();
-  const adapter = new StellarEscrowAdapter(keyManager, 'testnet');
+  const network = (process.env.STELLAR_NETWORK_MODE ?? 'testnet') as 'testnet' | 'public';
+  const adapter = new StellarEscrowAdapter(keyManager, network);
   return new EscrowService(supabase, adapter);
 }
 
@@ -16,7 +19,7 @@ export async function createEscrowAction(eventId: string, batchId: string, expec
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) throw new Error('Unauthorized');
   
-  const service = getEscrowService(supabase);
+  const service = getEscrowService();
   return await service.createEscrow(eventId, batchId, expectedBalance, user.id);
 }
 
@@ -25,7 +28,7 @@ export async function verifyFundingAction(escrowId: string) {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) throw new Error('Unauthorized');
   
-  const service = getEscrowService(supabase);
+  const service = getEscrowService();
   return await service.verifyFunding(escrowId);
 }
 
@@ -34,8 +37,9 @@ export async function generatePayoutBatchAction(escrowId: string, batchId: strin
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) throw new Error('Unauthorized');
   
-  const service = getEscrowService(supabase);
-  return await service.generatePayoutBatch(escrowId, batchId, user.id);
+  const service = getEscrowService();
+  // Use batchId as the idempotency key for the payout batch generation
+  return await service.generatePayoutBatch(escrowId, user.id, batchId);
 }
 
 export async function simulatePayoutBatchAction(batchId: string) {
@@ -43,7 +47,7 @@ export async function simulatePayoutBatchAction(batchId: string) {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) throw new Error('Unauthorized');
   
-  const service = getEscrowService(supabase);
+  const service = getEscrowService();
   return await service.simulatePayoutBatch(batchId);
 }
 
@@ -52,7 +56,7 @@ export async function releaseEscrowAction(batchId: string) {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) throw new Error('Unauthorized');
   
-  const service = getEscrowService(supabase);
+  const service = getEscrowService();
   return await service.executePayoutBatch(batchId);
 }
 
@@ -61,7 +65,7 @@ export async function reconcileSettlementAction(batchId: string) {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) throw new Error('Unauthorized');
   
-  const service = getEscrowService(supabase);
+  const service = getEscrowService();
   return await service.reconcileSettlement(batchId, user.id);
 }
 
@@ -70,10 +74,9 @@ export async function retryInstructionAction(instructionId: string) {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) throw new Error('Unauthorized');
   
-  // Quick fix: Since we don't have a direct service method for single retry yet,
-  // we can reset the status and let the next executePayoutBatch pick it up, or implement it in service.
-  // We'll update the instruction status to 'Retry'
-  const { error } = await supabase
+  // Reset the instruction status to 'Retry' using service client for RLS bypass
+  const serviceClient = createServiceClient();
+  const { error } = await serviceClient
     .from('payout_instructions')
     .update({ status: 'Retry' })
     .eq('id', instructionId);

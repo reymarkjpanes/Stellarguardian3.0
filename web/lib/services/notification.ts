@@ -79,7 +79,7 @@ export async function createNotification(params: CreateNotificationParams): Prom
 
   // For urgent categories, send email immediately (Req 16.6, 28.5)
   if (priority === "urgent") {
-    await sendNotificationEmail(params.userId, params.title, params.body, data.id);
+    await sendNotificationEmail(params.userId, params.category, params.title, params.body, data.id);
   }
 
   return data.id;
@@ -91,6 +91,7 @@ export async function createNotification(params: CreateNotificationParams): Prom
  */
 async function sendNotificationEmail(
   userId: string,
+  category: NotificationCategory,
   title: string,
   body: string,
   notificationId: string,
@@ -106,8 +107,17 @@ async function sendNotificationEmail(
 
   if (!user?.email) return;
 
-  // TODO: Check per-category preferences (Req 16.3, 28.6)
-  // For now, send all urgent emails
+  // Check per-category email preferences (Req 16.3, 28.6)
+  // Users can disable email for specific notification categories
+  const { data: preference } = await supabase
+    .from("notification_preferences")
+    .select("email_enabled")
+    .eq("user_id", userId)
+    .eq("category", category)
+    .maybeSingle();
+
+  // If the user has explicitly disabled emails for this category, skip
+  if (preference && preference.email_enabled === false) return;
 
   try {
     // Dynamic import to keep Resend out of initial bundle

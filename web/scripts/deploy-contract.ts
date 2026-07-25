@@ -190,7 +190,7 @@ async function main() {
   }
 
   // Extract contract ID from the result
-  const contractId = extractContractId(deployStatus);
+  const contractId = extractContractId(deployStatus as unknown as Record<string, unknown>);
 
   console.log("\n=== DEPLOYMENT SUCCESSFUL ===");
   console.log(`  Contract ID: ${contractId}`);

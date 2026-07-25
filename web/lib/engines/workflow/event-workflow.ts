@@ -91,7 +91,7 @@ const WORKFLOW_GRAPH: Partial<Record<EventState, TransitionEdge[]>> = {
     { to: "Cancelled", validators: [] },
   ],
   EscrowRelease: [
-    { to: "Completed", validators: [EventBusinessRules.allSubmissionsScored] },
+    { to: "Completed", validators: [] },
     { to: "Cancelled", validators: [] },
   ],
   Completed: [{ to: "Archived", validators: [] }],

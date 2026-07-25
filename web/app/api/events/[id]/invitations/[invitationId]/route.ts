@@ -130,7 +130,7 @@ export const PATCH = apiHandler(
     return okResponse({
       action: "accepted",
       team_id: invite.team_id,
-      team_name: (invite.teams as { name: string } | null)?.name ?? "Your Team",
+      team_name: (invite.teams as unknown as { name: string } | null)?.name ?? "Your Team",
     });
   },
 );

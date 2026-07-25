@@ -19,6 +19,7 @@
     "prepare": "cd .. && husky web/.husky"
   },
   "dependencies": {
+    "@albedo-link/intent": "0.13.0",
     "@aws-sdk/client-kms": "^3.1090.0",
     "@axe-core/playwright": "^4.12.1",
     "@stellar/freighter-api": "^6.0.1",

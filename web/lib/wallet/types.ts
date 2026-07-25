@@ -7,7 +7,7 @@
  */
 import type { NetworkMode } from "@/types";
 
-export type WalletProvider = "Freighter" | "Albedo" | "xBull" | "Rabet";
+export type WalletProvider = "Freighter" | "Albedo" | "xBull" | "Rabet" | "LOBSTR";
 
 export type WalletConnectionState =
   | "Disconnected"

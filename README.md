@@ -584,6 +584,240 @@ The following steps walk through the full end-to-end flow you can reproduce loca
 
 ---
 
+## Blockchain Integration (Production Architecture)
+
+This section documents the complete blockchain layer as implemented. All files are in `web/lib/wallet/`, `web/lib/stellar/`, `web/lib/blockchain/`, and `web/components/blockchain/`.
+
+### Supported Wallets
+
+| Wallet | Provider Key | Type | Install |
+|--------|-------------|------|---------|
+| Freighter | `"Freighter"` | Browser extension | [freighter.app](https://www.freighter.app/) |
+| xBull | `"xBull"` | Browser extension | [xbull.app](https://xbull.app/) |
+| LOBSTR | `"LOBSTR"` | Browser extension + mobile | [lobstr.co](https://lobstr.co/) |
+| Albedo | `"Albedo"` | Web-based popup (no install) | [albedo.link](https://albedo.link/) |
+| Rabet | `"Rabet"` | Browser extension | [rabet.io](https://rabet.io/) |
+
+**Adding a new wallet** — implement `WalletAdapter` in `web/lib/wallet/<name>.ts` and register it in `web/lib/wallet/registry.ts`:
+
+```ts
+import { MyWalletAdapter } from "./mywallet";
+adapters.set("MyWallet", new MyWalletAdapter());
+```
+
+No other changes required — the registry, picker UI, and `WalletProvider` all pick it up automatically.
+
+---
+
+### Wallet Architecture
+
+```
+WalletProvider (React context)
+  └── WalletButton (nav bar — quick connect / status)
+  └── WalletMenu (picker sheet / connected details)
+  └── WalletConnect (full link + challenge-response verification)
+
+  useWallet() hook — any component accesses:
+    connectionState, publicKey, network, provider, adapter
+    connect(provider), disconnect(), switchWallet(), signTransaction(xdr)
+```
+
+**Session persistence** — active wallet is stored in `sessionStorage` as `stellar_guardian_wallet`. On page reload the provider reconnects silently without re-prompting the user.
+
+**Network validation** — `WalletProvider` compares the wallet's reported network against `NEXT_PUBLIC_STELLAR_NETWORK`. A mismatch shows a warning but doesn't block signing — the server's cross-network guard (`guardCrossNetwork`) rejects any mismatched submission attempt.
+
+---
+
+### Wallet Ownership Verification (Challenge-Response)
+
+When a user links a wallet via `WalletConnect`, the app proves key ownership before storing the address:
+
+```
+1. POST /api/wallets/challenge  { publicKey }
+   ← { challengeId, nonce: "hex_32_bytes" }
+
+2. wallet.signMessage(nonce)
+   ← signature (base64)
+
+3. POST /api/wallets/verify  { challengeId, signature }
+   ← { publicKey, verified: true }
+```
+
+The challenge expires after **5 minutes** and is single-use. The server verifies using `Keypair.verify()` from the Stellar SDK. Both UTF-8 and raw hex message encodings are tried for cross-wallet compatibility.
+
+> **Note**: The nav-bar `WalletButton` / `WalletMenu` quick-connect flow links wallets for immediate signing but does not issue a challenge-response. Challenge-response is enforced when linking via the **Settings → Wallets** page (`WalletConnect` component), which is required before a wallet can receive prize disbursements.
+
+---
+
+### Smart Contract Integration
+
+The Soroban escrow contract is deployed at:
+
+```
+CAF2TCCKNRTUNANF6YFMRU764GQKGCSLRN3RKQEO4XJJGMCQF5ED6ZAT  (Testnet)
+```
+
+The TypeScript client (`web/lib/stellar/soroban-escrow.ts`) exposes:
+
+| Function | Direction | Description |
+|---|---|---|
+| `initializeEscrow` | Server → Contract | Create escrow for an event (admin + organizer + target + token) |
+| `buildDepositTransaction` | Server → Client XDR | Return unsigned assembled XDR for organizer to sign client-side |
+| `buildAdminDepositTransaction` | Server → Client XDR | Pre-signed by platform admin; user adds their signature |
+| `lockEscrow` | Server → Contract | Platform locks once fully funded |
+| `executeSorobanDisbursementBatch` | Server → Contract | Pay a batch of winners (state stays Locked) |
+| `finalizeDisbursement` | Server → Contract | Transition to Released after all batches |
+| `executeSorobanRefund` | Server → Contract | Return funds to organizer |
+| `queryEscrowState` | Server → Contract (read-only) | Get balance, state, isLocked, target, disbursedTotal |
+| `getContractEvents` | Server → RPC | Fetch on-chain events since a ledger (for real-time sync) |
+
+**Simulation before submission** — every contract call simulates first via `server.simulateTransaction()`. If simulation fails, the operation is aborted before any XDR is signed. This catches invalid state, insufficient balance, and unauthorized callers before they reach the network.
+
+**Platform source account** — read-only queries (`queryEscrowState`) use the platform escrow keypair (`STELLAR_ESCROW_SECRET`) as the simulation source. It must be funded on testnet.
+
+---
+
+### Transaction Lifecycle
+
+Every blockchain action from the UI goes through `useTransaction()`:
+
+```
+idle
+  → preparing          (building XDR, fetching account info)
+  → simulating         (server-side simulation)
+  → awaiting_signature (wallet popup open, user must approve)
+  → submitting         (signed XDR sent to POST /api/stellar/submit)
+  → pending_confirmation (polling Horizon/RPC for confirmation)
+  → confirmed          ✓ tx hash + explorer link displayed
+  → failed             ✗ user-friendly error + recovery action
+```
+
+**Usage pattern:**
+
+```tsx
+const { state, execute, reset } = useTransaction();
+
+const handleFund = () => execute(async (update) => {
+  update("preparing");
+  const { xdr } = await fetchBuildDepositXdr(amount);
+
+  update("awaiting_signature");
+  const signed = await signTransaction(xdr); // from useWallet()
+
+  update("submitting");
+  const { hash } = await submitSignedTx(signed);
+
+  update("pending_confirmation", { txHash: hash });
+  return {
+    txHash: hash,
+    explorerUrl: `https://stellar.expert/explorer/testnet/tx/${hash}`,
+  };
+});
+```
+
+Display with:
+```tsx
+<TransactionStatus state={state} onRetry={handleFund} onDismiss={reset} />
+```
+
+---
+
+### Blockchain Error Handling
+
+All errors are classified via `parseBlockchainError(err)` into typed `BlockchainError` objects:
+
+| Code | When | Retryable |
+|---|---|---|
+| `WALLET_NOT_INSTALLED` | Extension missing | No |
+| `WALLET_CONNECTION_REJECTED` | User dismissed popup | Yes |
+| `WALLET_SIGNATURE_REJECTED` | User declined signing | Yes |
+| `WALLET_NETWORK_MISMATCH` | Wrong network in wallet | Yes |
+| `WALLET_LOCKED` | Wallet needs unlock | Yes |
+| `NETWORK_UNAVAILABLE` | No internet / Horizon down | Yes |
+| `RPC_FAILURE` | Soroban RPC error | Yes |
+| `TRANSACTION_TIMEOUT` | Confirmation timed out | Yes |
+| `SIMULATION_FAILED` | Invalid parameters / state | No |
+| `INSUFFICIENT_BALANCE` | Not enough XLM | No |
+| `CONTRACT_INVALID_STATE` | Wrong escrow lifecycle state | No |
+| `CONTRACT_UNAUTHORIZED` | Not the organizer/admin | No |
+| `CONTRACT_EXECUTION_FAILED` | Contract panic | No |
+| `TRANSACTION_FAILED` | Network rejected tx | No |
+| `DUPLICATE_TRANSACTION` | Already submitted | No |
+
+Each error carries a `userMessage` (shown in UI), `devMessage` (logged to console), `recoveryAction` (guidance for the user), and `retryable` flag (whether to show a Try Again button).
+
+---
+
+### Real-Time Event Synchronization
+
+Blockchain events are synchronized to the frontend via two channels:
+
+**1. Supabase Realtime** — instant DB-level updates when the backend writes to `escrow_accounts` or `transactions`:
+
+```tsx
+const { escrowState, events } = useBlockchainEvents({
+  eventId,
+  onEvent: (event) => {
+    if (event.type === "deposit") refetchEscrowBalance();
+  },
+});
+```
+
+**2. Contract event polling** — `GET /api/events/[id]/contract-events` polls Soroban RPC for on-chain events every 15 seconds (configurable). Deduplicated by event ID. Works with SSE-compatible clients if needed.
+
+**Event flow:**
+
+```
+Soroban contract event emitted
+  → GET /api/events/[id]/contract-events (polled every 15s)
+  → useBlockchainEvents deduplicates + fires onEvent()
+  → Component re-renders with latest state
+
+Simultaneously:
+  Backend service writes to DB (after tx confirmation)
+  → Supabase Realtime pushes row change
+  → useBlockchainEvents updates escrowState immediately
+  → No page refresh needed
+```
+
+---
+
+### UI Components
+
+| Component | Location | Purpose |
+|---|---|---|
+| `WalletButton` | `components/wallet/WalletButton.tsx` | Nav bar: shows connected wallet or Connect button |
+| `WalletMenu` | `components/wallet/WalletMenu.tsx` | Dropdown: wallet details, switch, disconnect, picker |
+| `WalletConnect` | `components/wallet/wallet-connect.tsx` | Full link + verify flow (Settings page) |
+| `TransactionStatus` | `components/blockchain/TransactionStatus.tsx` | Inline lifecycle: status + tx hash + explorer link + errors |
+| `TransactionHistory` | `components/blockchain/TransactionHistory.tsx` | Paginated on-chain tx list with explorer links |
+| `BlockchainStatusBadge` | `components/blockchain/BlockchainStatusBadge.tsx` | Escrow state pill + sync indicator + balance |
+
+---
+
+### Security Notes
+
+- `STELLAR_ESCROW_SECRET` must **never** be committed. It exists in `.env` (the template); put the actual value only in `web/.env.local` which is `.gitignore`d.
+- All Soroban operations (initialize, lock, disburse, refund) run server-side only (`import "server-only"`). The platform keypair is decrypted from KMS at runtime.
+- Wallet-to-user binding requires challenge-response signature proof before a wallet can receive disbursements.
+- Network mismatch (e.g. wallet on mainnet, app on testnet) is caught at two layers: UI warning in `WalletProvider`, hard rejection in `guardCrossNetwork()` on the server.
+
+---
+
+### Troubleshooting
+
+| Symptom | Likely Cause | Fix |
+|---|---|---|
+| Wallet picker shows "No wallets detected" | No extension installed | Install Freighter or LOBSTR |
+| "Network mismatch" warning | Wallet set to wrong network | Switch wallet to Testnet |
+| Simulation failed | Contract not initialized or wrong state | Check `ESCROW_CONTRACT_ID` and escrow lifecycle state |
+| `queryEscrowState` returns null | Platform account not funded | Fund `STELLAR_ESCROW_SECRET` account via Friendbot |
+| Challenge expired | >5 min between challenge and sign | Click Verify again to get a fresh challenge |
+| Real-time events not updating | Supabase Realtime not enabled | Enable Realtime on `escrow_accounts` and `transactions` tables in Supabase Dashboard |
+| Contract ID not responding | Testnet reset | Redeploy with `npx tsx scripts/deploy-contract.ts` and update `ESCROW_CONTRACT_ID` |
+
+---
+
 ## Stellar Builder Challenge
 
 This project is a submission for the **Stellar Journey to Mastery — Monthly Builder Challenges (White Belt)**.

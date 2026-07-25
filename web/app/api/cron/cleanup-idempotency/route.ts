@@ -1,26 +1,20 @@
 /**
- * GET /api/cron/cleanup-idempotency — Idempotency key cleanup cron (Task 3.6).
+ * POST /api/cron/cleanup-idempotency — Idempotency key cleanup cron (Task 3.6).
  *
  * Runs hourly via Vercel Cron (see vercel.json).
  * Deletes all expired idempotency_keys rows.
- * Protected by CRON_SECRET bearer token.
+ * Protected by CRON_SECRET bearer token via verifyCronAuth.
  */
 import { NextResponse, type NextRequest } from "next/server";
 import { createServiceClient } from "@/lib/supabase/service";
+import { verifyCronAuth } from "@/lib/cron-auth";
 import { logger } from "@/lib/logger";
 
 export const dynamic = "force-dynamic";
 
-export async function GET(request: NextRequest) {
-  const authHeader = request.headers.get("authorization");
-  const cronSecret = process.env.CRON_SECRET;
-
-  if (cronSecret && authHeader !== `Bearer ${cronSecret}`) {
-    return NextResponse.json(
-      { error: { code: "UNAUTHORIZED", message: "Invalid cron secret." } },
-      { status: 401 },
-    );
-  }
+export async function POST(request: NextRequest) {
+  const authError = verifyCronAuth(request);
+  if (authError) return authError;
 
   const supabase = createServiceClient();
 
@@ -43,5 +37,14 @@ export async function GET(request: NextRequest) {
     deletedCount: count ?? 0,
   });
 
-  return NextResponse.json({ data: { deletedCount: count ?? 0 } });
+  return NextResponse.json({
+    success: true,
+    deletedCount: count ?? 0,
+    timestamp: new Date().toISOString(),
+  });
+}
+
+// Keep GET handler for backward compatibility with existing Vercel cron config
+export async function GET(request: NextRequest) {
+  return POST(request);
 }
