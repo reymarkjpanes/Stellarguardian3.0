@@ -428,7 +428,7 @@ mod tests {
     fn mint_token(
         env: &Env,
         token_addr: &Address,
-        admin: &Address,
+        _admin: &Address,
         recipient: &Address,
         amount: i128,
     ) {
