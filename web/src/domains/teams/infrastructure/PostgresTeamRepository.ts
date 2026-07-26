@@ -89,7 +89,7 @@ export class PostgresTeamRepository implements TeamWriteRepository, TeamReadRepo
     teamId: string,
     eventMemberId: string,
     role: string,
-    ctx: RequestContext,
+    _ctx: RequestContext,
   ): Promise<void> {
     await tx`
       INSERT INTO team_memberships (

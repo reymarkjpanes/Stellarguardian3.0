@@ -7,10 +7,14 @@ import postgres from "postgres";
 export class ListTeamsQuery {
   constructor(
     private sql: postgres.Sql,
-    private teamReadRepository: TeamReadRepository
+    private teamReadRepository: TeamReadRepository,
   ) {}
 
-  async execute(eventId: string, params: CursorPaginationParams, ctx: RequestContext): Promise<PaginatedResult<TeamListDTO>> {
+  async execute(
+    eventId: string,
+    params: CursorPaginationParams,
+    _ctx: RequestContext,
+  ): Promise<PaginatedResult<TeamListDTO>> {
     return this.teamReadRepository.listTeams(this.sql, eventId, params);
   }
 }

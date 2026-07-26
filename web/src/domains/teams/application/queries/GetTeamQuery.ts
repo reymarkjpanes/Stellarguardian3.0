@@ -7,10 +7,10 @@ import postgres from "postgres";
 export class GetTeamQuery {
   constructor(
     private sql: postgres.Sql,
-    private teamReadRepository: TeamReadRepository
+    private teamReadRepository: TeamReadRepository,
   ) {}
 
-  async execute(eventId: string, teamId: string, ctx: RequestContext): Promise<TeamDetailDTO> {
+  async execute(eventId: string, teamId: string, _ctx: RequestContext): Promise<TeamDetailDTO> {
     const team = await this.teamReadRepository.findTeamDetail(this.sql, eventId, teamId);
     if (!team) {
       throw new NotFoundError("Team not found");

@@ -8,10 +8,13 @@ import postgres from "postgres";
 export class TeamSearchQueryHandler {
   constructor(
     private sql: postgres.Sql,
-    private teamReadRepository: TeamReadRepository
+    private teamReadRepository: TeamReadRepository,
   ) {}
 
-  async execute(query: TeamSearchQuery, ctx: RequestContext): Promise<PaginatedResult<TeamListDTO>> {
+  async execute(
+    query: TeamSearchQuery,
+    _ctx: RequestContext,
+  ): Promise<PaginatedResult<TeamListDTO>> {
     return this.teamReadRepository.searchTeams(this.sql, query);
   }
 }

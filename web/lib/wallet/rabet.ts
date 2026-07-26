@@ -11,10 +11,7 @@ import type { WalletAdapter } from "./types";
 interface RabetWindow {
   getPublicKey(): Promise<{ publicKey: string }>;
   getNetworkPassphrase(): Promise<string>;
-  sign(
-    xdr: string,
-    network: string,
-  ): Promise<{ xdr: string }>;
+  sign(xdr: string, network: string): Promise<{ xdr: string }>;
 }
 
 declare global {
@@ -81,7 +78,6 @@ export class RabetAdapter implements WalletAdapter {
     return result.xdr;
   }
 
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   async signMessage(_message: string): Promise<string> {
     // Rabet doesn't support arbitrary message signing in its current public API.
     // The leading underscore signals intentional non-use per project convention.

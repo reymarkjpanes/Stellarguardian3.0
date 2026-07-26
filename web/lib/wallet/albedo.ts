@@ -68,11 +68,12 @@ export class AlbedoAdapter implements WalletAdapter {
       const result = await albedo.publicKey({ require_existing: false });
       return { publicKey: result.pubkey, network: "testnet" };
     } catch (err: unknown) {
-      const msg = err instanceof Error
-        ? err.message
-        : typeof err === "object" && err !== null && "message" in err
-          ? String((err as { message: unknown }).message)
-          : JSON.stringify(err);
+      const msg =
+        err instanceof Error
+          ? err.message
+          : typeof err === "object" && err !== null && "message" in err
+            ? String((err as { message: unknown }).message)
+            : JSON.stringify(err);
       if (isRejected(msg)) throw new Error("Albedo connection was declined.");
       throw new Error(`Albedo connection failed: ${msg}`);
     }
@@ -112,7 +113,6 @@ export class AlbedoAdapter implements WalletAdapter {
     }
   }
 
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   async signMessage(message: string, _network?: NetworkMode): Promise<string> {
     // Albedo signMessage has no network param — verified from installed types
     try {
