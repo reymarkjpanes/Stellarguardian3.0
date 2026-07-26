@@ -4,7 +4,7 @@
  */
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 
 interface Comment {
   id: string;
@@ -28,9 +28,7 @@ export function CommentThread({ eventId, submissionId, disputeId }: CommentThrea
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => { loadComments(); }, [eventId, submissionId, disputeId]);
-
-  async function loadComments() {
+  const loadComments = useCallback(async () => {
     const params = new URLSearchParams();
     if (eventId) params.set("event_id", eventId);
     if (submissionId) params.set("submission_id", submissionId);
@@ -47,7 +45,11 @@ export function CommentThread({ eventId, submissionId, disputeId }: CommentThrea
     } finally {
       setLoading(false);
     }
-  }
+  }, [eventId, submissionId, disputeId]);
+
+  useEffect(() => {
+    loadComments();
+  }, [loadComments]);
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -82,9 +84,7 @@ export function CommentThread({ eventId, submissionId, disputeId }: CommentThrea
 
   return (
     <div className="space-y-4">
-      <h3 className="text-sm font-medium text-[var(--text)]">
-        Comments ({comments.length})
-      </h3>
+      <h3 className="text-sm font-medium text-[var(--text)]">Comments ({comments.length})</h3>
 
       {/* Comment list */}
       {comments.length > 0 && (

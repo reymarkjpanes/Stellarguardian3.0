@@ -10,7 +10,7 @@ export async function saveEvaluationDraftAction(
   draftNotes: string | undefined,
   expectedVersion: number,
   eventId: string,
-  _submissionId: string,
+  _submissionId: string, // reserved for future per-submission audit logging
 ) {
   const supabase = await createClient();
 

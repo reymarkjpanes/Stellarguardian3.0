@@ -10,6 +10,7 @@
 [![Supabase](https://img.shields.io/badge/Supabase-PostgreSQL-3ECF8E?logo=supabase&logoColor=white)](https://supabase.com/)
 [![Stellar](https://img.shields.io/badge/Stellar-SDK%2016%20·%20Soroban-141414?logo=stellar&logoColor=white)](https://stellar.org/)
 [![Tailwind CSS](https://img.shields.io/badge/Tailwind%20CSS-4.x-06B6D4?logo=tailwindcss&logoColor=white)](https://tailwindcss.com/)
+[![CI](https://github.com/reymarkjpanes/Stellarguardian3.0/actions/workflows/ci.yml/badge.svg)](https://github.com/reymarkjpanes/Stellarguardian3.0/actions/workflows/ci.yml)
 [![License](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
 ---
@@ -315,7 +316,7 @@ On-chain state values returned by `get_state()`:
 
 **For the frontend:**
 
-- **Node.js** 20 or later
+- **Node.js** 24 or later
 - **npm** 10 or later
 - **Supabase project** — [create one free](https://supabase.com/dashboard)
 - **Freighter browser extension** — required for wallet interactions ([install](https://www.freighter.app/)), set to Testnet
@@ -324,7 +325,7 @@ On-chain state values returned by `get_state()`:
 
 **For the smart contract (if redeploying):**
 
-- **Rust** (latest stable) + `wasm32v1-none` target
+- **Rust** (stable, 1.84+) + `wasm32v1-none` target (`rustup target add wasm32v1-none`)
 - **Stellar CLI** v25+
 - Stellar testnet account funded via Friendbot
 
@@ -434,7 +435,14 @@ To roll back a specific migration, use the corresponding file in `web/supabase/m
 | `npm run start` | root | Run production build locally |
 | `npm run lint` | root | ESLint across all files |
 
-All root scripts proxy to `web/` via `npm --prefix web run <script>`.
+**Smart contract (from `contracts/escrow/`):**
+
+| Command | Description |
+|---|---|
+| `cargo test --locked` | Run all 16 contract unit tests |
+| `cargo build --locked --target wasm32v1-none --release` | Build optimised WASM for deployment |
+| `cargo clippy --all-targets -- -D warnings` | Lint the contract |
+| `cargo fmt --all -- --check` | Check formatting |
 
 ---
 
@@ -650,10 +658,19 @@ Coverage includes:
 - Escrow lifecycle transitions
 - Permission engine (10 roles × 6 actions × 13 resource categories)
 - Typed error hierarchy
-- Soroban contract unit tests (Rust: cargo test --features testutils)
+- Soroban contract unit tests (Rust: `cargo test --locked`)
 ```
 
 ### How to Reproduce Contract Interaction
+
+```bash
+# From repo root — build and test the Soroban escrow contract
+cd contracts/escrow
+cargo test --locked
+cargo build --locked --target wasm32v1-none --release
+```
+
+The WASM output lands in `contracts/escrow/target/wasm32v1-none/release/stellar_guardian_escrow.wasm`. To invoke the deployed contract:
 
 ```bash
 cd web

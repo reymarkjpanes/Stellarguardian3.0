@@ -5,7 +5,7 @@
  * POST /api/events/[id]/submissions — create submission
  */
 import { z } from "zod";
-import { NextRequest, NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 import { createServerClient } from "@/lib/supabase/server";
 import { apiHandler } from "@/lib/api-handler";
 import { okResponse, paginatedResponse } from "@/lib/errors/responses";
@@ -66,14 +66,17 @@ const CreateSubmissionSchema = z.object({
   project_url: z.string().url("Invalid project URL").optional(),
 });
 
-export const POST = apiHandler({ requireAuth: true, schema: CreateSubmissionSchema }, async ({ params, user, body }) => {
-  const { id: eventId } = params as { id: string };
+export const POST = apiHandler(
+  { requireAuth: true, schema: CreateSubmissionSchema },
+  async ({ params, user, body }) => {
+    const { id: eventId } = params as { id: string };
 
-  const { submissionId } = await CompetitionEngine.submitProject(eventId, user!.id, {
-    title: body.title,
-    description: body.description,
-    projectUrl: body.project_url,
-  });
+    const { submissionId } = await CompetitionEngine.submitProject(eventId, user!.id, {
+      title: body.title,
+      description: body.description,
+      projectUrl: body.project_url,
+    });
 
-  return okResponse({ id: submissionId, status: "Submitted" });
-});
+    return okResponse({ id: submissionId, status: "Submitted" });
+  },
+);

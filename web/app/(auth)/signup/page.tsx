@@ -19,7 +19,7 @@ type FlowStep = "form" | "success";
 export default function SignupPage() {
   const [step, setStep] = useState<FlowStep>("form");
   const [displayName, setDisplayName] = useState("");
-  const [_captchaToken, setCaptchaToken] = useState<string | null>(null);
+  const [, setCaptchaToken] = useState<string | null>(null);
   const onCaptchaVerify = useCallback((token: string) => setCaptchaToken(token), []);
   const onCaptchaExpire = useCallback(() => setCaptchaToken(null), []);
   const [email, setEmail] = useState("");

@@ -131,7 +131,7 @@ export async function validateBatchAction(batchId: string) {
     usage.count += 1;
   });
 
-  catUsage.forEach((usage, _cid) => {
+  catUsage.forEach((usage) => {
     if (usage.total > Number(usage.category.total_amount)) {
       errors.push(
         `Category "${usage.category.name}" is over budget. Allocated: ${usage.total}, Max: ${usage.category.total_amount}`,

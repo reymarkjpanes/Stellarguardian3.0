@@ -8,7 +8,9 @@ const ResetPasswordSchema = z.object({
 
 export async function POST(request: NextRequest) {
   const supabase = await createServerClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
 
   if (!user) {
     return NextResponse.json(
@@ -40,7 +42,7 @@ export async function POST(request: NextRequest) {
     }
 
     return NextResponse.json({ success: true }, { status: 200 });
-  } catch (error) {
+  } catch {
     return NextResponse.json(
       { error: { code: "BAD_REQUEST", message: "Invalid request payload." } },
       { status: 400 },

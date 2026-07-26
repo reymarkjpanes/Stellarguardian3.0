@@ -3,7 +3,7 @@ import { NextRequest } from "next/server";
 import { createServerClient } from "@/lib/supabase/server";
 import { handleApiError } from "@/lib/errors";
 import { okResponse } from "@/lib/errors/responses";
-import { EventMemberRoleSchema, AvailabilitySchema } from "@/types/event";
+import { EventMemberRoleSchema } from "@/types/event";
 
 const UpdateMemberSchema = z.object({
   role: EventMemberRoleSchema.optional(),
@@ -22,10 +22,15 @@ export async function PATCH(
   try {
     const { id: eventId, memberId } = await params;
     const supabase = await createServerClient();
-    const { data: { user } } = await supabase.auth.getUser();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
 
     if (!user) {
-      return Response.json({ error: { code: "UNAUTHENTICATED", message: "Authentication required." } }, { status: 401 });
+      return Response.json(
+        { error: { code: "UNAUTHENTICATED", message: "Authentication required." } },
+        { status: 401 },
+      );
     }
 
     const body = await request.json();
@@ -56,7 +61,10 @@ export async function PATCH(
         .maybeSingle();
 
       if (!callerMembership) {
-        return Response.json({ error: { code: "FORBIDDEN", message: "Only organizers can change roles." } }, { status: 403 });
+        return Response.json(
+          { error: { code: "FORBIDDEN", message: "Only organizers can change roles." } },
+          { status: 403 },
+        );
       }
     } else {
       // Ensure the user is modifying themselves if they aren't updating a role.
@@ -66,23 +74,29 @@ export async function PATCH(
         .select("user_id")
         .eq("id", memberId)
         .maybeSingle();
-      
+
       if (!targetMember) {
-         return Response.json({ error: { code: "NOT_FOUND", message: "Member not found." } }, { status: 404 });
+        return Response.json(
+          { error: { code: "NOT_FOUND", message: "Member not found." } },
+          { status: 404 },
+        );
       }
 
       if (targetMember.user_id !== user.id) {
-         // Check if organizer
-         const { data: callerMembership } = await supabase
-            .from("event_members")
-            .select("role")
-            .eq("event_id", eventId)
-            .eq("user_id", user.id)
-            .eq("role", "Organizer")
-            .maybeSingle();
-         if (!callerMembership) {
-             return Response.json({ error: { code: "FORBIDDEN", message: "Cannot edit other members' details." } }, { status: 403 });
-         }
+        // Check if organizer
+        const { data: callerMembership } = await supabase
+          .from("event_members")
+          .select("role")
+          .eq("event_id", eventId)
+          .eq("user_id", user.id)
+          .eq("role", "Organizer")
+          .maybeSingle();
+        if (!callerMembership) {
+          return Response.json(
+            { error: { code: "FORBIDDEN", message: "Cannot edit other members' details." } },
+            { status: 403 },
+          );
+        }
       }
     }
 
@@ -124,10 +138,15 @@ export async function DELETE(
   try {
     const { id: eventId, memberId } = await params;
     const supabase = await createServerClient();
-    const { data: { user } } = await supabase.auth.getUser();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
 
     if (!user) {
-      return Response.json({ error: { code: "UNAUTHENTICATED", message: "Authentication required." } }, { status: 401 });
+      return Response.json(
+        { error: { code: "UNAUTHENTICATED", message: "Authentication required." } },
+        { status: 401 },
+      );
     }
 
     // Verify caller is organizer
@@ -148,16 +167,16 @@ export async function DELETE(
 
     // Check if trying to remove another organizer
     const { data: targetMember } = await supabase
-       .from("event_members")
-       .select("role")
-       .eq("id", memberId)
-       .maybeSingle();
-       
+      .from("event_members")
+      .select("role")
+      .eq("id", memberId)
+      .maybeSingle();
+
     if (targetMember && targetMember.role === "Organizer" && user.id !== memberId) {
-        return Response.json(
-            { error: { code: "FORBIDDEN", message: "Cannot remove another organizer." } },
-            { status: 403 },
-          );
+      return Response.json(
+        { error: { code: "FORBIDDEN", message: "Cannot remove another organizer." } },
+        { status: 403 },
+      );
     }
 
     const { error: deleteError } = await supabase

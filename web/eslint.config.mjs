@@ -13,6 +13,15 @@ const eslintConfig = defineConfig([
     rules: {
       "@typescript-eslint/no-explicit-any": "error",
       "@typescript-eslint/no-unsafe-assignment": "off",
+      // Allow unused function parameters prefixed with _ (intentional placeholder args)
+      "@typescript-eslint/no-unused-vars": ["error", {
+        "vars": "all",
+        "args": "after-used",
+        "argsIgnorePattern": "^_",
+        "varsIgnorePattern": "^_",
+        "ignoreRestSiblings": true,
+        "caughtErrors": "none"
+      }],
       // set-state-in-effect flags calling async functions from effects even when
       // the setState calls are inside the async body — turn it to warn so CI passes
       // while the pattern is gradually refactored.

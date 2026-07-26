@@ -6,7 +6,13 @@ export interface ActivityItem {
   description: string;
 }
 
-export function ActivityFeedCard({ activities, loading }: { activities: ActivityItem[]; loading?: boolean }) {
+export function ActivityFeedCard({
+  activities,
+  loading,
+}: {
+  activities: ActivityItem[];
+  loading?: boolean;
+}) {
   if (loading) {
     return (
       <div className="rounded-xl border border-[var(--card-border)] bg-[var(--card-bg)] p-6 animate-pulse">
@@ -29,16 +35,18 @@ export function ActivityFeedCard({ activities, loading }: { activities: Activity
         <Activity className="w-5 h-5 text-[var(--text)]" />
         <h3 className="font-semibold text-[var(--text)]">Recent Activity</h3>
       </div>
-      
+
       <div className="relative space-y-0">
         {activities.length === 0 ? (
           <p className="text-sm text-[var(--text-muted)]">No recent activity.</p>
         ) : (
           <div className="border-l-2 border-[var(--border)] ml-2 pl-4 py-1 space-y-6">
-            {activities.map((activity, i) => (
+            {activities.map((activity) => (
               <div key={activity.id} className="relative">
                 <div className="absolute -left-[23px] top-1.5 w-2.5 h-2.5 rounded-full bg-[var(--accent)] outline outline-4 outline-[var(--card-bg)]" />
-                <p className="text-xs font-medium text-[var(--text-muted)] mb-1">{activity.timeAgo}</p>
+                <p className="text-xs font-medium text-[var(--text-muted)] mb-1">
+                  {activity.timeAgo}
+                </p>
                 <p className="text-sm text-[var(--text)]">{activity.description}</p>
               </div>
             ))}
