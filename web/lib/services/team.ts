@@ -10,7 +10,7 @@ import "server-only";
 import { createServiceClient } from "@/lib/supabase/service";
 import { writeAuditRecord } from "./audit";
 import { createNotification } from "./notification";
-import { BadRequestError, ConflictError, ForbiddenError, NotFoundError } from "@/lib/errors";
+import { BadRequestError, ConflictError, NotFoundError } from "@/lib/errors";
 
 /**
  * Create a team (Req 10.1). Creator becomes captain and first member.
@@ -82,10 +82,7 @@ export async function createTeam(params: {
 /**
  * Join a team (Req 10.2). Enforces teamSizeMax and one-team-per-participant.
  */
-export async function joinTeam(params: {
-  teamId: string;
-  userId: string;
-}): Promise<void> {
+export async function joinTeam(params: { teamId: string; userId: string }): Promise<void> {
   const supabase = createServiceClient();
 
   // Get team and event info
@@ -164,10 +161,7 @@ export async function joinTeam(params: {
 /**
  * Leave a team (Req 10.4). If captain leaves, transfer to earliest-joined (Req 10.5).
  */
-export async function leaveTeam(params: {
-  teamId: string;
-  userId: string;
-}): Promise<void> {
+export async function leaveTeam(params: { teamId: string; userId: string }): Promise<void> {
   const supabase = createServiceClient();
 
   const { data: team } = await supabase

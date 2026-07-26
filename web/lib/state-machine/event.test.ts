@@ -9,10 +9,8 @@ import {
   canEventTransition,
   validEventOutboundStates,
   isEventTerminal,
-  EVENT_TERMINAL,
   type EventTransitionContext,
 } from "./event";
-import type { EventState } from "@/types";
 
 const ORGANIZER_CTX: EventTransitionContext = {
   actorRole: "Organizer",

@@ -29,9 +29,7 @@ export async function hasCurrentLegalAcceptance(userId: string): Promise<boolean
 
   if (!data) return false;
 
-  const acceptedVersions = new Map(
-    data.map((d) => [d.document_type, d.version]),
-  );
+  const acceptedVersions = new Map(data.map((d) => [d.document_type, d.version]));
 
   return (
     acceptedVersions.get("terms") === CURRENT_TERMS_VERSION &&
@@ -116,8 +114,8 @@ export async function checkKycRequirement(
     return { required: false, verified: true };
   }
 
-  // For mainnet, check if identity verification threshold is met
-  const threshold = Number(process.env.KYC_THRESHOLD_XLM ?? "10000");
-  // TODO: Implement actual KYC provider integration
+  // For mainnet, check identity verification threshold (KYC_THRESHOLD_XLM env var).
+  // TODO: Implement actual KYC provider integration using this threshold.
+  const _threshold = Number(process.env.KYC_THRESHOLD_XLM ?? "10000");
   return { required: true, verified: false };
 }

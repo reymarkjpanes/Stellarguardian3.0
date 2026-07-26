@@ -16,7 +16,6 @@ import {
   validEventOutboundStates,
   isEventTerminal,
   EVENT_TERMINAL,
-  type TransitionResult,
   type EventTransitionContext,
 } from "./event";
 import type { EventState } from "@/types";

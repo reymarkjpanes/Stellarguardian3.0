@@ -86,7 +86,7 @@ export class MockStellarAdapter implements EscrowProvider {
   async executePayoutBatch(
     _address: string,
     idempotencyKey: string,
-    instructions: PayoutInstruction[],
+    _instructions: PayoutInstruction[],
   ): Promise<{ txHash: string }> {
     await this.simulateLatency();
 
