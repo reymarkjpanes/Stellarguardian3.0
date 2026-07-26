@@ -624,6 +624,7 @@ Blockchain events sync to the frontend via two channels:
 
 ![Mobile Responsive — Dashboard](public/level3-images/mobile-dashboard.png)
 ![Mobile Responsive — Wallet](public/level3-images/mobile-wallet.png)
+![CI/CD Pipeline Running](public/level3-images/ci-pipeline.png)
 ![Test Output — 442+ passing](public/level3-images/test-output.png)
 
 ---
@@ -649,8 +650,8 @@ Blockchain events sync to the frontend via two channels:
 | **Contract deployment address** | [`CAF2TCCKNRTUNANF6YFMRU764GQKGCSLRN3RKQEO4XJJGMCQF5ED6ZAT`](https://stellar.expert/explorer/testnet/contract/CAF2TCCKNRTUNANF6YFMRU764GQKGCSLRN3RKQEO4XJJGMCQF5ED6ZAT) |
 | **Transaction hash (contract interaction)** | [`a9f5de73ef0b8453f1635e53b6c6e019f09bb27153cdcadf1532129ffa095a00`](https://stellar.expert/explorer/testnet/tx/a9f5de73ef0b8453f1635e53b6c6e019f09bb27153cdcadf1532129ffa095a00) |
 | **Mobile responsive UI** | Screenshots above (Dashboard + Wallet on mobile viewport) |
-| **CI/CD pipeline** | [GitHub Actions →](https://github.com/reymarkjpanes/Stellarguardian3.0/actions) |
-| **Test output (3+ passing tests)** | 442 unit tests passing (screenshot above) |
+| **CI/CD pipeline** | [GitHub Actions →](https://github.com/reymarkjpanes/Stellarguardian3.0/actions) — screenshot above |
+| **Test output (3+ passing tests)** | 442 unit tests passing — screenshot above |
 | **Demo video** | [▶️ Watch Demo Video](https://drive.google.com/file/d/1K4lYCkc9Mw61nKVQJ3V5mIvA76o81oo2/view?usp=sharing) |
 
 ### Test Results Summary
