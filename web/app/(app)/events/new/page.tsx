@@ -123,7 +123,7 @@ export default function CreateEventPage() {
 
   // Load workspaces
   // Load workspaces on mount — intentionally runs once
-   
+
   useEffect(() => {
     async function load() {
       const supabase = createBrowserClient();
@@ -191,7 +191,11 @@ export default function CreateEventPage() {
           format: form.format,
           team_size_min: Number(form.team_size_min),
           team_size_max: Number(form.team_size_max),
-          registration_deadline: form.registration_deadline || null,
+          // Convert date-only string ("YYYY-MM-DD") from <input type="date"> to a
+          // full ISO 8601 datetime that Zod's z.string().datetime() accepts.
+          registration_deadline: form.registration_deadline
+            ? new Date(form.registration_deadline + "T00:00:00.000Z").toISOString()
+            : null,
           prize_pool_target: form.prize_pool_target ? Number(form.prize_pool_target) : null,
           network_mode: form.network_mode,
           review_window_hours: Number(form.review_window_hours),

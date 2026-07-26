@@ -13,8 +13,13 @@ export const CreateEventSchema = z.object({
   prize_pool_target: z.number().min(0).optional(),
   network_mode: z.enum(["testnet", "mainnet"]).default("testnet"),
   review_window_hours: z.number().int().min(24).max(168).default(72),
+  prize_split_policy: z
+    .enum(["captain_receives", "equal_split", "custom"])
+    .default("captain_receives"),
   resubmission_policy: z.object({ allowed: z.boolean() }).default({ allowed: true }),
-  file_policy: z.object({ allowedMimeTypes: z.array(z.string()) }).default({ allowedMimeTypes: [] }),
+  file_policy: z
+    .object({ allowedMimeTypes: z.array(z.string()) })
+    .default({ allowedMimeTypes: [] }),
 });
 
 export type CreateEventDTO = z.infer<typeof CreateEventSchema>;

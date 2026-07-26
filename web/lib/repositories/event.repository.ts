@@ -6,7 +6,7 @@ export class EventRepository {
    * Calls a Supabase RPC to atomically create an event and insert the organizer as a member.
    */
   async createEventAtomic(
-    data: CreateEventDTO & { organizer_id: string; state: string }
+    data: CreateEventDTO & { organizer_id: string; state: string },
   ): Promise<EventResponseDTO> {
     const supabase = await createServerClient();
 
@@ -26,10 +26,11 @@ export class EventRepository {
         prize_pool_target: data.prize_pool_target ?? null,
         network_mode: data.network_mode,
         review_window_hours: data.review_window_hours,
+        prize_split_policy: data.prize_split_policy ?? "captain_receives",
         resubmission_policy: data.resubmission_policy,
         file_policy: data.file_policy,
         state: data.state,
-      }
+      },
     });
 
     if (error) {
