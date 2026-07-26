@@ -10,21 +10,34 @@ export default function ProjectDetailPage({ params }: { params: { id: string } }
     tagline: "The fastest way to swap tokens across multiple chains.",
     teamName: "Team Alpha",
     status: "Finalized",
-    coverUrl: "https://images.unsplash.com/photo-1551288049-bebda4e38f71?auto=format&fit=crop&w=1200&q=80"
+    coverUrl:
+      "https://images.unsplash.com/photo-1551288049-bebda4e38f71?auto=format&fit=crop&w=1200&q=80",
   };
 
   const requirements = [
-    { id: "req_1", name: "Pitch", asset_type: "TEXT" },
-    { id: "req_2", name: "Architecture", asset_type: "MARKDOWN" },
-    { id: "req_3", name: "Repository", asset_type: "REPOSITORY" },
-    { id: "req_4", name: "Demo Video", asset_type: "VIDEO" }
+    { id: "req_1", name: "Pitch", asset_type: "TEXT" as const, is_required: true },
+    { id: "req_2", name: "Architecture", asset_type: "MARKDOWN" as const, is_required: true },
+    { id: "req_3", name: "Repository", asset_type: "REPOSITORY" as const, is_required: true },
+    { id: "req_4", name: "Demo Video", asset_type: "VIDEO" as const, is_required: false },
   ];
 
   const assets = [
-    { requirement_id: "req_1", text_value: "We built a cross-chain aggregator that minimizes slippage..." },
-    { requirement_id: "req_2", text_value: "# Architecture\n\nWe used Next.js, Rust, and Substrate..." },
-    { requirement_id: "req_3", url_value: "https://github.com/team-alpha/defi-aggregator" },
-    { requirement_id: "req_4", storage_path: "submissions/event/team/video.mp4" }
+    {
+      id: "asset_1",
+      requirement_id: "req_1",
+      text_value: "We built a cross-chain aggregator that minimizes slippage...",
+    },
+    {
+      id: "asset_2",
+      requirement_id: "req_2",
+      text_value: "# Architecture\n\nWe used Next.js, Rust, and Substrate...",
+    },
+    {
+      id: "asset_3",
+      requirement_id: "req_3",
+      url_value: "https://github.com/team-alpha/defi-aggregator",
+    },
+    { id: "asset_4", requirement_id: "req_4", storage_path: "submissions/event/team/video.mp4" },
   ];
 
   return <ProjectDetailView project={project} requirements={requirements} assets={assets} />;

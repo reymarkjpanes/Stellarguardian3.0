@@ -1,0 +1,5 @@
+﻿app/(app)/events/[id]/projects/page.tsx(46,29): error TS2322: Type '({ id: string; eventId: string; title: string; tagline: string; teamName: string; status: string; tags: string[]; coverUrl: string; } | { id: string; eventId: string; title: string; tagline: string; teamName: string; status: string; tags: string[]; coverUrl: null; })[]' is not assignable to type 'ProjectSummary[]'.
+  Type '{ id: string; eventId: string; title: string; tagline: string; teamName: string; status: string; tags: string[]; coverUrl: string; } | { id: string; eventId: string; title: string; tagline: string; teamName: string; status: string; tags: string[]; coverUrl: null; }' is not assignable to type 'ProjectSummary'.
+    Type '{ id: string; eventId: string; title: string; tagline: string; teamName: string; status: string; tags: string[]; coverUrl: null; }' is not assignable to type 'ProjectSummary'.
+      Types of property 'coverUrl' are incompatible.
+        Type 'null' is not assignable to type 'string | undefined'.

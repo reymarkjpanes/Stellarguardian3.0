@@ -19,8 +19,8 @@ export class OutboxPublisher implements EventPublisher {
         ${event.type}, 
         ${event.aggregateId}, 
         ${event.aggregateType}, 
-        ${this.sql.json(event.payload as Record<string, unknown>)}, 
-        ${this.sql.json((event.metadata ?? {}) as Record<string, unknown>)}
+        ${this.sql.json(event.payload as unknown as { [key: string]: postgres.JSONValue })}, 
+        ${this.sql.json((event.metadata ?? {}) as unknown as { [key: string]: postgres.JSONValue })}
       )
     `;
   }

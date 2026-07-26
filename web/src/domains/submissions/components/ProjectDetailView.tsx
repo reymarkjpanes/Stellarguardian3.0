@@ -9,7 +9,7 @@ export interface ProjectSummary {
   tagline?: string;
   teamName: string;
   status: string;
-  coverUrl?: string;
+  coverUrl?: string | null;
   tags?: string[];
 }
 

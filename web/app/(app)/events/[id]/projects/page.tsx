@@ -5,6 +5,7 @@ export default function ProjectsPage() {
   const projects = [
     {
       id: "proj_1",
+      eventId: "00000000-0000-0000-0000-000000000000",
       title: "DeFi Aggregator",
       tagline: "The fastest way to swap tokens across multiple chains.",
       teamName: "Team Alpha",
@@ -15,6 +16,7 @@ export default function ProjectsPage() {
     },
     {
       id: "proj_2",
+      eventId: "00000000-0000-0000-0000-000000000000",
       title: "NFT Marketplace",
       tagline: "Buy and sell digital assets with zero gas fees.",
       teamName: "Beta Builders",

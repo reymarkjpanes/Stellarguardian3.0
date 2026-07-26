@@ -1,3 +1,4 @@
+import postgres from "postgres";
 import { sql } from "@/src/shared/kernel/database";
 
 export interface IdempotencyRecord {
@@ -41,7 +42,7 @@ export class IdempotencyService {
         ${record.userId}, 
         ${record.route}, 
         ${record.requestHash}, 
-        ${sql.json(record.response as Record<string, unknown>)}, 
+        ${sql.json(record.response as unknown as { [key: string]: postgres.JSONValue })}, 
         ${record.statusCode}, 
         NOW() + ${`${ttlSeconds} seconds`}::INTERVAL
       )
