@@ -2,7 +2,7 @@ import { describe, it, expect, vi } from "vitest";
 import { FinalizationService } from "./FinalizationService";
 
 // vi.hoisted() runs before any module-level code, so EVAL_DATA must live inside it
-const { mockRpc, mockSupabase, EVAL_DATA } = vi.hoisted(() => {
+const { mockRpc, mockSupabase } = vi.hoisted(() => {
   const EVAL_DATA = [
     {
       id: "eval-1",
@@ -38,7 +38,7 @@ const { mockRpc, mockSupabase, EVAL_DATA } = vi.hoisted(() => {
     from: vi.fn().mockReturnValue({ select: mockSelect }),
     rpc: mockRpc,
   };
-  return { mockRpc, mockSupabase, EVAL_DATA };
+  return { mockRpc, mockSupabase };
 });
 
 // Service uses `createServerClient as createClient`

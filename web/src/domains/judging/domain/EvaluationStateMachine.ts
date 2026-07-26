@@ -1,5 +1,3 @@
-import { randomUUID } from "crypto";
-
 export type EvaluationLifecycleState = "Assigned" | "Draft" | "Submitted" | "Flagged" | "Finalized";
 
 export type EvaluationEvent =

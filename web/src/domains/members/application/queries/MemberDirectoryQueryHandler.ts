@@ -15,16 +15,16 @@ export interface MemberDirectoryQuery {
 export class MemberDirectoryQueryHandler {
   constructor(private sql: postgres.Sql) {}
 
-  async execute(query: MemberDirectoryQuery): Promise<PaginatedResult<MemberDirectoryProjection>> {
+  async execute(_query: MemberDirectoryQuery): Promise<PaginatedResult<MemberDirectoryProjection>> {
     // A real implementation would query the `users`, `event_members`, `user_skills`, and `team_memberships`
     // tables to assemble the MemberDirectoryProjection read model.
     // We are stripping PII (email, etc.) by mapping directly to MemberDirectoryProjection.
-    
+
     // For now, returning a mock paginated result:
     return {
       items: [],
       hasMore: false,
-      totalCount: 0
+      totalCount: 0,
     };
   }
 }

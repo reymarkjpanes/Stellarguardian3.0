@@ -2,7 +2,7 @@ import { RequestContext } from "@/src/shared/kernel/context/RequestContext";
 import { CommandHandler } from "@packages/shared-kernel/domain/CommandBus";
 
 export interface InviteToTeamCommand {
-  type: 'InviteToTeam';
+  type: "InviteToTeam";
   payload: {
     eventId: string;
     teamId: string;
@@ -11,7 +11,7 @@ export interface InviteToTeamCommand {
 }
 
 export class InviteToTeamUseCase implements CommandHandler<InviteToTeamCommand, void> {
-  async execute(command: InviteToTeamCommand, ctx: RequestContext): Promise<void> {
+  async execute(_command: InviteToTeamCommand, _ctx: RequestContext): Promise<void> {
     // 1. Verify caller has InviteMember permission (is Captain/Organizer)
     // 2. Verify targetUserId is in the event workspace and available for team
     // 3. Verify no existing pending invite

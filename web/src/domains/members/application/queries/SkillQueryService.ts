@@ -15,8 +15,8 @@ export interface Skill {
 export class SkillQueryService {
   constructor(private sql: postgres.Sql) {}
 
-  async searchSkills(query: string, limit: number = 10): Promise<Skill[]> {
-    // In a real implementation this searches the `skills` table 
+  async searchSkills(query: string, _limit: number = 10): Promise<Skill[]> {
+    // In a real implementation this searches the `skills` table
     // e.g. SELECT * FROM skills WHERE name ILIKE $1 LIMIT $2
     return [];
   }
