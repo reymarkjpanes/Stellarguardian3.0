@@ -5,6 +5,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import Image from "next/image";
 
 interface Sponsor {
   id: string;
@@ -16,7 +17,8 @@ interface Sponsor {
 }
 
 const TIER_STYLES: Record<string, string> = {
-  platinum: "border-[color-mix(in_srgb,#e5e7eb_60%,#a78bfa)] bg-gradient-to-b from-violet-50 to-white dark:from-violet-950/20 dark:to-[var(--card-bg)]",
+  platinum:
+    "border-[color-mix(in_srgb,#e5e7eb_60%,#a78bfa)] bg-gradient-to-b from-violet-50 to-white dark:from-violet-950/20 dark:to-[var(--card-bg)]",
   gold: "border-amber-200 dark:border-amber-800 bg-gradient-to-b from-amber-50 to-white dark:from-amber-950/20 dark:to-[var(--card-bg)]",
   silver: "border-gray-200 dark:border-gray-700",
   bronze: "border-orange-200 dark:border-orange-800",
@@ -64,11 +66,15 @@ export function SponsorDisplay({ eventId }: { eventId: string }) {
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
                 {sponsor.logo_url ? (
-                  <img
-                    src={sponsor.logo_url}
-                    alt={`${sponsor.name} logo`}
-                    className="h-8 w-8 rounded object-contain"
-                  />
+                  <div className="relative h-8 w-8 rounded overflow-hidden flex-shrink-0">
+                    <Image
+                      src={sponsor.logo_url}
+                      alt={`${sponsor.name} logo`}
+                      fill
+                      className="object-contain"
+                      sizes="32px"
+                    />
+                  </div>
                 ) : (
                   <div className="h-8 w-8 rounded bg-[var(--bg-muted)] flex items-center justify-center text-xs font-bold text-[var(--text-muted)]">
                     {sponsor.name.charAt(0)}
@@ -77,7 +83,12 @@ export function SponsorDisplay({ eventId }: { eventId: string }) {
                 <div>
                   <p className="text-sm font-medium text-[var(--text)]">
                     {sponsor.website_url ? (
-                      <a href={sponsor.website_url} target="_blank" rel="noopener noreferrer" className="hover:text-[var(--accent)]">
+                      <a
+                        href={sponsor.website_url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="hover:text-[var(--accent)]"
+                      >
                         {sponsor.name}
                       </a>
                     ) : (
@@ -85,7 +96,9 @@ export function SponsorDisplay({ eventId }: { eventId: string }) {
                     )}
                   </p>
                   {sponsor.contribution_amount && (
-                    <p className="text-xs text-[var(--text-muted)]">{sponsor.contribution_amount} XLM</p>
+                    <p className="text-xs text-[var(--text-muted)]">
+                      {sponsor.contribution_amount} XLM
+                    </p>
                   )}
                 </div>
               </div>

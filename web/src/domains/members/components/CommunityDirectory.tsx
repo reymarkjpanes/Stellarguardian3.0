@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import { MemberDirectoryProjection } from "../api/dto/MemberProjections";
 
 export function CommunityDirectory({
@@ -37,9 +38,9 @@ export function CommunityDirectory({
         >
           <div className="flex items-start justify-between">
             <div className="flex items-center gap-3">
-              <div className="h-10 w-10 rounded-full bg-secondary flex items-center justify-center text-lg font-semibold overflow-hidden">
+              <div className="relative h-10 w-10 rounded-full bg-secondary flex items-center justify-center text-lg font-semibold overflow-hidden">
                 {member.avatarUrl ? (
-                  <img src={member.avatarUrl} alt="" className="h-full w-full object-cover" />
+                  <Image src={member.avatarUrl} alt="" fill className="object-cover" sizes="40px" />
                 ) : (
                   member.displayName.charAt(0)
                 )}

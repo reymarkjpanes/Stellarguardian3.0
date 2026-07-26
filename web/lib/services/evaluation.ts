@@ -9,16 +9,13 @@ import "server-only";
 
 import { createServiceClient } from "@/lib/supabase/service";
 import { writeAuditRecord } from "./audit";
-import { ForbiddenError, ConflictError, NotFoundError } from "@/lib/errors";
+import { ForbiddenError, ConflictError } from "@/lib/errors";
 
 /**
  * Check for conflict of interest (Req 11.1, 11.2).
  * Returns true if the judge is a member of the team that authored the submission.
  */
-async function hasConflictOfInterest(
-  judgeId: string,
-  submissionId: string,
-): Promise<boolean> {
+async function hasConflictOfInterest(judgeId: string, submissionId: string): Promise<boolean> {
   const supabase = createServiceClient();
 
   // Get submission's team

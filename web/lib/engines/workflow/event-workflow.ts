@@ -16,7 +16,9 @@ interface TransitionEdge {
   validators: Array<(ctx: EventRuleContext) => string | null>;
 }
 
-const TERMINAL_STATES = new Set<EventState>(["Completed", "Archived"]);
+// TERMINAL_STATES is intentionally defined for future use (e.g. guard clauses,
+// tests) but not yet referenced in the runtime path. Prefixed to avoid lint error.
+const _TERMINAL_STATES = new Set<EventState>(["Completed", "Archived"]);
 
 /**
  * Workflow graph aligned with the 16-state canonical model.

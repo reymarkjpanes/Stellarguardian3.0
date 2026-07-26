@@ -1,4 +1,5 @@
 import React from "react";
+import Image from "next/image";
 import Link from "next/link";
 import { RequirementRow, AssetRow } from "./RequirementRenderer";
 
@@ -39,7 +40,13 @@ export function ProjectDetailView({ project, requirements, assets }: ProjectDeta
       {/* Hero Section */}
       <div className="w-full h-80 bg-gray-900 relative">
         {project.coverUrl ? (
-          <img src={project.coverUrl} className="w-full h-full object-cover opacity-60" alt="" />
+          <Image
+            src={project.coverUrl}
+            fill
+            className="object-cover opacity-60"
+            alt=""
+            sizes="100vw"
+          />
         ) : (
           <div className="w-full h-full bg-gradient-to-r from-indigo-900 to-purple-900 opacity-80" />
         )}

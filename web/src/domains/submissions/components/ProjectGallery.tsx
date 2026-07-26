@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState } from "react";
+import Image from "next/image";
 import Link from "next/link";
 import { ProjectSummary } from "./ProjectDetailView";
 
@@ -14,9 +15,9 @@ export function ProjectCard({ project, viewMode }: ProjectCardProps) {
     return (
       <Link href={`/projects/${project.id}`} className="block hover:bg-gray-50 transition-colors">
         <div className="flex items-center px-6 py-4 border-b border-gray-200">
-          <div className="h-16 w-16 flex-shrink-0 bg-gray-200 rounded-md overflow-hidden mr-6">
+          <div className="relative h-16 w-16 flex-shrink-0 bg-gray-200 rounded-md overflow-hidden mr-6">
             {project.coverUrl ? (
-              <img src={project.coverUrl} alt="" className="h-full w-full object-cover" />
+              <Image src={project.coverUrl} alt="" fill className="object-cover" sizes="64px" />
             ) : (
               <div className="h-full w-full flex items-center justify-center text-gray-400">
                 No Image
@@ -41,9 +42,15 @@ export function ProjectCard({ project, viewMode }: ProjectCardProps) {
   return (
     <Link href={`/projects/${project.id}`} className="block group">
       <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden transition-all duration-200 group-hover:shadow-md group-hover:border-gray-300">
-        <div className="aspect-w-16 aspect-h-9 bg-gray-200 w-full">
+        <div className="relative aspect-video bg-gray-200 w-full">
           {project.coverUrl ? (
-            <img src={project.coverUrl} alt="" className="h-full w-full object-cover" />
+            <Image
+              src={project.coverUrl}
+              alt=""
+              fill
+              className="object-cover"
+              sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 25vw"
+            />
           ) : (
             <div className="h-full w-full flex items-center justify-center text-gray-400">
               No Cover

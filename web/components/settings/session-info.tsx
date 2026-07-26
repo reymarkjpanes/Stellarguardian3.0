@@ -11,7 +11,6 @@ import { createBrowserClient } from "@/lib/supabase/client";
 
 export function SessionInfo() {
   const [loading, setLoading] = useState(false);
-  const [success, setSuccess] = useState(false);
 
   async function handleSignOutAll() {
     if (!confirm("Sign out from all devices? You will need to log in again.")) return;
@@ -30,9 +29,7 @@ export function SessionInfo() {
       <div className="flex items-center justify-between">
         <div>
           <p className="text-sm text-[var(--text)]">Current session</p>
-          <p className="text-xs text-[var(--text-muted)] mt-0.5">
-            This device · Active now
-          </p>
+          <p className="text-xs text-[var(--text-muted)] mt-0.5">This device · Active now</p>
         </div>
         <span className="h-2 w-2 rounded-full bg-green-400" />
       </div>
@@ -43,7 +40,6 @@ export function SessionInfo() {
       >
         {loading ? "Signing out…" : "Sign out all devices"}
       </button>
-      {success && <p className="text-xs text-[var(--success)]">All sessions revoked.</p>}
     </div>
   );
 }

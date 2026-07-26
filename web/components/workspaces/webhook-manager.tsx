@@ -3,7 +3,7 @@
  */
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 
 interface Webhook {
   id: string;
@@ -22,9 +22,7 @@ export function WebhookManager({ workspaceSlug }: { workspaceSlug: string }) {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => { loadWebhooks(); }, [workspaceSlug]);
-
-  async function loadWebhooks() {
+  const loadWebhooks = useCallback(async () => {
     try {
       const res = await fetch(`/api/workspaces/${workspaceSlug}/webhooks`);
       if (res.ok) {
@@ -36,7 +34,11 @@ export function WebhookManager({ workspaceSlug }: { workspaceSlug: string }) {
     } finally {
       setLoading(false);
     }
-  }
+  }, [workspaceSlug]);
+
+  useEffect(() => {
+    loadWebhooks();
+  }, [loadWebhooks]);
 
   async function handleCreate(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -124,7 +126,10 @@ export function WebhookManager({ workspaceSlug }: { workspaceSlug: string }) {
             <p className="text-xs text-[var(--text-muted)] mb-2">Events to subscribe:</p>
             <div className="flex flex-wrap gap-2">
               {AVAILABLE_EVENTS.map((ev) => (
-                <label key={ev} className="flex items-center gap-1.5 text-xs text-[var(--text-secondary)]">
+                <label
+                  key={ev}
+                  className="flex items-center gap-1.5 text-xs text-[var(--text-secondary)]"
+                >
                   <input
                     type="checkbox"
                     checked={events.includes(ev)}
@@ -141,10 +146,20 @@ export function WebhookManager({ workspaceSlug }: { workspaceSlug: string }) {
           </div>
           {error && <p className="text-xs text-[var(--error)]">{error}</p>}
           <div className="flex gap-2">
-            <button type="submit" disabled={submitting} className="btn-primary px-3 py-1.5 text-xs font-medium rounded-md disabled:opacity-50">
+            <button
+              type="submit"
+              disabled={submitting}
+              className="btn-primary px-3 py-1.5 text-xs font-medium rounded-md disabled:opacity-50"
+            >
               {submitting ? "Creating…" : "Create"}
             </button>
-            <button type="button" onClick={() => setShowForm(false)} className="text-xs text-[var(--text-muted)]">Cancel</button>
+            <button
+              type="button"
+              onClick={() => setShowForm(false)}
+              className="text-xs text-[var(--text-muted)]"
+            >
+              Cancel
+            </button>
           </div>
         </form>
       )}
@@ -159,7 +174,9 @@ export function WebhookManager({ workspaceSlug }: { workspaceSlug: string }) {
             <div key={wh.id} className="card p-3 flex items-center justify-between">
               <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-2">
-                  <span className={`h-2 w-2 rounded-full ${wh.active ? "bg-green-400" : "bg-[var(--text-muted)]"}`} />
+                  <span
+                    className={`h-2 w-2 rounded-full ${wh.active ? "bg-green-400" : "bg-[var(--text-muted)]"}`}
+                  />
                   <p className="text-sm font-mono text-[var(--text)] truncate">{wh.url}</p>
                 </div>
                 <p className="text-xs text-[var(--text-muted)] mt-0.5">{wh.events.length} events</p>

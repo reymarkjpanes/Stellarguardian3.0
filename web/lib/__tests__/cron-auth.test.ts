@@ -6,7 +6,7 @@
  * 2. Missing/invalid token returns 401 response
  * 3. Missing CRON_SECRET env returns 500 response
  */
-import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { NextRequest } from "next/server";
 import { verifyCronAuth } from "../cron-auth";
 

@@ -7,7 +7,7 @@
  * 3. Mainnet operations throw if AAL1 only
  * 4. Errors in MFA check are handled gracefully
  */
-import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, vi, afterEach } from "vitest";
 import { requireMfaForMainnet } from "../mfa-guard";
 
 describe("requireMfaForMainnet", () => {
@@ -65,18 +65,14 @@ describe("requireMfaForMainnet", () => {
     process.env.STELLAR_NETWORK_MODE = "mainnet";
     process.env.STELLAR_MAINNET_ENABLED = "true";
     const supabase = mockSupabase("aal1");
-    await expect(requireMfaForMainnet(supabase)).rejects.toThrow(
-      "Multi-factor authentication",
-    );
+    await expect(requireMfaForMainnet(supabase)).rejects.toThrow("Multi-factor authentication");
   });
 
   it("throws ForbiddenError when MFA check errors", async () => {
     process.env.STELLAR_NETWORK_MODE = "mainnet";
     process.env.STELLAR_MAINNET_ENABLED = "true";
     const supabase = mockSupabase("", { message: "Session expired" });
-    await expect(requireMfaForMainnet(supabase)).rejects.toThrow(
-      "Unable to verify MFA status",
-    );
+    await expect(requireMfaForMainnet(supabase)).rejects.toThrow("Unable to verify MFA status");
   });
 
   it("passes on mainnet when STELLAR_MAINNET_ENABLED is not true", async () => {

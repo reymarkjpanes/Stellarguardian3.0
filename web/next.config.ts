@@ -25,6 +25,10 @@ const nextConfig: NextConfig = {
   images: {
     remotePatterns: [
       { protocol: "https", hostname: "*.supabase.co" },
+      // User-supplied content (sponsor logos, project covers, member avatars)
+      // can come from any domain. Allow all HTTPS sources; optimization is
+      // handled per-image via the sizes prop.
+      { protocol: "https", hostname: "**" },
     ],
   },
 };
