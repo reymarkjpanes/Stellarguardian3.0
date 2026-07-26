@@ -5,7 +5,6 @@
 
 import { useState, useEffect } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { createBrowserClient } from "@/lib/supabase/client";
 
 interface WorkspaceData {
   id: string;
@@ -82,7 +81,9 @@ export default function WorkspaceSettingsPage() {
   if (!workspace || workspace.currentUserRole === "Member") {
     return (
       <main className="max-w-3xl mx-auto px-4 py-8">
-        <p className="text-[var(--text-muted)]">You do not have permission to manage this workspace.</p>
+        <p className="text-[var(--text-muted)]">
+          You do not have permission to manage this workspace.
+        </p>
       </main>
     );
   }
@@ -91,9 +92,7 @@ export default function WorkspaceSettingsPage() {
     <main className="max-w-3xl mx-auto px-4 py-8 space-y-8">
       <div>
         <h1 className="text-2xl font-semibold tracking-tight">Workspace Settings</h1>
-        <p className="text-sm text-[var(--text-muted)] mt-1">
-          Manage {workspace.name} settings
-        </p>
+        <p className="text-sm text-[var(--text-muted)] mt-1">Manage {workspace.name} settings</p>
       </div>
 
       <form onSubmit={handleSave} className="space-y-6">
@@ -101,7 +100,10 @@ export default function WorkspaceSettingsPage() {
           <legend className="text-sm font-medium text-[var(--text)]">General</legend>
 
           <div>
-            <label htmlFor="ws-name" className="block text-sm font-medium text-[var(--text-secondary)] mb-1">
+            <label
+              htmlFor="ws-name"
+              className="block text-sm font-medium text-[var(--text-secondary)] mb-1"
+            >
               Name
             </label>
             <input
@@ -115,7 +117,10 @@ export default function WorkspaceSettingsPage() {
           </div>
 
           <div>
-            <label htmlFor="ws-desc" className="block text-sm font-medium text-[var(--text-secondary)] mb-1">
+            <label
+              htmlFor="ws-desc"
+              className="block text-sm font-medium text-[var(--text-secondary)] mb-1"
+            >
               Description
             </label>
             <textarea
@@ -131,24 +136,23 @@ export default function WorkspaceSettingsPage() {
             <label className="block text-sm font-medium text-[var(--text-secondary)] mb-1">
               Slug
             </label>
-            <p className="text-sm text-[var(--text-muted)]">/{workspace.slug} (cannot be changed)</p>
+            <p className="text-sm text-[var(--text-muted)]">
+              /{workspace.slug} (cannot be changed)
+            </p>
           </div>
         </fieldset>
 
         <fieldset className="card p-6 space-y-3">
           <legend className="text-sm font-medium text-[var(--text)]">Billing</legend>
           <p className="text-sm text-[var(--text-secondary)]">
-            Current plan: <span className="font-medium capitalize">{workspace.billing?.plan ?? "free"}</span>
+            Current plan:{" "}
+            <span className="font-medium capitalize">{workspace.billing?.plan ?? "free"}</span>
           </p>
           <p className="text-xs text-[var(--text-muted)]">Plan upgrades coming soon.</p>
         </fieldset>
 
-        {error && (
-          <p className="text-sm text-[var(--error)]">{error}</p>
-        )}
-        {success && (
-          <p className="text-sm text-green-600">Settings saved successfully.</p>
-        )}
+        {error && <p className="text-sm text-[var(--error)]">{error}</p>}
+        {success && <p className="text-sm text-green-600">Settings saved successfully.</p>}
 
         <div className="flex items-center gap-3">
           <button

@@ -19,10 +19,6 @@ export default function WorkspaceMembersPage() {
   const router = useRouter();
   const [members, setMembers] = useState<Member[]>([]);
   const [loading, setLoading] = useState(true);
-  const [inviteEmail, setInviteEmail] = useState("");
-  const [inviteRole, setInviteRole] = useState<"Admin" | "Member">("Member");
-  const [inviting, setInviting] = useState(false);
-  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     let ignore = false;
@@ -109,8 +105,6 @@ export default function WorkspaceMembersPage() {
           </div>
         ))}
       </div>
-
-      {error && <p className="text-sm text-[var(--error)]">{error}</p>}
 
       {/* Invite note */}
       <div className="card p-6">

@@ -9,7 +9,6 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { createBrowserClient } from "@/lib/supabase/client";
 
 export default function ResetPasswordPage() {
   const router = useRouter();
@@ -53,7 +52,9 @@ export default function ResetPasswordPage() {
         return;
       }
     } catch (err) {
-      setError(`An unexpected error occurred: ${err instanceof Error ? err.message : "Unknown error"}`);
+      setError(
+        `An unexpected error occurred: ${err instanceof Error ? err.message : "Unknown error"}`,
+      );
       setLoading(false);
       return;
     }
@@ -92,7 +93,10 @@ export default function ResetPasswordPage() {
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <label htmlFor="password" className="block text-sm font-medium text-[var(--text-secondary)] mb-1">
+            <label
+              htmlFor="password"
+              className="block text-sm font-medium text-[var(--text-secondary)] mb-1"
+            >
               New password
             </label>
             <input
@@ -109,7 +113,10 @@ export default function ResetPasswordPage() {
           </div>
 
           <div>
-            <label htmlFor="confirm-password" className="block text-sm font-medium text-[var(--text-secondary)] mb-1">
+            <label
+              htmlFor="confirm-password"
+              className="block text-sm font-medium text-[var(--text-secondary)] mb-1"
+            >
               Confirm password
             </label>
             <input
@@ -126,7 +133,9 @@ export default function ResetPasswordPage() {
           </div>
 
           {error && (
-            <p className="text-sm text-[var(--error)]" role="alert">{error}</p>
+            <p className="text-sm text-[var(--error)]" role="alert">
+              {error}
+            </p>
           )}
 
           <button
