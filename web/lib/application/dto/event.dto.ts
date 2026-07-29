@@ -10,7 +10,7 @@ export const CreateEventSchema = z.object({
   team_size_min: z.number().int().min(1).default(1),
   team_size_max: z.number().int().min(1).default(5),
   registration_deadline: z.string().datetime().optional(),
-  prize_pool_target: z.number().min(0).optional(),
+  prize_pool_target: z.number().min(0).nullish().transform((v) => v ?? undefined),
   network_mode: z.enum(["testnet", "mainnet"]).default("testnet"),
   review_window_hours: z.number().int().min(24).max(168).default(72),
   prize_split_policy: z

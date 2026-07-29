@@ -12,7 +12,7 @@ export const getEventById = cache(async (id: string) => {
   const { data: event } = await supabase
     .from("events")
     .select(
-      "id, title, state, organizer_id, review_window_hours, prize_pool_target, network_mode, version, category, format, description",
+      "id, title, state, organizer_id, review_window_hours, prize_pool_target, network_mode, version, category, format, description, registration_deadline",
     )
     .eq("id", id)
     .single();

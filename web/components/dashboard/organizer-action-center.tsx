@@ -54,22 +54,23 @@ function deriveTasksForEvent(event: EventSummary): Task[] {
       headline: `${event.pendingMemberCount} application${event.pendingMemberCount > 1 ? "s" : ""} waiting`,
       consequence: "Participants cannot form teams until approved.",
       actionLabel: "Review Applications",
-      actionHref: `/events/${event.id}#members`,
+      actionHref: `/events/${event.id}/members`,
       priority: "blocking",
     });
   }
 
-  // Blocking: no judges assigned before publishing
-  if (event.judgeCount === 0 && event.state === "Draft") {
+  // Suggested: no judges assigned yet — not blocking, but needed before judging begins.
+  // Judges can be assigned any time before SubmissionClosed → JudgingRound1.
+  if (event.judgeCount === 0 && ["Draft", "Published", "RegistrationOpen", "RegistrationClosed"].includes(event.state)) {
     tasks.push({
       id: `judges-${event.id}`,
       eventId: event.id,
       eventTitle: event.title,
-      headline: "No judges assigned",
-      consequence: "Event cannot be published without at least one judge.",
-      actionLabel: "Add Judges",
-      actionHref: `/events/${event.id}#members`,
-      priority: "blocking",
+      headline: "No judges assigned yet",
+      consequence: "Assign at least one judge before submissions close — required to begin judging.",
+      actionLabel: "Assign Judges",
+      actionHref: `/events/${event.id}/members`,
+      priority: "suggested",
     });
   }
 

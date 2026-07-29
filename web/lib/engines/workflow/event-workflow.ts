@@ -29,7 +29,10 @@ const WORKFLOW_GRAPH: Partial<Record<EventState, TransitionEdge[]>> = {
     {
       to: "Published",
       validators: [
-        EventBusinessRules.requiresJudges,
+        // A prize pool amount must be committed before participants can see the event.
+        // Full on-chain escrow funding happens later (before EscrowRelease).
+        EventBusinessRules.requiresPrizePoolTarget,
+        // A registration deadline is required so participants know when to register by.
         EventBusinessRules.requiresRegistrationDeadline,
       ],
     },
