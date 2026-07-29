@@ -4,7 +4,9 @@ import { SubmissionStates } from "@packages/shared-kernel/constants/SubmissionSt
 import { SubmissionSubmitted } from "@packages/shared-kernel/events/SubmissionEvents";
 
 export class SubmitProjectUseCase {
-  constructor(private validationQuery: GetValidationPanelQueryHandler = new GetValidationPanelQueryHandler()) {}
+  constructor(
+    private validationQuery: GetValidationPanelQueryHandler = new GetValidationPanelQueryHandler(),
+  ) {}
 
   async execute(eventId: string, teamId: string, actorId: string) {
     const supabase = await createServerClient();
@@ -20,19 +22,21 @@ export class SubmitProjectUseCase {
     if (subError || !submission) throw new Error("Submission not found");
 
     // 2. Validate current state
-    if (submission.status === SubmissionStates.SUBMITTED || submission.status === SubmissionStates.LOCKED) {
-       throw new Error("Submission is already submitted or locked");
+    if (
+      submission.status === SubmissionStates.SUBMITTED ||
+      submission.status === SubmissionStates.LOCKED
+    ) {
+      throw new Error("Submission is already submitted or locked");
     }
 
     // 3. Verify actor is captain
-    const { data: membership } = await supabase
-      .from("team_members")
-      .select("role")
-      .eq("team_id", teamId)
-      .eq("user_id", actorId)
-      .maybeSingle();
+    const { data: team } = await supabase
+      .from("teams")
+      .select("captain_id")
+      .eq("id", teamId)
+      .single();
 
-    if (membership?.role !== "Captain") {
+    if (team?.captain_id !== actorId) {
       throw new Error("Only the Captain can submit the project");
     }
 
@@ -54,7 +58,7 @@ export class SubmitProjectUseCase {
       .eq("version", submission.version); // If-Match equivalent
 
     if (updateError) {
-       throw new Error("Concurrency conflict or update failed");
+      throw new Error("Concurrency conflict or update failed");
     }
 
     // 6. Log History
@@ -62,7 +66,7 @@ export class SubmitProjectUseCase {
       submission_id: submission.id,
       actor_id: actorId,
       action: "SUBMITTED",
-      details: "Project submitted by captain"
+      details: "Project submitted by captain",
     });
 
     // 7. Domain Event (in a real app, this goes to an EventBus/Outbox)
@@ -70,7 +74,7 @@ export class SubmitProjectUseCase {
     await supabase.from("submission_events").insert({
       submission_id: submission.id,
       event_type: event.eventName,
-      payload: event
+      payload: event,
     });
 
     return { success: true };
