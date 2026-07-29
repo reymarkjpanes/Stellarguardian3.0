@@ -277,7 +277,7 @@ export default async function DashboardPage() {
               {workspaces.map((ws) => (
                 <a
                   key={ws.workspace_id}
-                  href={`/workspaces/${ws.workspace_slug}`}
+                  href={ws.workspace_slug ? `/workspaces/${ws.workspace_slug}` : `/workspaces/id/${ws.workspace_id}`}
                   className="rounded-lg card p-4 hover:border-[var(--accent)] transition-colors"
                 >
                   <p className="font-medium">{ws.workspace_name}</p>

@@ -84,8 +84,15 @@ export function EventDetailClient({
         }),
       });
       if (!res.ok) {
-        const { error } = await res.json();
-        setActionError(error?.message ?? "State transition failed.");
+        const body = await res.json();
+        const err = body?.error;
+        // Surface the specific unmet preconditions from the state machine when available
+        const unmet: string[] = err?.details?.unmetPreconditions ?? [];
+        if (unmet.length > 0) {
+          setActionError("Cannot advance: " + unmet.join(" · "));
+        } else {
+          setActionError(err?.message ?? "State transition failed.");
+        }
         return;
       }
       router.refresh();
@@ -191,7 +198,15 @@ export function EventDetailClient({
       <EventActionCenter
         eventName={event.title as string}
         currentPhase={event.state as string}
-        countdownText="Deadline to be announced"
+        countdownText={(() => {
+            const deadline = event.registration_deadline as string | null;
+            if (!deadline) return "Deadline to be announced";
+            const ms = new Date(deadline).getTime() - Date.now();
+            if (ms <= 0) return "Registration closed";
+            const days = Math.ceil(ms / (1000 * 60 * 60 * 24));
+            if (days === 1) return "1 day left to register";
+            return `${days} days left to register`;
+          })()}
         heroPrimaryActionLabel={!myMembership ? "Apply to Participate" : "Continue Workspace"}
         onHeroPrimaryAction={
           !myMembership
@@ -210,20 +225,58 @@ export function EventDetailClient({
       {isOrganizer && (
         <div className="space-y-4 pt-2 border-t border-[var(--border)]">
           <h2 className="text-sm font-semibold text-[var(--text)]">Lifecycle Controls</h2>
+
+          {/* Draft pre-publish checklist — visible only in Draft state */}
+          {event.state === "Draft" && (
+            <PublishChecklist
+              hasPrizePool={(event.prize_pool_target as number) > 0}
+              hasDeadline={!!event.registration_deadline}
+              prizeAmount={event.prize_pool_target as number | null}
+              eventId={event.id as string}
+            />
+          )}
+
           <div className="flex flex-wrap gap-2">
             {event.state === "Draft" && (
-              <ActionButton
-                label="Publish"
-                onClick={() => handleStateChange("Published")}
-                disabled={actionLoading}
-              />
+              <>
+                <ActionButton
+                  label="Publish Event"
+                  hint="Requires a prize pool and registration deadline"
+                  onClick={() => handleStateChange("Published")}
+                  disabled={actionLoading}
+                />
+                <a
+                  href={`/events/${event.id as string}/edit`}
+                  className="inline-flex flex-col gap-0.5"
+                >
+                  <span className="rounded-md border border-[var(--border)] px-4 py-2 text-sm font-medium text-[var(--text)] hover:bg-[var(--bg-muted)] transition-colors">
+                    Edit Event
+                  </span>
+                  <span className="text-[10px] text-[var(--text-muted)] px-1">
+                    Update title, prize pool, deadline
+                  </span>
+                </a>
+              </>
             )}
             {event.state === "Published" && (
-              <ActionButton
-                label="Open Registration"
-                onClick={() => handleStateChange("RegistrationOpen")}
-                disabled={actionLoading}
-              />
+              <>
+                <ActionButton
+                  label="Open Registration"
+                  onClick={() => handleStateChange("RegistrationOpen")}
+                  disabled={actionLoading}
+                />
+                <a
+                  href={`/events/${event.id as string}/edit`}
+                  className="inline-flex flex-col gap-0.5"
+                >
+                  <span className="rounded-md border border-[var(--border)] px-4 py-2 text-sm font-medium text-[var(--text)] hover:bg-[var(--bg-muted)] transition-colors">
+                    Edit Event
+                  </span>
+                  <span className="text-[10px] text-[var(--text-muted)] px-1">
+                    Still editable before registration opens
+                  </span>
+                </a>
+              </>
             )}
             {event.state === "RegistrationOpen" && (
               <ActionButton
@@ -234,7 +287,8 @@ export function EventDetailClient({
             )}
             {event.state === "RegistrationClosed" && (
               <ActionButton
-                label="Start Team Formation"
+                label="Lock Team Formation"
+                hint="All participants must be assigned to a team"
                 onClick={() => handleStateChange("TeamFormationLocked")}
                 disabled={actionLoading}
               />
@@ -242,6 +296,7 @@ export function EventDetailClient({
             {event.state === "TeamFormationLocked" && (
               <ActionButton
                 label="Open Submissions"
+                hint="Min team size must be met for all active teams"
                 onClick={() => handleStateChange("SubmissionOpen")}
                 disabled={actionLoading}
               />
@@ -255,28 +310,49 @@ export function EventDetailClient({
             )}
             {event.state === "SubmissionClosed" && (
               <ActionButton
-                label="Begin Judging"
+                label="Begin Judging (Round 1)"
+                hint="Requires at least one submission"
                 onClick={() => handleStateChange("JudgingRound1")}
                 disabled={actionLoading}
               />
             )}
             {event.state === "JudgingRound1" && (
-              <ActionButton
-                label="Open Review Window"
-                onClick={() => handleStateChange("DisputeWindow")}
-                disabled={actionLoading}
-              />
+              <>
+                <ActionButton
+                  label="Advance to Round 2"
+                  hint="All submissions must be scored"
+                  onClick={() => handleStateChange("JudgingRound2")}
+                  disabled={actionLoading}
+                />
+                <ActionButton
+                  label="Skip to Winner Verification"
+                  hint="All submissions must be scored"
+                  onClick={() => handleStateChange("WinnerVerification")}
+                  disabled={actionLoading}
+                  variant="secondary"
+                />
+              </>
             )}
-            {event.state === "DisputeWindow" && (
+            {event.state === "JudgingRound2" && (
               <ActionButton
-                label="Finalize Winners"
+                label="Verify Winners"
+                hint="All submissions must be scored"
                 onClick={() => handleStateChange("WinnerVerification")}
                 disabled={actionLoading}
               />
             )}
             {event.state === "WinnerVerification" && (
               <ActionButton
-                label="Request Escrow Funding"
+                label="Open Dispute Window"
+                hint="Winners must be explicitly confirmed"
+                onClick={() => handleStateChange("DisputeWindow")}
+                disabled={actionLoading}
+              />
+            )}
+            {event.state === "DisputeWindow" && (
+              <ActionButton
+                label="Approve Prizes"
+                hint="Review window must elapse with no open disputes"
                 onClick={() => handleStateChange("PrizeApproved")}
                 disabled={actionLoading}
               />
@@ -284,6 +360,7 @@ export function EventDetailClient({
             {event.state === "PrizeApproved" && (
               <ActionButton
                 label="Release Escrow"
+                hint="Escrow must be fully funded and locked on-chain"
                 onClick={() => handleStateChange("EscrowRelease")}
                 disabled={actionLoading}
               />
@@ -291,27 +368,32 @@ export function EventDetailClient({
             {event.state === "EscrowRelease" && (
               <ActionButton
                 label="Mark Completed"
+                hint="All disbursements must complete on-chain"
                 onClick={() => handleStateChange("Completed")}
                 disabled={actionLoading}
               />
             )}
             {event.state === "Completed" && (
               <ActionButton
-                label="Archive"
+                label="Archive Event"
                 onClick={() => handleStateChange("Archived")}
                 disabled={actionLoading}
               />
             )}
-            <button
-              onClick={() => {
-                if (confirm("Cancel this event? This cannot be undone."))
-                  handleStateChange("Cancelled");
-              }}
-              className="rounded-md border border-[var(--error)] px-3 py-1.5 text-xs font-medium text-[var(--error)] hover:bg-[var(--error-bg)] transition-colors disabled:opacity-50"
-              disabled={actionLoading}
-            >
-              Cancel Event
-            </button>
+            {event.state !== "Completed" &&
+              event.state !== "Cancelled" &&
+              event.state !== "Archived" && (
+                <button
+                  onClick={() => {
+                    if (confirm("Cancel this event? This cannot be undone."))
+                      handleStateChange("Cancelled");
+                  }}
+                  className="rounded-md border border-[var(--error)] px-3 py-1.5 text-xs font-medium text-[var(--error)] hover:bg-[var(--error-bg)] transition-colors disabled:opacity-50"
+                  disabled={actionLoading}
+                >
+                  Cancel Event
+                </button>
+              )}
           </div>
         </div>
       )}
@@ -319,22 +401,147 @@ export function EventDetailClient({
   );
 }
 
-function ActionButton({
-  label,
-  onClick,
-  disabled,
+function PublishChecklist({
+  hasPrizePool,
+  hasDeadline,
+  prizeAmount,
+  eventId,
 }: {
+  hasPrizePool: boolean;
+  hasDeadline: boolean;
+  prizeAmount: number | null;
+  eventId: string;
+}) {
+  const allMet = hasPrizePool && hasDeadline;
+
+  return (
+    <div
+      className={`rounded-lg border px-4 py-3 space-y-2.5 ${
+        allMet
+          ? "border-[var(--success,#22c55e)]/30 bg-[var(--success,#22c55e)]/5"
+          : "border-[var(--warning,#f59e0b)]/30 bg-[var(--warning,#f59e0b)]/5"
+      }`}
+    >
+      <p className="text-xs font-semibold text-[var(--text)]">
+        {allMet ? "✓ Ready to publish" : "Complete before publishing"}
+      </p>
+      <ul className="space-y-1.5">
+        <ChecklistItem
+          done={hasPrizePool}
+          label={
+            hasPrizePool
+              ? `Prize pool set — ${prizeAmount} XLM`
+              : "Set a prize pool amount"
+          }
+          action={
+            !hasPrizePool ? (
+              <a
+                href={`/events/${eventId}/edit`}
+                className="text-[10px] font-medium text-[var(--accent)] hover:underline"
+              >
+                Edit event →
+              </a>
+            ) : undefined
+          }
+        />
+        <ChecklistItem
+          done={hasDeadline}
+          label={hasDeadline ? "Registration deadline set" : "Set a registration deadline"}
+          action={
+            !hasDeadline ? (
+              <a
+                href={`/events/${eventId}/edit`}
+                className="text-[10px] font-medium text-[var(--accent)] hover:underline"
+              >
+                Edit event →
+              </a>
+            ) : undefined
+          }
+        />
+        <ChecklistItem
+          done={true}
+          label="Judges can be assigned after publishing"
+          optional
+        />
+      </ul>
+      {!allMet && (
+        <p className="text-[10px] text-[var(--text-muted)] pt-1 border-t border-[var(--border)]">
+          Participants need to see a committed prize before they register. On-chain escrow
+          funding happens later, before prize release.
+        </p>
+      )}
+    </div>
+  );
+}
+
+function ChecklistItem({
+  done,
+  label,
+  action,
+  optional,
+}: {
+  done: boolean;
   label: string;
-  onClick: () => void;
-  disabled: boolean;
+  action?: React.ReactNode;
+  optional?: boolean;
 }) {
   return (
-    <button
-      onClick={onClick}
-      disabled={disabled}
-      className="rounded-md border border-[var(--border)] px-4 py-2 text-sm font-medium text-[var(--text)] hover:bg-[var(--bg-muted)] disabled:opacity-50 transition-colors"
-    >
-      {label}
-    </button>
+    <li className="flex items-center gap-2">
+      <span
+        className={`h-4 w-4 rounded-full flex items-center justify-center text-[9px] font-bold flex-shrink-0 ${
+          done
+            ? "bg-[var(--success,#22c55e)] text-white"
+            : optional
+              ? "bg-[var(--bg-muted)] text-[var(--text-muted)]"
+              : "bg-[var(--warning,#f59e0b)]/20 text-[var(--warning,#f59e0b)]"
+        }`}
+      >
+        {done ? "✓" : optional ? "·" : "!"}
+      </span>
+      <span
+        className={`text-xs flex-1 ${
+          done ? "text-[var(--text-secondary)]" : optional ? "text-[var(--text-muted)]" : "text-[var(--text)]"
+        }`}
+      >
+        {label}
+      </span>
+      {action}
+    </li>
+  );
+}
+
+function ActionButton({
+  label,
+  hint,
+  onClick,
+  disabled,
+  variant = "primary",
+}: {
+  label: string;
+  hint?: string;
+  onClick: () => void;
+  disabled: boolean;
+  variant?: "primary" | "secondary";
+}) {
+  return (
+    <div className="flex flex-col gap-0.5">
+      <button
+        onClick={onClick}
+        disabled={disabled}
+        title={hint}
+        className={`rounded-md border px-4 py-2 text-sm font-medium transition-colors disabled:opacity-50 ${
+          variant === "secondary"
+            ? "border-[var(--border)] text-[var(--text-muted)] hover:bg-[var(--bg-muted)] hover:text-[var(--text)]"
+            : "border-[var(--border)] text-[var(--text)] hover:bg-[var(--bg-muted)]"
+        }`}
+      >
+        {label}
+      </button>
+      {hint && (
+        <p className="text-[10px] text-[var(--text-muted)] px-1 max-w-[180px] leading-snug">
+          {hint}
+        </p>
+      )}
+    </div>
   );
 }

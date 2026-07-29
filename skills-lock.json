@@ -7,6 +7,12 @@
       "skillPath": "skills/algorithmic-art/SKILL.md",
       "computedHash": "987b24aa98171a0d3690420173b2cdb6eaafd57981ed716b5d50371affa82ea3"
     },
+    "blockchain-developer": {
+      "source": "rmyndharis/antigravity-skills",
+      "sourceType": "github",
+      "skillPath": "skills/blockchain-developer/SKILL.md",
+      "computedHash": "68e2458cbaf11443646180b9d956b2d99f95f714bbf00be3deda70a07424421f"
+    },
     "brand-guidelines": {
       "source": "anthropics/skills",
       "sourceType": "github",
@@ -59,7 +65,7 @@
       "source": "vercel-labs/skills",
       "sourceType": "github",
       "skillPath": "skills/find-skills/SKILL.md",
-      "computedHash": "781bd6d3f9b19f8c9af6b53d8d0e4876d0183841b565db34ca7092ffa412d111"
+      "computedHash": "b146008599c31057cef1c145774cea5d5afb30e8f43fa802e47a4b461419aaaf"
     },
     "frontend-design": {
       "source": "anthropics/skills",
@@ -115,6 +121,12 @@
       "skillPath": "skills/internal-comms/SKILL.md",
       "computedHash": "cf3dba93fd569d7380505db211f89a467869c1a2ef301941148d06f33ed17332"
     },
+    "javascript-testing-expert": {
+      "source": "dubzzz/fast-check",
+      "sourceType": "github",
+      "skillPath": "skills/javascript-testing-expert/SKILL.md",
+      "computedHash": "13f91a0388a0001541081bf46e2f353543e079e5e688d5d5747a4441c3886208"
+    },
     "mcp-builder": {
       "source": "anthropics/skills",
       "sourceType": "github",
@@ -126,6 +138,12 @@
       "sourceType": "github",
       "skillPath": "skills/minimalist-skill/SKILL.md",
       "computedHash": "7e88897e0371184e97a82b8d9ef080323c13f21eb067b58ef71eb05173a08ac2"
+    },
+    "nextjs-supabase-auth": {
+      "source": "sickn33/antigravity-awesome-skills",
+      "sourceType": "github",
+      "skillPath": "skills/nextjs-supabase-auth/SKILL.md",
+      "computedHash": "f2f8b00877ed450e4b5d1e040b52c1c4d312ec2264c75d2248253814c2a9e9ba"
     },
     "pdf": {
       "source": "anthropics/skills",
@@ -174,6 +192,12 @@
       "sourceType": "github",
       "skillPath": "skills/theme-factory/SKILL.md",
       "computedHash": "e9ec1fe85faa729e9f3d1731cd7e4e485f98c099ccc7c1c0d198f473aa4b654a"
+    },
+    "vitest-testing": {
+      "source": "secondsky/claude-skills",
+      "sourceType": "github",
+      "skillPath": "plugins/vitest-testing/skills/vitest-testing/SKILL.md",
+      "computedHash": "1293182db06b7ee2316814a4a0b697dc16f038009e5f1febf2bbf9f5a0202beb"
     },
     "web-artifacts-builder": {
       "source": "anthropics/skills",

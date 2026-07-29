@@ -43,7 +43,7 @@ export async function PATCH(
   // Fetch event with current state
   const { data: event } = await supabase
     .from("events")
-    .select("id, state, version, organizer_id, workspace_id, team_size_min, registration_deadline, review_window_hours")
+    .select("id, state, version, organizer_id, workspace_id, team_size_min, registration_deadline, review_window_hours, prize_pool_target")
     .eq("id", id)
     .single();
 
@@ -159,6 +159,7 @@ export async function PATCH(
     judgeCount: judgeCount ?? 0,
     registrationDeadline: event.registration_deadline ?? undefined,
     teamSizeMin: event.team_size_min ?? undefined,
+    prizePoolTarget: Number(event.prize_pool_target ?? 0),
     hasSubmissions: (submissionCount ?? 0) > 0,
     allSubmissionsScored,
     escrowFullyFundedOnChain: escrow?.state === "FullyFunded" || escrow?.state === "Locked",

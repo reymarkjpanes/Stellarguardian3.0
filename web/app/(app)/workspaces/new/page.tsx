@@ -17,9 +17,11 @@ function slugify(text: string): string {
   return text
     .toLowerCase()
     .trim()
-    .replace(/[^\w\s-]/g, "")
-    .replace(/[\s_]+/g, "-")
-    .replace(/-+/g, "-")
+    .replace(/[@.]/g, "-")          // treat @ and . as word separators
+    .replace(/[^\w\s-]/g, "")       // strip remaining special chars
+    .replace(/[\s_]+/g, "-")        // spaces/underscores → hyphens
+    .replace(/-+/g, "-")            // collapse multiple hyphens
+    .replace(/^-|-$/g, "")          // trim leading/trailing hyphens
     .slice(0, 40);
 }
 
@@ -33,19 +35,24 @@ export default function CreateWorkspacePage() {
 
   // Derive slug from name when user hasn't manually edited it
   const derivedSlug = slugTouched ? slug : slugify(name);
-  // Keep slug state in sync for the controlled input
-  const displaySlug = derivedSlug;
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     setError(null);
 
+    // Always use the derived slug (accounts for auto-generated case)
+    const finalSlug = derivedSlug.trim();
+
     if (!name.trim() || name.trim().length < 2) {
       setError("Workspace name must be at least 2 characters.");
       return;
     }
-    if (!slug.trim() || slug.trim().length < 2) {
+    if (!finalSlug || finalSlug.length < 2) {
       setError("Slug must be at least 2 characters.");
+      return;
+    }
+    if (!/^[a-z0-9]+(-[a-z0-9]+)*$/.test(finalSlug)) {
+      setError("Slug must be lowercase letters, numbers, and hyphens only.");
       return;
     }
 
@@ -66,9 +73,8 @@ export default function CreateWorkspacePage() {
         .from("workspaces")
         .insert({
           name: name.trim(),
-          slug: displaySlug.trim(),
+          slug: finalSlug,
           description: description.trim() || null,
-          owner_id: user.id,
         })
         .select("id, slug")
         .single();
@@ -90,8 +96,8 @@ export default function CreateWorkspacePage() {
         role: "Owner",
       });
 
-      // Redirect to the new workspace (or dashboard)
-      window.location.href = `/dashboard`;
+      // Redirect directly to the new workspace page
+      window.location.href = `/workspaces/${workspace.slug}`;
     } catch {
       setError("Network error. Please try again.");
       setSubmitting(false);
@@ -155,7 +161,7 @@ export default function CreateWorkspacePage() {
                 maxLength={40}
                 pattern="[a-z0-9-]+"
                 title="Lowercase letters, numbers, and hyphens only"
-                value={displaySlug}
+                value={derivedSlug}
                 onChange={(e) => {
                   setSlug(e.target.value);
                   setSlugTouched(true);

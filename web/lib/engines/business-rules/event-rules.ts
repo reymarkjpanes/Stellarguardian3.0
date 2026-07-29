@@ -15,6 +15,8 @@ export interface EventRuleContext {
   submissionCount: number;
   kycRequirementsSatisfied: boolean;
   minimumParticipantsMet: boolean;
+  /** Prize pool target in XLM. Must be > 0 before the event can be published. */
+  prizePoolTarget: number;
 }
 
 /**
@@ -31,6 +33,10 @@ export const EventBusinessRules = {
     ctx.judgeCount >= 1 ? null : "Requires at least one judge assigned",
   requiresRegistrationDeadline: (ctx: EventRuleContext) =>
     ctx.registrationDeadline ? null : "Requires a registration deadline configured",
+  requiresPrizePoolTarget: (ctx: EventRuleContext) =>
+    ctx.prizePoolTarget > 0
+      ? null
+      : "A prize pool amount must be set before the event can be published — participants need to know what they're competing for",
   zeroRegistrations: (ctx: EventRuleContext) =>
     ctx.registrationCount === 0 ? null : "Must have zero registrations to rollback",
   requiresTeamSizeMin: (ctx: EventRuleContext) =>
