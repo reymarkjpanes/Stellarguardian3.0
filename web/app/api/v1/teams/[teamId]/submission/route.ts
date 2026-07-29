@@ -62,3 +62,53 @@ export async function PATCH(
     return NextResponse.json({ success: false, error: msg }, { status: 400 });
   }
 }
+
+export async function DELETE(
+  request: NextRequest,
+  context: { params: Promise<{ teamId: string }> },
+) {
+  try {
+    const { teamId } = await context.params;
+    const supabase = await createServerClient();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    if (!user) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    const body = await request.json();
+    const { eventId, requirementId } = body;
+
+    // Very simple inline logic for deletion since there's no RemoveAssetUseCase
+    const { data: submission } = await supabase
+      .from("submissions")
+      .select("id, status")
+      .eq("team_id", teamId)
+      .eq("event_id", eventId)
+      .maybeSingle();
+
+    if (!submission) {
+      throw new Error("Submission not found");
+    }
+
+    if (submission.status === "LOCKED" || submission.status === "SUBMITTED") {
+      throw new Error("Cannot modify a locked or submitted project");
+    }
+
+    const { error: deleteError } = await supabase
+      .from("submission_assets")
+      .delete()
+      .eq("submission_id", submission.id)
+      .eq("requirement_id", requirementId);
+
+    if (deleteError) {
+      throw new Error("Failed to delete asset");
+    }
+
+    return NextResponse.json({ success: true });
+  } catch (error: unknown) {
+    const msg = error instanceof Error ? error.message : "Internal error";
+    return NextResponse.json({ success: false, error: msg }, { status: 400 });
+  }
+}

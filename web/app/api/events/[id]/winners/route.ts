@@ -102,7 +102,7 @@ export async function POST(
       .eq("id", eventId)
       .single();
 
-    const allowedStates = ["JudgingRound1", "JudgingRound2", "DisputeWindow", "WinnerVerification"];
+    const allowedStates = ["Judging"];
     if (!event || !allowedStates.includes(event.state)) {
       return Response.json(
         { error: { code: "CONFLICT", message: `Cannot assign winners in state: ${event?.state ?? "unknown"}.` } },

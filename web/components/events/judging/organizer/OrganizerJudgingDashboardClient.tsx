@@ -13,6 +13,7 @@ import { RankingPreviewTable, LiveRankingData } from "./RankingPreviewTable";
 import { FinalizationActionBox } from "./FinalizationActionBox";
 import { FinalizedScoreboard, RankingSnapshot } from "./FinalizedScoreboard";
 import { RankingDetailPanel } from "./RankingDetailPanel";
+import { AssignJudgesDialog } from "./AssignJudgesDialog";
 
 interface Props {
   eventId: string;
@@ -99,10 +100,13 @@ export function OrganizerJudgingDashboardClient({
                 Last updated: {new Date(data.refreshedAt).toLocaleTimeString()}
               </span>
               {!isCompleted && (
-                <Button variant="outline" size="sm" onClick={handleRefresh} disabled={isPending}>
-                  <RefreshCw className={`w-4 h-4 mr-2 ${isPending ? "animate-spin" : ""}`} />
-                  Refresh Data
-                </Button>
+                <>
+                  <AssignJudgesDialog eventId={eventId} />
+                  <Button variant="outline" size="sm" onClick={handleRefresh} disabled={isPending}>
+                    <RefreshCw className={`w-4 h-4 mr-2 ${isPending ? "animate-spin" : ""}`} />
+                    Refresh Data
+                  </Button>
+                </>
               )}
             </div>
           </div>

@@ -3,7 +3,7 @@
 /**
  * Disputes tab — role-aware rendering.
  *
- * Participant (DisputeWindow state):
+ * Participant (Judging state):
  *   - File a new dispute (title + description)
  *   - See all disputes and their state
  *
@@ -62,7 +62,7 @@ export function DisputesClient({
   const router = useRouter();
   const isParticipant = userRole === "Participant";
   const isOrganizer = userRole === "Organizer";
-  const canFile = isParticipant && eventState === "DisputeWindow";
+  const canFile = isParticipant && eventState === "Judging";
 
   const [disputes, setDisputes] = useState<Dispute[]>(initialDisputes);
   const [showForm, setShowForm] = useState(false);
@@ -129,9 +129,9 @@ export function DisputesClient({
         <div>
           <h2 className="text-lg font-semibold text-[var(--text)]">Disputes</h2>
           <p className="text-xs text-[var(--text-muted)] mt-0.5">
-            {eventState === "DisputeWindow"
+            {eventState === "Judging"
               ? "The review window is open. Participants can file disputes about judging decisions."
-              : "Disputes can only be filed during the Review (Dispute) Window."}
+              : "Disputes can only be filed during the Judging phase."}
           </p>
         </div>
         {canFile && !showForm && (
@@ -240,7 +240,7 @@ export function DisputesClient({
       {disputes.length === 0 ? (
         <div className="card p-10 text-center">
           <p className="text-sm text-[var(--text-muted)]">
-            {eventState === "DisputeWindow"
+            {eventState === "Judging"
               ? "No disputes filed yet."
               : "No disputes were filed during this event."}
           </p>

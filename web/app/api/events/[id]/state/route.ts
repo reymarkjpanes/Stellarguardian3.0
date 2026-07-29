@@ -134,8 +134,8 @@ export async function PATCH(
 
   // Compute reviewWindowElapsed from event timestamps
   let reviewWindowElapsed = false;
-  if (event.state === "DisputeWindow" && event.review_window_hours) {
-    // Find when the event entered DisputeWindow state (use updated_at as proxy)
+  if (event.state === "Judging" && event.review_window_hours) {
+    // Find when the event entered Judging state (use updated_at as proxy)
     const { data: auditEntry } = await supabase
       .from("audit_records")
       .select("created_at")
@@ -200,10 +200,16 @@ export async function PATCH(
     .select()
     .single();
 
-  if (error || !updated) {
+  if (error) {
+    if (error.code === "PGRST116") {
+      return NextResponse.json(
+        { error: { code: "CONFLICT", message: "Event was modified concurrently. Please refresh the page and try again." } },
+        { status: 409 },
+      );
+    }
     return NextResponse.json(
-      { error: { code: "CONFLICT", message: "Event was modified concurrently." } },
-      { status: 409 },
+      { error: { code: "DATABASE_ERROR", message: error.message } },
+      { status: 422 },
     );
   }
 

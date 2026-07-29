@@ -1,5 +1,6 @@
 import React, { useState } from "react";
 import { Dropzone } from "./Dropzone";
+import { useToast } from "@/components/ui/use-toast";
 
 /** Shape of a requirement row from the DB (snake_case) */
 export interface RequirementRow {
@@ -41,16 +42,19 @@ interface RequirementProps {
   onSave: (reqId: string, assetData: AssetSaveData) => void;
   onUpload?: (
     reqId: string,
+    assetType: string,
     file: File,
     onProgress: (p: number) => void,
   ) => Promise<void | { storagePath: string; publicUrl?: string }>;
+  onRemove?: (reqId: string) => Promise<void>;
+  isLocked?: boolean;
 }
 
-export function TextRequirement({ requirement, asset, onSave }: RequirementProps) {
+export function TextRequirement({ requirement, asset, onSave, isLocked }: RequirementProps) {
   // Use defaultValue + key pattern: when asset identity changes the component
   // re-mounts (key changes) which resets the input without needing useEffect setState.
   const handleChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
-    onSave(requirement.id, { assetType: "TEXT", textValue: e.target.value });
+    onSave(requirement.id, { assetType: requirement.asset_type, textValue: e.target.value });
   };
 
   return (
@@ -62,6 +66,7 @@ export function TextRequirement({ requirement, asset, onSave }: RequirementProps
         placeholder={requirement.placeholder ?? "Enter text..."}
         defaultValue={asset?.text_value ?? ""}
         onChange={handleChange}
+        disabled={isLocked}
       />
       {requirement.help_text && (
         <p className="mt-2 text-sm text-gray-500">{requirement.help_text}</p>
@@ -70,10 +75,10 @@ export function TextRequirement({ requirement, asset, onSave }: RequirementProps
   );
 }
 
-export function URLRequirement({ requirement, asset, onSave }: RequirementProps) {
+export function URLRequirement({ requirement, asset, onSave, isLocked }: RequirementProps) {
   // key prop resets the uncontrolled input when asset identity changes
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    onSave(requirement.id, { assetType: "URL", urlValue: e.target.value });
+    onSave(requirement.id, { assetType: requirement.asset_type, urlValue: e.target.value });
   };
 
   return (
@@ -85,6 +90,7 @@ export function URLRequirement({ requirement, asset, onSave }: RequirementProps)
         placeholder={requirement.placeholder ?? "https://..."}
         defaultValue={asset?.url_value ?? ""}
         onChange={handleChange}
+        disabled={isLocked}
       />
       {requirement.help_text && (
         <p className="mt-2 text-sm text-gray-500">{requirement.help_text}</p>
@@ -93,19 +99,24 @@ export function URLRequirement({ requirement, asset, onSave }: RequirementProps)
   );
 }
 
-export function FileRequirement({ requirement, asset, onUpload }: RequirementProps) {
+export function FileRequirement({ requirement, asset, onUpload, onRemove, isLocked }: RequirementProps) {
   const [isUploading, setIsUploading] = useState(false);
   const [progress, setProgress] = useState(0);
+  const { toast } = useToast();
 
   const handleFileSelect = async (file: File) => {
     if (!onUpload) return;
     setIsUploading(true);
     setProgress(0);
     try {
-      await onUpload(requirement.id, file, (p) => setProgress(p));
+      await onUpload(requirement.id, requirement.asset_type, file, (p) => setProgress(p));
     } catch (err) {
       console.error(err);
-      // Let parent handle error toast
+      toast({
+        title: "Upload Failed",
+        description: (err as Error)?.message || "There was an error uploading your file.",
+        type: "error",
+      });
     } finally {
       setIsUploading(false);
     }
@@ -132,8 +143,9 @@ export function FileRequirement({ requirement, asset, onUpload }: RequirementPro
           </div>
           <button
             type="button"
-            className="text-sm text-red-600 hover:text-red-800"
-            onClick={() => alert("Delete not implemented in this demo")}
+            className="text-sm text-red-600 hover:text-red-800 disabled:opacity-50 disabled:cursor-not-allowed"
+            onClick={() => onRemove && onRemove(requirement.id)}
+            disabled={isLocked}
           >
             Remove
           </button>
@@ -145,6 +157,7 @@ export function FileRequirement({ requirement, asset, onUpload }: RequirementPro
           maxSizeMb={requirement.max_size_mb}
           isUploading={isUploading}
           uploadProgress={progress}
+          disabled={isLocked}
         />
       )}
       {requirement.help_text && (

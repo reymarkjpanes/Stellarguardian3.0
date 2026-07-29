@@ -18,6 +18,7 @@ import Link from "next/link";
 import { createBrowserClient } from "@/lib/supabase/client";
 import { clearDraft } from "@/lib/hooks/use-form-draft";
 import { BackButton } from "@/components/ui/back-button";
+import { useToast } from "@/components/ui/use-toast";
 
 const DRAFT_KEY = "create-event-wizard";
 
@@ -110,6 +111,7 @@ export default function CreateEventPage() {
   });
   const [fieldError, setFieldError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const { toast } = useToast();
   const [submitError, setSubmitError] = useState<string | null>(null);
 
   // Persist draft on every change
@@ -212,14 +214,18 @@ export default function CreateEventPage() {
         }
         setSubmitError(msg);
         setSubmitting(false);
+        toast({ title: "Error", description: msg, type: "error" });
         return;
       }
       const { data } = await res.json();
       clearDraft(DRAFT_KEY);
       localStorage.removeItem(`sg-draft:${DRAFT_KEY}`);
+      toast({ title: "Success", description: "Event created successfully!", type: "success" });
       window.location.href = `/events/${data.id}`;
     } catch {
-      setSubmitError("Network error. Please try again.");
+      const msg = "Network error. Please try again.";
+      setSubmitError(msg);
+      toast({ title: "Error", description: msg, type: "error" });
       setSubmitting(false);
     }
   }

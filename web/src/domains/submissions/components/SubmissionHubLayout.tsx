@@ -28,7 +28,10 @@ export function SubmissionHubLayout({
     saveAsset,
     uploadAsset,
     submit,
+    unsubmit,
+    removeAsset,
     isSubmitting,
+    isUnsubmitting,
   } = useSubmissionController(eventId, teamId);
 
   if (isLoadingHub) {
@@ -58,11 +61,13 @@ export function SubmissionHubLayout({
       <div className="max-w-7xl w-full mx-auto px-4 py-8">
         {/* Submitted / locked confirmation banner */}
         {(status === "SUBMITTED" || status === "Submitted" || status === "LOCKED") && (
-          <div className="rounded-lg border border-[var(--success)] bg-[var(--success-bg)] p-6 text-center mb-8">
-            <p className="text-lg font-semibold text-[var(--success)]">Project Submitted ✓</p>
-            <p className="text-sm text-[var(--text-muted)] mt-1">
-              Your project is locked and queued for review. Good luck!
-            </p>
+          <div className="rounded-lg border border-[var(--success)] bg-[var(--success-bg)] p-6 text-center mb-8 flex flex-col items-center gap-3">
+            <div>
+              <p className="text-lg font-semibold text-[var(--success)]">Project Submitted ✓</p>
+              <p className="text-sm text-[var(--text-muted)] mt-1">
+                Your project is locked and queued for review. Good luck!
+              </p>
+            </div>
           </div>
         )}
 
@@ -85,6 +90,8 @@ export function SubmissionHubLayout({
                   assets={assets}
                   onSave={saveAsset}
                   onUpload={uploadAsset}
+                  onRemove={removeAsset}
+                  isLocked={status === "SUBMITTED" || status === "Submitted" || status === "LOCKED"}
                 />
               )}
             </div>
@@ -101,8 +108,11 @@ export function SubmissionHubLayout({
             <ValidationPanel
               validationResult={validationResult}
               onSubmit={submit}
+              onUnsubmit={unsubmit}
               isSubmitting={isSubmitting}
+              isUnsubmitting={isUnsubmitting}
               isCaptain={isCaptain}
+              status={status}
             />
           </div>
         </div>

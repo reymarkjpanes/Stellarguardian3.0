@@ -24,9 +24,10 @@ export interface PrizeAllocation {
 interface BatchLockPanelProps {
   batchId: string;
   status: string;
-  setStatus: (status: string) => void;
   categories: PrizeCategory[];
   allocations: PrizeAllocation[];
+  eventId: string;
+  setStatus?: (status: string) => void;
 }
 
 export function BatchLockPanel({
@@ -35,6 +36,7 @@ export function BatchLockPanel({
   setStatus,
   categories,
   allocations,
+  eventId,
 }: BatchLockPanelProps) {
   const [loading, setLoading] = useState(false);
   const [validationErrors, setValidationErrors] = useState<string[]>([]);
@@ -44,7 +46,7 @@ export function BatchLockPanel({
     try {
       const res = await validateBatchAction(batchId);
       if (res.valid) {
-        setStatus("Validated");
+        setStatus?.("Validated");
         setValidationErrors([]);
         alert("Validation successful! Batch is now ready to lock.");
       } else {
@@ -71,7 +73,7 @@ export function BatchLockPanel({
     setLoading(true);
     try {
       await lockBatchAction(batchId);
-      setStatus("Locked");
+      setStatus?.("Locked");
       alert("Batch Locked successfully! Ready for Escrow (Module 8).");
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
@@ -143,7 +145,7 @@ export function BatchLockPanel({
           {(status === "Locked" || status === "Escrowed") && (
             <div className="flex flex-col items-center gap-4 p-4 w-full text-center bg-muted text-muted-foreground rounded-md">
               <p>Batch is Locked and handed over to Escrow. No further edits allowed.</p>
-              <Button onClick={() => (window.location.href = "./escrow")} variant="outline">
+              <Button onClick={() => (window.location.href = `/events/${eventId}/escrow`)} variant="outline">
                 Proceed to Escrow
               </Button>
             </div>

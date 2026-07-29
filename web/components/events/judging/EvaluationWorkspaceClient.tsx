@@ -31,7 +31,7 @@ export function EvaluationWorkspaceClient({
       <header className="h-14 border-b bg-background flex items-center justify-between px-4 shrink-0">
         <div className="flex items-center gap-4">
           <Button variant="ghost" size="icon" asChild>
-            <Link href={`/e/${eventId}`}>
+            <Link href={`/events/${eventId}/judging`}>
               <X className="w-4 h-4" />
             </Link>
           </Button>

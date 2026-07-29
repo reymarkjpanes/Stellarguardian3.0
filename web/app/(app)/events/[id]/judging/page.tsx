@@ -130,7 +130,7 @@ function JudgeEvaluationsView({
   eventState: string;
   assignments: EvalRow[];
 }) {
-  const judging = eventState === "JudgingRound1" || eventState === "JudgingRound2";
+  const judging = eventState === "Judging";
 
   return (
     <div className="space-y-6 max-w-3xl">
@@ -167,7 +167,7 @@ function JudgeEvaluationsView({
               <div className="flex items-center gap-2 shrink-0">
                 <StatusBadge status={ev.status} />
                 <a
-                  href={`/events/${eventId}/judging/${ev.evaluationId}`}
+                  href={`/events/${eventId}/judge/workspace/${ev.submissionId}`}
                   className="rounded-md border border-[var(--accent)] px-3 py-1 text-xs font-medium text-[var(--accent)] hover:bg-[var(--accent-muted)] transition-colors"
                 >
                   {ev.status === "Submitted" ? "View" : "Score"}

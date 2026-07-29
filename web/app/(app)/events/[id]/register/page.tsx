@@ -87,10 +87,19 @@ export default function EventRegisterPage() {
 
   if (loading) {
     return (
-      <main className="max-w-2xl mx-auto px-4 py-12">
-        <div className="animate-pulse space-y-4">
+      <main className="max-w-2xl mx-auto px-4 py-12 space-y-8">
+        <div>
+          <div className="h-4 w-24 bg-[var(--bg-muted)] rounded mb-6" />
           <div className="h-8 w-64 bg-[var(--bg-muted)] rounded" />
-          <div className="h-4 w-96 bg-[var(--bg-muted)] rounded" />
+          <div className="h-4 w-48 bg-[var(--bg-muted)] rounded mt-2" />
+        </div>
+        <div className="card p-6 space-y-6">
+          <div className="grid gap-3 sm:grid-cols-2">
+            <div className="space-y-2"><div className="h-3 w-16 bg-[var(--bg-muted)] rounded" /><div className="h-4 w-24 bg-[var(--bg-muted)] rounded" /></div>
+            <div className="space-y-2"><div className="h-3 w-20 bg-[var(--bg-muted)] rounded" /><div className="h-4 w-24 bg-[var(--bg-muted)] rounded" /></div>
+          </div>
+          <div className="h-16 w-full bg-[var(--bg-muted)] rounded" />
+          <div className="h-10 w-full bg-[var(--bg-muted)] rounded" />
         </div>
       </main>
     );
@@ -167,19 +176,37 @@ export default function EventRegisterPage() {
             </p>
           </div>
         ) : (
-          <div className="space-y-4">
-            <p className="text-sm text-[var(--text-secondary)]">
-              By registering, you agree to participate in good faith and abide by the event rules.
-            </p>
+          <form className="space-y-4" onSubmit={(e) => {
+            e.preventDefault();
+            const formData = new FormData(e.currentTarget);
+            if (!formData.get("terms")) {
+              setError("You must accept the event rules and terms to register.");
+              return;
+            }
+            handleRegister();
+          }}>
+            <div className="flex items-start gap-2 p-3 border border-[var(--border)] rounded-md bg-[var(--bg-muted)]/50">
+              <input
+                type="checkbox"
+                id="terms"
+                name="terms"
+                className="mt-1 rounded border-gray-300 text-[var(--accent)] focus:ring-[var(--accent)]"
+              />
+              <label htmlFor="terms" className="text-sm text-[var(--text-secondary)] leading-relaxed cursor-pointer">
+                I agree to participate in good faith and abide by the <a href={`/events/${eventId}`} className="text-[var(--accent)] hover:underline" target="_blank">event rules</a> and the platform&apos;s <a href="/terms" className="text-[var(--accent)] hover:underline" target="_blank">Terms of Service</a>.
+              </label>
+            </div>
+            
             {error && <p className="text-sm text-[var(--error)]">{error}</p>}
+            
             <button
-              onClick={handleRegister}
+              type="submit"
               disabled={registering}
               className="btn-primary w-full py-2.5 text-sm font-medium rounded-md disabled:opacity-50"
             >
               {registering ? "Registering..." : "Confirm Registration"}
             </button>
-          </div>
+          </form>
         )}
       </div>
     </main>

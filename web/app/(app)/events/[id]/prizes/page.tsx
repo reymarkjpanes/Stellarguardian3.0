@@ -39,10 +39,7 @@ export default async function OrganizerPrizeDashboardPage(props: {
     .single();
 
   const PRIZE_ACCESSIBLE_STATES = new Set([
-    "WinnerVerification",
-    "DisputeWindow",
-    "PrizeApproved",
-    "EscrowRelease",
+    "Judging",
     "Completed",
     "Archived",
   ]);

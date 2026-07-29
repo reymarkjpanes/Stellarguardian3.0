@@ -13,16 +13,22 @@ interface ValidationPanelProps {
     | null
     | undefined;
   onSubmit: () => void;
+  onUnsubmit?: () => void;
   isSubmitting: boolean;
+  isUnsubmitting?: boolean;
   /** Only the team captain can submit. Members can fill in requirements. */
   isCaptain: boolean;
+  status?: string;
 }
 
 export function ValidationPanel({
   validationResult,
   onSubmit,
+  onUnsubmit,
   isSubmitting,
+  isUnsubmitting,
   isCaptain,
+  status,
 }: ValidationPanelProps) {
   if (!validationResult) {
     return (
@@ -134,17 +140,27 @@ export function ValidationPanel({
 
       {/* Submit footer */}
       <div className="p-5 border-t border-[var(--border)] bg-[var(--card-bg)] space-y-2">
-        <button
-          disabled={!canSubmit || isSubmitting}
-          onClick={onSubmit}
-          className="w-full rounded-md py-2.5 text-sm font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-          style={{
-            backgroundColor: canSubmit ? "var(--accent)" : "var(--bg-muted)",
-            color: canSubmit ? "#ffffff" : "var(--text-muted)",
-          }}
-        >
-          {isSubmitting ? "Submitting…" : "Submit Project"}
-        </button>
+        {status === "SUBMITTED" || status === "Submitted" ? (
+          <button
+            disabled={!isCaptain || isUnsubmitting}
+            onClick={onUnsubmit}
+            className="w-full rounded-md py-2.5 text-sm font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed bg-red-600 text-white hover:bg-red-700"
+          >
+            {isUnsubmitting ? "Unsubmitting…" : "Unsubmit to Edit"}
+          </button>
+        ) : (
+          <button
+            disabled={!canSubmit || isSubmitting || status === "LOCKED"}
+            onClick={onSubmit}
+            className="w-full rounded-md py-2.5 text-sm font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            style={{
+              backgroundColor: canSubmit ? "var(--accent)" : "var(--bg-muted)",
+              color: canSubmit ? "#ffffff" : "var(--text-muted)",
+            }}
+          >
+            {isSubmitting ? "Submitting…" : status === "LOCKED" ? "Locked" : "Submit Project"}
+          </button>
+        )}
 
         {/* Context-aware helper text */}
         {!isCaptain && (

@@ -35,7 +35,8 @@ export async function saveEvaluationDraftAction(
     return { success: false, error: error.message };
   }
 
-  revalidatePath(`/e/${eventId}`); // revalidate event page if needed
+  revalidatePath(`/events/${eventId}/judging`);
+  revalidatePath(`/events/${eventId}/judge/workspace/${_submissionId}`);
   return { success: true };
 }
 
@@ -104,4 +105,60 @@ export async function declareConflictAction(
 
   revalidatePath(`/events/${eventId}/judge/workspace/${submissionId}`);
   return { success: true };
+}
+
+export async function assignJudgeAction(
+  eventId: string,
+  submissionId: string,
+  judgeId: string
+) {
+  const supabase = await createClient();
+
+  const { error } = await supabase.from("evaluations").insert({
+    event_id: eventId,
+    submission_id: submissionId,
+    judge_id: judgeId,
+    status: "Assigned",
+    scores: {},
+    total_score: 0,
+    version: 1,
+  });
+
+  if (error) {
+    if (error.code === '23505') { // unique violation
+      return { success: false, error: "Judge is already assigned to this submission." };
+    }
+    return { success: false, error: error.message };
+  }
+
+  revalidatePath(`/events/${eventId}/judging`);
+  return { success: true };
+}
+
+export async function fetchAssignmentDataAction(eventId: string) {
+  const supabase = await createClient();
+
+  const [judgesRes, submissionsRes] = await Promise.all([
+    supabase
+      .from("event_members")
+      .select("user_id, users(display_name, email)")
+      .eq("event_id", eventId)
+      .eq("role", "Judge"),
+    supabase
+      .from("submissions")
+      .select("id, title, teams(name)")
+      .eq("event_id", eventId)
+  ]);
+
+  const judges = (judgesRes.data || []).map(j => ({
+    id: j.user_id,
+    name: (j.users as { display_name?: string; email?: string })?.display_name || (j.users as { display_name?: string; email?: string })?.email || "Unknown Judge"
+  }));
+
+  const submissions = (submissionsRes.data || []).map(s => ({
+    id: s.id,
+    title: s.title || (s.teams as { name?: string })?.name || "Untitled Submission"
+  }));
+
+  return { judges, submissions };
 }

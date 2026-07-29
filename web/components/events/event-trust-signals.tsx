@@ -55,7 +55,6 @@ export function EventTrustSignals({
     "Published",
     "RegistrationOpen",
     "RegistrationClosed",
-    "TeamFormationLocked",
   ].includes(eventState);
 
   useEffect(() => {

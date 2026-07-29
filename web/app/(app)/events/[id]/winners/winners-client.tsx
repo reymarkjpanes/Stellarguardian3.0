@@ -75,7 +75,7 @@ export function WinnersClient({
   const [assigning, setAssigning] = useState(false);
 
   const canAssign =
-    isOrganizer && (eventState === "WinnerVerification" || eventState === "PrizeApproved");
+    isOrganizer && eventState === "Judging";
 
   async function handleAssign(e: FormEvent) {
     e.preventDefault();
@@ -110,9 +110,7 @@ export function WinnersClient({
   const myWin = userId ? initialWinners.find((w) => w.recipient_id === userId) : null;
 
   const revealed =
-    eventState === "WinnerVerification" ||
-    eventState === "PrizeApproved" ||
-    eventState === "EscrowRelease" ||
+    eventState === "Judging" ||
     eventState === "Completed" ||
     eventState === "Archived";
 

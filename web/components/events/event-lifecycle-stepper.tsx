@@ -30,7 +30,7 @@ const PHASES: Phase[] = [
   },
   {
     label: "Registration",
-    states: ["RegistrationOpen", "RegistrationClosed", "TeamFormationLocked"],
+    states: ["RegistrationOpen", "RegistrationClosed"],
     description: "Accept participants and form teams",
   },
   {
@@ -40,12 +40,12 @@ const PHASES: Phase[] = [
   },
   {
     label: "Judging",
-    states: ["JudgingRound1", "JudgingRound2", "WinnerVerification", "DisputeWindow"],
+    states: ["Judging"],
     description: "Score submissions and resolve disputes",
   },
   {
-    label: "Settlement",
-    states: ["PrizeApproved", "EscrowRelease", "Completed"],
+    label: "Completed",
+    states: ["Completed"],
     description: "Approve prizes, release escrow, disburse on-chain",
   },
 ];
@@ -55,15 +55,9 @@ const STATE_LABELS: Record<EventState, string> = {
   Published: "Published",
   RegistrationOpen: "Registration Open",
   RegistrationClosed: "Registration Closed",
-  TeamFormationLocked: "Teams Locked",
   SubmissionOpen: "Submissions Open",
   SubmissionClosed: "Submissions Closed",
-  JudgingRound1: "Judging Round 1",
-  JudgingRound2: "Judging Round 2",
-  WinnerVerification: "Verifying Winners",
-  DisputeWindow: "Dispute Window",
-  PrizeApproved: "Prizes Approved",
-  EscrowRelease: "Releasing Prizes",
+  Judging: "Judging",
   Completed: "Completed",
   Cancelled: "Cancelled",
   Archived: "Archived",

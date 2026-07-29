@@ -76,55 +76,29 @@ describe("canEventTransition — basic valid paths", () => {
     );
   });
 
-  it("SubmissionClosed → JudgingRound1 requires hasSubmissions", () => {
-    const noSubs = canEventTransition("SubmissionClosed", "JudgingRound1", {
+  it("SubmissionClosed → Judging requires hasSubmissions", () => {
+    const noSubs = canEventTransition("SubmissionClosed", "Judging", {
       actorRole: "Organizer",
       hasSubmissions: false,
     });
     expect(noSubs.ok).toBe(false);
 
-    const withSubs = canEventTransition("SubmissionClosed", "JudgingRound1", {
+    const withSubs = canEventTransition("SubmissionClosed", "Judging", {
       actorRole: "Organizer",
       hasSubmissions: true,
     });
     expect(withSubs.ok).toBe(true);
   });
 
-  it("DisputeWindow → PrizeApproved requires elapsed window + zero disputes", () => {
-    const pending = canEventTransition("DisputeWindow", "PrizeApproved", {
-      reviewWindowElapsed: false,
-      unresolvedDisputes: 0,
+  it("Judging → Completed requires all validations", () => {
+    const notScored = canEventTransition("Judging", "Completed", {
+      actorRole: "Organizer",
+      allSubmissionsScored: false,
     });
-    expect(pending.ok).toBe(false);
+    expect(notScored.ok).toBe(false);
 
-    const withDisputes = canEventTransition("DisputeWindow", "PrizeApproved", {
-      reviewWindowElapsed: true,
-      unresolvedDisputes: 2,
-    });
-    expect(withDisputes.ok).toBe(false);
-
-    const clear = canEventTransition("DisputeWindow", "PrizeApproved", {
-      reviewWindowElapsed: true,
-      unresolvedDisputes: 0,
-    });
-    expect(clear.ok).toBe(true);
-  });
-
-  it("PrizeApproved → EscrowRelease requires funded + locked escrow", () => {
-    const result = canEventTransition("PrizeApproved", "EscrowRelease", {
-      escrowFullyFunded: true,
-      escrowLocked: true,
-    });
-    expect(result.ok).toBe(true);
-  });
-
-  it("EscrowRelease → Completed requires allDisbursementsComplete", () => {
-    expect(
-      canEventTransition("EscrowRelease", "Completed", { allDisbursementsComplete: false }).ok,
-    ).toBe(false);
-    expect(
-      canEventTransition("EscrowRelease", "Completed", { allDisbursementsComplete: true }).ok,
-    ).toBe(true);
+    const fullValid = canEventTransition("Judging", "Completed", FULL_CTX);
+    expect(fullValid.ok).toBe(true);
   });
 });
 
@@ -156,15 +130,9 @@ describe("Cancellation", () => {
     "Published",
     "RegistrationOpen",
     "RegistrationClosed",
-    "TeamFormationLocked",
     "SubmissionOpen",
     "SubmissionClosed",
-    "JudgingRound1",
-    "JudgingRound2",
-    "WinnerVerification",
-    "DisputeWindow",
-    "PrizeApproved",
-    "EscrowRelease",
+    "Judging",
   ] as const;
 
   cancelStates.forEach((state) => {

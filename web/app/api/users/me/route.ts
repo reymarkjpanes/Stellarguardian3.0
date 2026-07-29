@@ -8,6 +8,9 @@ import { z } from "zod";
 
 const UpdateProfileSchema = z.object({
   display_name: z.string().min(1).max(120).optional(),
+  bio: z.string().max(500).optional().nullable(),
+  avatar_url: z.string().url().optional().nullable(),
+  skills: z.array(z.string()).optional(),
   terms_accepted_version: z.string().optional(),
 });
 
@@ -34,11 +37,19 @@ export async function GET() {
     .select("id, public_key, provider, verification_status, network_mode, verified_at")
     .eq("user_id", user.id);
 
+  // Fetch skills
+  const { data: userSkills } = await supabase
+    .from("user_skills")
+    .select("skill_id")
+    .eq("user_id", user.id);
+  const skills = (userSkills ?? []).map(s => s.skill_id);
+
   return NextResponse.json({
     data: {
       ...profile,
       email: user.email,
       wallets: wallets ?? [],
+      skills,
     },
   });
 }
@@ -65,29 +76,71 @@ export async function PATCH(request: NextRequest) {
   }
 
   const updates: Record<string, unknown> = {};
-  if (parsed.data.display_name) updates.display_name = parsed.data.display_name;
+  if (parsed.data.display_name !== undefined) updates.display_name = parsed.data.display_name;
+  if (parsed.data.bio !== undefined) updates.bio = parsed.data.bio;
+  if (parsed.data.avatar_url !== undefined) updates.avatar_url = parsed.data.avatar_url;
+  
   if (parsed.data.terms_accepted_version) {
     updates.terms_accepted_version = parsed.data.terms_accepted_version;
     updates.terms_accepted_at = new Date().toISOString();
   }
 
-  if (Object.keys(updates).length === 0) {
-    return NextResponse.json({ data: null, message: "No updates provided." });
+  if (Object.keys(updates).length > 0) {
+    const { error } = await supabase
+      .from("users")
+      .update(updates)
+      .eq("id", user.id);
+
+    if (error) {
+      return NextResponse.json(
+        { error: { code: "INTERNAL_ERROR", message: error.message } },
+        { status: 500 },
+      );
+    }
   }
 
-  const { data: updated, error } = await supabase
+  // Update skills if provided
+  if (parsed.data.skills !== undefined) {
+    // delete old skills
+    await supabase.from("user_skills").delete().eq("user_id", user.id);
+    
+    // insert new skills
+    if (parsed.data.skills.length > 0) {
+      const { error: skillsError } = await supabase.from("user_skills").insert(
+        parsed.data.skills.map(skillId => ({
+          user_id: user.id,
+          skill_id: skillId
+        }))
+      );
+      if (skillsError) {
+         return NextResponse.json(
+          { error: { code: "INTERNAL_ERROR", message: skillsError.message } },
+          { status: 500 },
+        );
+      }
+    }
+  }
+
+  // Fetch updated profile
+  const { data: updated, error: updatedError } = await supabase
     .from("users")
-    .update(updates)
+    .select("*")
     .eq("id", user.id)
-    .select()
     .single();
 
-  if (error) {
+  if (updatedError) {
     return NextResponse.json(
-      { error: { code: "INTERNAL_ERROR", message: error.message } },
+      { error: { code: "INTERNAL_ERROR", message: updatedError.message } },
       { status: 500 },
     );
   }
 
-  return NextResponse.json({ data: updated });
+  // Fetch skills
+  const { data: userSkills } = await supabase
+    .from("user_skills")
+    .select("skill_id")
+    .eq("user_id", user.id);
+  const skills = (userSkills ?? []).map((s: { skill_id: string }) => s.skill_id);
+
+  return NextResponse.json({ data: { ...updated, skills } });
 }

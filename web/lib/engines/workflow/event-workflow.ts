@@ -29,10 +29,8 @@ const WORKFLOW_GRAPH: Partial<Record<EventState, TransitionEdge[]>> = {
     {
       to: "Published",
       validators: [
-        // A prize pool amount must be committed before participants can see the event.
-        // Full on-chain escrow funding happens later (before EscrowRelease).
+        EventBusinessRules.requiresJudges,
         EventBusinessRules.requiresPrizePoolTarget,
-        // A registration deadline is required so participants know when to register by.
         EventBusinessRules.requiresRegistrationDeadline,
       ],
     },
@@ -47,10 +45,6 @@ const WORKFLOW_GRAPH: Partial<Record<EventState, TransitionEdge[]>> = {
     { to: "Cancelled", validators: [] },
   ],
   RegistrationClosed: [
-    { to: "TeamFormationLocked", validators: [] },
-    { to: "Cancelled", validators: [] },
-  ],
-  TeamFormationLocked: [
     { to: "SubmissionOpen", validators: [] },
     { to: "Cancelled", validators: [] },
   ],
@@ -60,43 +54,13 @@ const WORKFLOW_GRAPH: Partial<Record<EventState, TransitionEdge[]>> = {
   ],
   SubmissionClosed: [
     {
-      to: "JudgingRound1",
+      to: "Judging",
       validators: [EventBusinessRules.hasSubmissions],
     },
     { to: "Cancelled", validators: [] },
   ],
-  JudgingRound1: [
-    { to: "JudgingRound2", validators: [EventBusinessRules.allSubmissionsScored] },
-    { to: "WinnerVerification", validators: [EventBusinessRules.allSubmissionsScored] },
-    { to: "Cancelled", validators: [] },
-  ],
-  JudgingRound2: [
-    { to: "WinnerVerification", validators: [EventBusinessRules.allSubmissionsScored] },
-    { to: "Cancelled", validators: [] },
-  ],
-  WinnerVerification: [
-    { to: "DisputeWindow", validators: [] },
-    { to: "Cancelled", validators: [] },
-  ],
-  DisputeWindow: [
-    {
-      to: "PrizeApproved",
-      validators: [
-        EventBusinessRules.reviewWindowElapsed,
-        EventBusinessRules.zeroUnresolvedDisputes,
-      ],
-    },
-    { to: "Cancelled", validators: [] },
-  ],
-  PrizeApproved: [
-    {
-      to: "EscrowRelease",
-      validators: [EventBusinessRules.escrowFullyFunded],
-    },
-    { to: "Cancelled", validators: [] },
-  ],
-  EscrowRelease: [
-    { to: "Completed", validators: [] },
+  Judging: [
+    { to: "Completed", validators: [EventBusinessRules.allSubmissionsScored] },
     { to: "Cancelled", validators: [] },
   ],
   Completed: [{ to: "Archived", validators: [] }],

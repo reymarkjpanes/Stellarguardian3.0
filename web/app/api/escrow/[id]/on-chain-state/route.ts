@@ -47,7 +47,7 @@ export async function GET(
     const { data: escrow } = await serviceClient
       .from("escrow_accounts")
       .select(
-        "id, state, status, network, contract_address, stellar_public_key, expected_balance, last_reconciled_balance, inconsistent, event_id",
+        "id, status, network, contract_address, expected_balance, event_id",
       )
       .eq("id", escrowId)
       .single();
@@ -61,10 +61,9 @@ export async function GET(
 
     // Fetch the most recent confirmed fund transaction from DB
     const { data: latestFundTx } = await serviceClient
-      .from("transactions")
-      .select("tx_hash, amount, created_at, from_address, status")
+      .from("funding_transactions")
+      .select("tx_hash, amount, created_at, funding_source_id, status")
       .eq("escrow_id", escrowId)
-      .eq("type", "fund")
       .order("created_at", { ascending: false })
       .limit(1)
       .maybeSingle();
@@ -95,9 +94,9 @@ export async function GET(
 
     // Fetch live on-chain balance from Horizon (most reliable source)
     let onChainBalance = "0";
-    if (escrow.stellar_public_key) {
+    if (escrow.contract_address) {
       try {
-        onChainBalance = await stellar.getBalance(escrow.stellar_public_key);
+        onChainBalance = await stellar.getBalance(escrow.contract_address);
       } catch {
         // Non-blocking
       }
@@ -105,7 +104,6 @@ export async function GET(
 
     // Build explorer URLs
     const contractBase = EXPLORER_CONTRACT_URLS[network] ?? EXPLORER_CONTRACT_URLS.testnet;
-    const accountBase = EXPLORER_ACCOUNT_URLS[network] ?? EXPLORER_ACCOUNT_URLS.testnet;
     const txBase =
       network === "mainnet"
         ? "https://stellar.expert/explorer/public/tx"
@@ -116,20 +114,18 @@ export async function GET(
         ? `${contractBase}/${escrow.contract_address}`
         : null,
       transaction: onChainTx?.hash ? `${txBase}/${onChainTx.hash}` : null,
-      wallet: escrow.stellar_public_key
-        ? `${accountBase}/${escrow.stellar_public_key}`
-        : null,
+      wallet: null,
     };
 
     return NextResponse.json({
       // DB state
       escrowId,
-      dbState: escrow.state ?? escrow.status,
+      dbState: escrow.status,
       expectedBalance: escrow.expected_balance,
       contractAddress: escrow.contract_address ?? null,
-      walletAddress: escrow.stellar_public_key ?? null,
+      walletAddress: null,
       network,
-      inconsistent: escrow.inconsistent ?? false,
+      inconsistent: false,
 
       // Live on-chain data
       onChainBalance,
@@ -141,7 +137,7 @@ export async function GET(
             amount: latestFundTx.amount,
             status: latestFundTx.status,
             recordedAt: latestFundTx.created_at,
-            fromAddress: latestFundTx.from_address,
+            fromAddress: latestFundTx.funding_source_id,
             // Live ledger data from Horizon if available
             ledger: onChainTx?.ledger ?? null,
             blockTimestamp: onChainTx?.createdAt ?? null,

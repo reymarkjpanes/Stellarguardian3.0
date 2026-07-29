@@ -25,7 +25,7 @@ export class TeamService {
       .single();
 
     if (!event) throw new NotFoundError("Event not found");
-    if (!["TeamFormationLocked", "RegistrationOpen", "RegistrationClosed"].includes(event.state)) {
+    if (!["RegistrationOpen", "RegistrationClosed"].includes(event.state)) {
       throw new BadRequestError("Teams can only be created during team formation phases.");
     }
 

@@ -40,9 +40,9 @@ export async function createDispute(params: {
 
   if (!event) throw new NotFoundError("Event not found.");
 
-  if (event.state !== "DisputeWindow") {
+  if (event.state !== "Judging") {
     throw new BadRequestError(
-      "Disputes can only be filed during the Review (Objection Window).",
+      "Disputes can only be filed during the Judging phase.",
       { currentState: event.state },
     );
   }

@@ -81,6 +81,7 @@ export function OrganizerPrizeDashboardClient({
               setStatus={setStatus}
               categories={categories}
               allocations={allocations}
+              eventId={eventId}
             />
           </TabsContent>
         </Tabs>

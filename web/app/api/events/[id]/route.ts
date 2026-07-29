@@ -64,6 +64,19 @@ export async function PATCH(
       );
     }
 
+    const { data: eventCheck } = await supabase
+      .from("events")
+      .select("organizer_id")
+      .eq("id", eventId)
+      .single();
+
+    if (!eventCheck || eventCheck.organizer_id !== user.id) {
+      return Response.json(
+        { error: { code: "FORBIDDEN", message: "Only the organizer can edit the event." } },
+        { status: 403 },
+      );
+    }
+
     const data = await optimisticUpdate(supabase, "events", eventId, version, updates);
 
     await writeAuditRecord({

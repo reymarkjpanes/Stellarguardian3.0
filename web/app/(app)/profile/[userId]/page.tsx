@@ -14,7 +14,7 @@ export default async function PublicProfilePage({
 
   const { data: profile } = await supabase
     .from("users")
-    .select("id, display_name, created_at")
+    .select("id, display_name, created_at, bio, avatar_url")
     .eq("id", userId)
     .single();
 
@@ -42,12 +42,25 @@ export default async function PublicProfilePage({
     .eq("verification_status", "Verified")
     .maybeSingle();
 
+  // Get skills
+  const { data: userSkills } = await supabase
+    .from("user_skills")
+    .select("skills(id, name)")
+    .eq("user_id", userId);
+    
+  const skills = (userSkills ?? []).map(s => s.skills as unknown as {id: string, name: string}).filter(Boolean);
+
   return (
     <main className="max-w-3xl mx-auto px-4 py-8 space-y-8">
       <div className="flex items-center gap-4">
-        <div className="h-14 w-14 rounded-full bg-[var(--bg-muted)] flex items-center justify-center text-xl font-bold text-[var(--text)]">
-          {profile.display_name.charAt(0).toUpperCase()}
-        </div>
+        {profile.avatar_url ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={profile.avatar_url} alt="Avatar" className="h-16 w-16 rounded-full bg-[var(--bg-muted)] object-cover" />
+        ) : (
+          <div className="h-16 w-16 rounded-full bg-[var(--bg-muted)] flex items-center justify-center text-xl font-bold text-[var(--text)]">
+            {profile.display_name.charAt(0).toUpperCase()}
+          </div>
+        )}
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">{profile.display_name}</h1>
           <p className="text-sm text-[var(--text-muted)]">
@@ -55,6 +68,26 @@ export default async function PublicProfilePage({
           </p>
         </div>
       </div>
+      
+      {profile.bio && (
+        <section className="card p-5">
+          <h2 className="text-sm font-medium mb-2 text-[var(--text-secondary)]">About</h2>
+          <p className="text-sm text-[var(--text)] whitespace-pre-wrap">{profile.bio}</p>
+        </section>
+      )}
+
+      {skills.length > 0 && (
+        <section className="card p-5">
+          <h2 className="text-sm font-medium mb-3 text-[var(--text-secondary)]">Skills</h2>
+          <div className="flex flex-wrap gap-2">
+            {skills.map(s => (
+              <span key={s.id} className="badge-default px-2 py-1 text-xs">
+                {s.name}
+              </span>
+            ))}
+          </div>
+        </section>
+      )}
 
       {wallet && (
         <div className="card p-4 flex items-center gap-3">

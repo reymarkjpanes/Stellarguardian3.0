@@ -12,6 +12,7 @@ export interface MemberLink {
 }
 
 export interface MemberDirectoryProjection {
+  id: string; // The event_members record ID
   userId: string;
   eventId: string;
   handle: string;

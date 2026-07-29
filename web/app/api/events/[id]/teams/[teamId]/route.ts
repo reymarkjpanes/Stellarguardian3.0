@@ -107,7 +107,7 @@ export const DELETE = apiHandler({ requireAuth: true }, async ({ params, user })
   const { id: eventId, teamId } = params as { id: string; teamId: string };
   const service = createServiceClient();
 
-  // ── Verify membership ──────────────────────────────────────────────────
+  // ── Verify membership or organizer ────────────────────────────────────────
   const { data: membership } = await service
     .from("team_members")
     .select("user_id, joined_at")
@@ -115,8 +115,17 @@ export const DELETE = apiHandler({ requireAuth: true }, async ({ params, user })
     .eq("user_id", user!.id)
     .maybeSingle();
 
-  if (!membership) {
-    throw new ForbiddenError("You are not a member of this team.");
+  const { data: eventMembership } = await service
+    .from("event_members")
+    .select("role")
+    .eq("event_id", eventId)
+    .eq("user_id", user!.id)
+    .maybeSingle();
+
+  const isOrganizer = eventMembership?.role === "Organizer";
+
+  if (!membership && !isOrganizer) {
+    throw new ForbiddenError("You are not a member of this team or an organizer.");
   }
 
   // ── Load team ──────────────────────────────────────────────────────────
@@ -128,6 +137,12 @@ export const DELETE = apiHandler({ requireAuth: true }, async ({ params, user })
 
   if (!team || team.event_id !== eventId) {
     throw new NotFoundError("Team not found in this event.");
+  }
+
+  if (isOrganizer && !membership) {
+    // Organizer force deleting the team
+    await service.from("teams").delete().eq("id", teamId);
+    return okResponse({ left: true, team_disbanded: true, team_id: teamId });
   }
 
   const isCaptain = team.captain_id === user!.id;
