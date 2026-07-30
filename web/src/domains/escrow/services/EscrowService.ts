@@ -176,8 +176,10 @@ export class EscrowService {
     
     if (submissions) {
       for (const sub of submissions) {
-        allOwnerIds.add(sub.team_id);
-        ownerIdsToSubId.set(sub.id, sub.team_id);
+        if (sub.team_id) {
+          allOwnerIds.add(sub.team_id);
+          ownerIdsToSubId.set(sub.id, sub.team_id);
+        }
       }
     }
 
