@@ -60,6 +60,16 @@ export function HackathonSubmissionForm({
   const [activeTab, setActiveTab] = useState<"basic" | "details" | "links" | "extra">("basic");
   const { toast } = useToast();
   
+  // Sanitize initialData so `null` from DB becomes `undefined` or `[]` to satisfy Zod
+  const sanitizedInitialData = initialData
+    ? Object.fromEntries(
+        Object.entries(initialData).map(([key, value]) => [
+          key,
+          value === null ? undefined : value,
+        ])
+      )
+    : undefined;
+
   const {
     register,
     handleSubmit,
@@ -68,7 +78,7 @@ export function HackathonSubmissionForm({
     formState: { errors },
   } = useForm<SubmissionFormData>({
     resolver: zodResolver(baseSchema),
-    defaultValues: initialData || {
+    defaultValues: (sanitizedInitialData as SubmissionFormData) || {
       tech_stack: [],
       smart_contract_addresses: [],
       categories_entered: [],
@@ -249,14 +259,20 @@ export function HackathonSubmissionForm({
           <Button
             type="button"
             variant="outline"
-            onClick={handleSubmit(handleDraft)}
+            onClick={handleSubmit(handleDraft, (errors) => {
+              console.error("Form draft errors:", errors);
+              toast({ title: "Validation Error", description: "Please check the form for errors.", type: "error" });
+            })}
             disabled={isSaving}
           >
             {isSaving ? "Saving..." : "Save Draft"}
           </Button>
           <Button
             type="button"
-            onClick={handleSubmit(handleFinal)}
+            onClick={handleSubmit(handleFinal, (errors) => {
+              console.error("Form final errors:", errors);
+              toast({ title: "Validation Error", description: "Please check the form for errors.", type: "error" });
+            })}
             disabled={isSaving}
           >
             Submit Final
