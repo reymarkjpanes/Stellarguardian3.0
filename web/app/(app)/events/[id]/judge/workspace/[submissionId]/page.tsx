@@ -91,12 +91,20 @@ export default async function JudgingWorkspacePage(props: {
   // Format the data for the Client Component
   const formattedSubmission = {
     id: submission.id,
+    eventId,
     title,
     tagline,
-    description,
-    repoUrl,
-    demoUrl,
-    videoUrl,
+    short_description: tagline,
+    detailed_description: description,
+    problem_statement: assetMap['problem statement']?.text_value,
+    github_url: repoUrl,
+    live_demo_url: demoUrl,
+    video_url: videoUrl,
+    presentation_url: assetMap['presentation']?.url_value,
+    tech_stack: assetMap['tech stack']?.text_value ? assetMap['tech stack'].text_value.split(',') : undefined,
+    screenshots: assetMap['screenshots']?.url_value ? [assetMap['screenshots'].url_value] : [],
+    teamName: title,
+    status: "Submitted",
   };
 
   const formattedRubric = criteria.map((c) => ({

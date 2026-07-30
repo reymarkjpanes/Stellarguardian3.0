@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { SubmitProjectUseCase } from "@/src/domains/submissions/application/commands/SubmitProjectUseCase";
 import { createServerClient } from "@/lib/supabase/server";
+import { SaveSubmissionPayloadSchema } from "@/types/submission";
 
 export async function POST(request: NextRequest, context: { params: Promise<{ teamId: string }> }) {
   try {
@@ -14,12 +15,73 @@ export async function POST(request: NextRequest, context: { params: Promise<{ te
     }
 
     const body = await request.json();
-    const { eventId } = body;
+    const parsed = SaveSubmissionPayloadSchema.safeParse(body);
+    
+    if (!parsed.success) {
+      return NextResponse.json(
+        { success: false, error: "Validation failed", issues: parsed.error.issues },
+        { status: 400 }
+      );
+    }
 
-    const command = new SubmitProjectUseCase();
-    const result = await command.execute(eventId, teamId, user.id);
+    const data = parsed.data;
+    const { eventId, status, ...fields } = data;
 
-    return NextResponse.json({ success: true, data: result });
+    // Check if submission exists
+    const { data: existingSub } = await supabase
+      .from("submissions")
+      .select("id")
+      .eq("team_id", teamId)
+      .eq("event_id", eventId)
+      .maybeSingle();
+
+    if (existingSub) {
+      const { error: updateError } = await supabase
+        .from("submissions")
+        .update({
+          ...fields,
+          status: status,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", existingSub.id);
+
+      if (updateError) throw updateError;
+    } else {
+      const { error: insertError } = await supabase
+        .from("submissions")
+        .insert({
+          team_id: teamId,
+          event_id: eventId,
+          submitter_id: user.id,
+          status: status,
+          current_version: 1,
+          version: 1,
+          ...fields,
+        });
+
+      if (insertError) throw insertError;
+    }
+
+    // Also run original domain logic for actual "Submitted" state transition if needed
+    // But since we just updated the status directly, we might trigger SubmitProjectUseCase for domain events
+    if (status === 'Submitted') {
+      try {
+        const command = new SubmitProjectUseCase();
+        await command.execute(eventId, teamId, user.id);
+      } catch (err) {
+        // If domain validation fails (e.g. missing assets), we might want to revert or just surface the error
+        const msg = err instanceof Error ? err.message : String(err);
+        // Revert status to Draft
+        if (existingSub) {
+          await supabase.from("submissions").update({ status: "Draft" }).eq("id", existingSub.id);
+        } else {
+          await supabase.from("submissions").update({ status: "Draft" }).eq("team_id", teamId).eq("event_id", eventId);
+        }
+        return NextResponse.json({ success: false, error: msg }, { status: 400 });
+      }
+    }
+
+    return NextResponse.json({ success: true });
   } catch (error) {
     const msg = error instanceof Error ? error.message : String(error);
     return NextResponse.json({ success: false, error: msg }, { status: 400 });

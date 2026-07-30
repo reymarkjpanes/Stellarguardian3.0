@@ -168,7 +168,7 @@ export class EscrowService {
     const submissionIds = allocations.map(a => a.submission_id);
     const { data: submissions } = await this.supabase
       .from("submissions")
-      .select("id, team_id, submitter_id")
+      .select("id, team_id")
       .in("id", submissionIds);
       
     const ownerIdsToSubId = new Map<string, string>();
@@ -176,13 +176,8 @@ export class EscrowService {
     
     if (submissions) {
       for (const sub of submissions) {
-        if (sub.team_id) {
-          allOwnerIds.add(sub.team_id);
-          ownerIdsToSubId.set(sub.id, sub.team_id);
-        } else {
-          allOwnerIds.add(sub.submitter_id);
-          ownerIdsToSubId.set(sub.id, sub.submitter_id);
-        }
+        allOwnerIds.add(sub.team_id);
+        ownerIdsToSubId.set(sub.id, sub.team_id);
       }
     }
 
