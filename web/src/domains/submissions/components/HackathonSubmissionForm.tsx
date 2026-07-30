@@ -9,6 +9,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { ArrayInput } from "@/components/ui/array-input";
+import { useToast } from "@/components/ui/use-toast";
 
 // The base schema allows optional fields for draft saves
 const baseSchema = z.object({
@@ -57,6 +58,7 @@ export function HackathonSubmissionForm({
   isSaving,
 }: Props) {
   const [activeTab, setActiveTab] = useState<"basic" | "details" | "links" | "extra">("basic");
+  const { toast } = useToast();
   
   const {
     register,
@@ -85,8 +87,11 @@ export function HackathonSubmissionForm({
           setError(err.path[0] as keyof SubmissionFormData, { type: "manual", message: err.message });
         }
       });
-      // Optionally alert the user
-      alert("Please fix the validation errors before submitting.");
+      toast({
+        title: "Validation Error",
+        description: "Please fix the form errors before submitting.",
+        variant: "destructive",
+      });
       return;
     }
     await onSubmitFinal(data);

@@ -59,6 +59,19 @@ export async function POST(
       return NextResponse.json({ error: "Not a member of this team" }, { status: 403 });
     }
 
+    // Format status for the DB enum (which expects Title Case)
+    const dbStatus = status === "SUBMITTED" ? "Submitted" : "Draft";
+
+    // Extra server-side safety check: if submitting, ensure required fields exist
+    if (dbStatus === "Submitted") {
+      if (!fields.title?.trim() || !fields.github_url?.trim()) {
+        return NextResponse.json(
+          { error: "Title and GitHub URL are required for final submission" },
+          { status: 400 }
+        );
+      }
+    }
+
     // Upsert submission manually
     const { data: existingSub } = await supabase
       .from("submissions")
@@ -71,7 +84,7 @@ export async function POST(
       const { error: updateError } = await supabase
         .from("submissions")
         .update({
-          status: status || "DRAFT",
+          status: dbStatus,
           ...fields,
           updated_at: new Date().toISOString(),
         })
@@ -87,7 +100,8 @@ export async function POST(
         .insert({
           team_id: teamId,
           event_id: eventId,
-          status: status || "DRAFT",
+          submitter_id: userRes.user.id,
+          status: dbStatus,
           ...fields,
           updated_at: new Date().toISOString(),
         });
