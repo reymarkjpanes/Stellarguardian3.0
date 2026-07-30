@@ -17,26 +17,12 @@ ALTER TABLE public.team_invitations
 -- If the ENUM only has 'Pending', the API inserts 'pending' which will fail.
 -- Safest: update the ENUM to include both cases, or standardise on PascalCase in the API.
 
--- Update ENUM to include lowercase variants used by the simplified API
-DO $$
-BEGIN
-  IF NOT EXISTS (
-    SELECT 1 FROM pg_enum
-    WHERE enumtypid = 'public.team_invitation_status'::regtype
-    AND enumlabel = 'pending'
-  ) THEN
-    ALTER TYPE public.team_invitation_status ADD VALUE IF NOT EXISTS 'pending';
-    ALTER TYPE public.team_invitation_status ADD VALUE IF NOT EXISTS 'accepted';
-    ALTER TYPE public.team_invitation_status ADD VALUE IF NOT EXISTS 'declined';
-    ALTER TYPE public.team_invitation_status ADD VALUE IF NOT EXISTS 'cancelled';
-  END IF;
-END;
-$$;
+
 
 -- Partial unique index: one pending invite per (team, invitee)
 CREATE UNIQUE INDEX IF NOT EXISTS team_invitations_pending_unique
   ON public.team_invitations (team_id, invitee_user_id)
-  WHERE status = 'pending' OR status = 'Pending';
+  WHERE status = 'Pending';
 
 -- Index for participant's inbound invitation lookup
 CREATE INDEX IF NOT EXISTS idx_team_invitations_invitee

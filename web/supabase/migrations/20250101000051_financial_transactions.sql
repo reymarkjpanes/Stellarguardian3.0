@@ -21,12 +21,11 @@ BEGIN
   -- Process each successful payment
   FOR v_payment IN SELECT * FROM jsonb_array_elements(p_payments)
   LOOP
-    -- Update winner status
-    UPDATE public.winners
+    -- Update prize allocation status
+    UPDATE public.prize_allocations
     SET
-      disbursement_status = 'paid',
-      tx_hash = v_payment->>'txHash',
-      paid_at = now()
+      allocation_status = 'Paid',
+      updated_at = now()
     WHERE id = (v_payment->>'winnerId')::uuid;
 
     -- Insert confirmed transaction record

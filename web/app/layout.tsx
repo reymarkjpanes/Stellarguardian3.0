@@ -25,20 +25,25 @@ const themeScript = `
   })();
 `;
 
-import { headers } from "next/headers";
+import Script from "next/script";
 
 export default async function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
-  const headersList = await headers();
-  const nonce = headersList.get("x-nonce") || "";
+  // The nonce is handled automatically by Next.js for <Script> tags
+  // when x-nonce is set in the middleware.
 
   return (
     <html lang="en" className="dark" suppressHydrationWarning>
       <head>
-        <script suppressHydrationWarning nonce={nonce} dangerouslySetInnerHTML={{ __html: themeScript }} />
+        <Script
+          id="theme-script"
+          strategy="beforeInteractive"
+          suppressHydrationWarning
+          dangerouslySetInnerHTML={{ __html: themeScript }}
+        />
       </head>
       <body className="antialiased" suppressHydrationWarning>
         {/* Skip to content — WCAG 2.4.1 Bypass Blocks */}
@@ -49,9 +54,7 @@ export default async function RootLayout({
           Skip to content
         </a>
         <ThemeProvider>
-          <ToastProvider>
-            {children}
-          </ToastProvider>
+          <ToastProvider>{children}</ToastProvider>
         </ThemeProvider>
       </body>
     </html>

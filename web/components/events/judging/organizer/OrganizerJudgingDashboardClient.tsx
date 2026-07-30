@@ -7,13 +7,17 @@ import { RefreshCw } from "lucide-react";
 import {
   fetchJudgingAnalytics,
   finalizeEventAction,
+  fetchJudgeAssignments,
+  type JudgeAssignmentData,
 } from "@/app/actions/judging-analytics.actions";
 import { JudgingProgressStats, ProgressData } from "./JudgingProgressStats";
 import { RankingPreviewTable, LiveRankingData } from "./RankingPreviewTable";
 import { FinalizationActionBox } from "./FinalizationActionBox";
 import { FinalizedScoreboard, RankingSnapshot } from "./FinalizedScoreboard";
 import { RankingDetailPanel } from "./RankingDetailPanel";
+import { JudgeAssignmentsTable } from "./JudgeAssignmentsTable";
 import { AssignJudgesDialog } from "./AssignJudgesDialog";
+import { RubricConfigDialog } from "./RubricConfigDialog";
 
 interface Props {
   eventId: string;
@@ -24,6 +28,7 @@ interface Props {
     liveRankings: LiveRankingData[];
     snapshots: RankingSnapshot[];
     refreshedAt: string;
+    assignments: JudgeAssignmentData[];
   };
 }
 
@@ -41,8 +46,11 @@ export function OrganizerJudgingDashboardClient({
   const handleRefresh = async () => {
     startTransition(async () => {
       try {
-        const newData = await fetchJudgingAnalytics(eventId);
-        setData(newData);
+        const [newData, newAssignments] = await Promise.all([
+          fetchJudgingAnalytics(eventId),
+          fetchJudgeAssignments(eventId),
+        ]);
+        setData({ ...newData, assignments: newAssignments });
       } catch (err) {
         console.error("Failed to refresh analytics", err);
       }
@@ -101,6 +109,7 @@ export function OrganizerJudgingDashboardClient({
               </span>
               {!isCompleted && (
                 <>
+                  <RubricConfigDialog eventId={eventId} isCompleted={isCompleted} />
                   <AssignJudgesDialog eventId={eventId} />
                   <Button variant="outline" size="sm" onClick={handleRefresh} disabled={isPending}>
                     <RefreshCw className={`w-4 h-4 mr-2 ${isPending ? "animate-spin" : ""}`} />
@@ -119,10 +128,32 @@ export function OrganizerJudgingDashboardClient({
               <JudgingProgressStats data={data.progress} />
 
               <div className="space-y-4">
+                <h3 className="text-lg font-semibold">Judge Workload & Assignments</h3>
+                <JudgeAssignmentsTable
+                  eventId={eventId}
+                  assignments={data.assignments || []}
+                  isCompleted={isCompleted}
+                />
+              </div>
+
+              <div className="space-y-4 pt-4">
                 <h3 className="text-lg font-semibold">Live Ranking Preview</h3>
                 <RankingPreviewTable
                   rankings={data.liveRankings}
-                  onSelect={() => {}} // Disabled pre-finalization
+                  onSelect={(subId) => {
+                    const r = data.liveRankings.find((x) => x.submission_id === subId);
+                    if (r) {
+                      setSelectedSnapshot({
+                        submission_id: r.submission_id,
+                        ranking: data.liveRankings.indexOf(r) + 1,
+                        total_score: r.average_score || 0,
+                        judge_count: r.judge_count,
+                        strategy: "Average",
+                        tie_breaker_reason: null,
+                        submissions: { title: r.title },
+                      } as unknown as import("./FinalizedScoreboard").RankingSnapshot);
+                    }
+                  }}
                 />
               </div>
 

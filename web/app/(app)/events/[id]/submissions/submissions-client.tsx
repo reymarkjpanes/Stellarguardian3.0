@@ -22,6 +22,8 @@ interface Submission {
   updated_at: string;
   team_name?: string;
   submitter_name?: string;
+  title?: string;
+  github_url?: string;
 }
 
 interface Props {
@@ -180,24 +182,70 @@ export function SubmissionsClient({
   }
 
   // ── Participant + team + SubmissionOpen → Full submission hub ──────────────
+  const mySubmission = submissions.find((s) => s.team_id === teamId);
+
   return (
-    <div className="space-y-4">
-      <h2 className="text-lg font-semibold text-[var(--text)]">
-        {teamName ? `${teamName}'s Submission` : "Your Submission"}
-      </h2>
-      <div className="card p-6 flex flex-col items-center justify-center space-y-4 text-center">
-        <p className="text-sm text-[var(--text-muted)]">
-          Manage your hackathon submission fields, links, and detailed description.
-        </p>
-        <a
-          href={`/events/${eventId}/submissions/new`}
-          className="inline-block rounded-md bg-[var(--accent)] px-4 py-2 text-sm font-medium text-white hover:bg-[var(--accent-hover)] transition-colors"
-        >
-          {submissions.some((s) => s.team_id === teamId)
-            ? "Edit Submission"
-            : "Create Submission"}
-        </a>
+    <div className="space-y-6">
+      <div className="flex items-center justify-between">
+        <h2 className="text-lg font-semibold text-[var(--text)]">
+          {teamName ? `${teamName}'s Submission` : "Your Submission"}
+        </h2>
+        {mySubmission && (
+          <StatusBadge status={mySubmission.status} />
+        )}
       </div>
+      
+      {mySubmission ? (
+        <div className="card p-6">
+          <div className="flex flex-col md:flex-row justify-between md:items-start gap-4">
+            <div className="space-y-1">
+              <h3 className="text-xl font-semibold text-[var(--text)]">
+                {mySubmission.title || "Untitled Project"}
+              </h3>
+              <p className="text-sm text-[var(--text-muted)]">
+                Last updated {new Date(mySubmission.updated_at).toLocaleDateString()}
+              </p>
+            </div>
+            <div className="flex gap-2">
+              {mySubmission.github_url && (
+                <a
+                  href={mySubmission.github_url}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="inline-flex items-center justify-center rounded-md border border-[var(--border)] px-4 py-2 text-sm font-medium text-[var(--text)] hover:bg-[var(--badge-bg)] transition-colors"
+                >
+                  View GitHub
+                </a>
+              )}
+              <a
+                href={`/events/${eventId}/submissions/new`}
+                className="inline-flex items-center justify-center rounded-md bg-[var(--accent)] px-4 py-2 text-sm font-medium text-white hover:bg-[var(--accent-hover)] transition-colors"
+              >
+                Edit Submission
+              </a>
+            </div>
+          </div>
+          <div className="mt-6 border-t border-[var(--border)] pt-4">
+            <p className="text-sm text-[var(--text-muted)]">
+              {mySubmission.status === "DRAFT" || mySubmission.status === "Draft"
+                ? "Your submission is currently a draft. Don't forget to submit final before the deadline."
+                : "Your project has been successfully submitted!"}
+            </p>
+          </div>
+        </div>
+      ) : (
+        <div className="card p-6 flex flex-col items-center justify-center space-y-4 text-center">
+          <p className="text-sm text-[var(--text-muted)]">
+            Manage your hackathon submission fields, links, and detailed description.
+          </p>
+          <a
+            href={`/events/${eventId}/submissions/new`}
+            className="inline-block rounded-md bg-[var(--accent)] px-4 py-2 text-sm font-medium text-white hover:bg-[var(--accent-hover)] transition-colors"
+          >
+            Create Submission
+          </a>
+        </div>
+      )}
     </div>
   );
 }

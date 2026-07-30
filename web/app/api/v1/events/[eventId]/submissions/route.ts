@@ -48,14 +48,15 @@ export async function POST(
     const { teamId, status, ...fields } = data;
 
     // Verify user is in team
-    const { data: teamMember } = await supabase
+    const { data: teamMember, error: teamMemberError } = await supabase
       .from("team_members")
-      .select("role")
+      .select("team_id")
       .eq("team_id", teamId)
       .eq("user_id", userRes.user.id)
       .single();
 
-    if (!teamMember) {
+    if (teamMemberError || !teamMember) {
+      console.error("Team verification error:", teamMemberError);
       return NextResponse.json({ error: "Not a member of this team" }, { status: 403 });
     }
 

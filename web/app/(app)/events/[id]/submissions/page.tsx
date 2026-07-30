@@ -31,7 +31,7 @@ export default async function EventSubmissionsPage({
       : Promise.resolve({ data: null }),
     supabase
       .from("submissions")
-      .select("id, team_id, submitter_id, status, current_version, updated_at")
+      .select("id, team_id, submitter_id, status, current_version, updated_at, title, github_url")
       .eq("event_id", id)
       .order("updated_at", { ascending: false }),
     // Resolve current user's team in this event
@@ -53,6 +53,8 @@ export default async function EventSubmissionsPage({
     status: string;
     current_version: number;
     updated_at: string;
+    title?: string;
+    github_url?: string;
     team_name?: string;
     submitter_name?: string;
   };
