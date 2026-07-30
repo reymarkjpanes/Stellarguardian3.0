@@ -90,7 +90,7 @@ export function HackathonSubmissionForm({
       toast({
         title: "Validation Error",
         description: "Please fix the form errors before submitting.",
-        variant: "destructive",
+        type: "error",
       });
       return;
     }
