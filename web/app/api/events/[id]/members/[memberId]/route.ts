@@ -8,6 +8,7 @@ import { EventMemberRoleSchema } from "@/types/event";
 const UpdateMemberSchema = z.object({
   role: EventMemberRoleSchema.optional(),
   availability: z.enum(["Open to Join Team", "Not Looking"]).optional(),
+  status: z.enum(["Pending", "Approved", "Rejected", "Withdrawn"]).optional(),
   skills: z.array(z.string()).optional(),
   timezone: z.string().nullable().optional(),
 });
@@ -51,7 +52,7 @@ export async function PATCH(
 
     // Role updates require Organizer permission.
     // Self-updates (availability, skills, timezone) are allowed.
-    if (parsed.data.role) {
+    if (parsed.data.role || parsed.data.status) {
       const { data: callerMembership } = await supabase
         .from("event_members")
         .select("role")

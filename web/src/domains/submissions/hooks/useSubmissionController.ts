@@ -107,6 +107,21 @@ export function useSubmissionController(eventId: string, teamId: string) {
     },
   });
 
+  const unsubmitMutation = useMutation({
+    mutationFn: async () => {
+      const res = await fetch(`/api/v1/teams/${teamId}/submission/unsubmit`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ eventId }),
+      });
+      if (!res.ok) throw new Error("Failed to unsubmit");
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["submission-hub"] });
+    },
+  });
+
   // Actions
   const saveAsset = useCallback(
     (requirementId: string, assetData: AssetData) => {
@@ -138,13 +153,13 @@ export function useSubmissionController(eventId: string, teamId: string) {
   );
 
   const uploadAsset = useCallback(
-    async (requirementId: string, file: File, onProgress: (p: number) => void) => {
+    async (requirementId: string, assetType: string, file: File, onProgress: (p: number) => void) => {
       setConnectionStatus("SAVING");
       try {
         const result = await UploadManager.upload(teamId, eventId, file, onProgress);
         // Once uploaded, save the asset reference
         saveAsset(requirementId, {
-          assetType: "FILE",
+          assetType,
           storagePath: result.storagePath,
           metadata: {
             sizeMb: file.size / (1024 * 1024),
@@ -167,6 +182,42 @@ export function useSubmissionController(eventId: string, teamId: string) {
     return submitMutation.mutateAsync();
   }, [autoSaver, submitMutation]);
 
+  const unsubmit = useCallback(async () => {
+    return unsubmitMutation.mutateAsync();
+  }, [unsubmitMutation]);
+
+  const removeAsset = useCallback(
+    async (requirementId: string) => {
+      setConnectionStatus("SAVING");
+      try {
+        const res = await fetch(`/api/v1/teams/${teamId}/submission`, {
+          method: "DELETE",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ eventId, requirementId }),
+        });
+        if (!res.ok) throw new Error("Failed to delete asset");
+        
+        // Optimistically remove from cache
+        queryClient.setQueryData(
+          ["submission-hub", eventId, teamId],
+          (oldData: HubCache | undefined) => {
+            if (!oldData) return oldData;
+            return {
+              ...oldData,
+              assets: oldData.assets.filter((a) => a.requirement_id !== requirementId),
+            };
+          }
+        );
+        setConnectionStatus("SAVED");
+        refetchValidation();
+      } catch (e) {
+        setConnectionStatus("ERROR");
+        throw e;
+      }
+    },
+    [teamId, eventId, queryClient, refetchValidation],
+  );
+
   return {
     hubData,
     isLoadingHub,
@@ -176,7 +227,10 @@ export function useSubmissionController(eventId: string, teamId: string) {
     activities: activityData?.activities ?? [],
     saveAsset,
     uploadAsset,
+    removeAsset,
     submit,
+    unsubmit,
     isSubmitting: submitMutation.isPending,
+    isUnsubmitting: unsubmitMutation.isPending,
   };
 }

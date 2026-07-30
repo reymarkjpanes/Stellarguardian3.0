@@ -86,9 +86,30 @@ export default function EventEditPage() {
     setError(null);
     setConflictError(false);
 
+    if (title.trim().length < 5) {
+      setError("Title must be at least 5 characters.");
+      setSaving(false);
+      return;
+    }
+    if (description.trim().length < 20) {
+      setError("Description must be at least 20 characters.");
+      setSaving(false);
+      return;
+    }
+
     // Validate team sizes inline before hitting the server
     if (teamSizeMin < 1 || teamSizeMax < teamSizeMin) {
       setError("Max team size must be ≥ min team size.");
+      setSaving(false);
+      return;
+    }
+    if (teamSizeMax > 20) {
+      setError("Maximum team size cannot exceed 20.");
+      setSaving(false);
+      return;
+    }
+    if (prizePool && Number(prizePool) < 0) {
+      setError("Prize pool cannot be negative.");
       setSaving(false);
       return;
     }

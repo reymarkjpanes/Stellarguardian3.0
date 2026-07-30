@@ -32,16 +32,36 @@ export default async function JudgingWorkspacePage(props: {
     return notFound();
   }
 
-  // 3. Fetch Submission Details
+  // 3. Fetch Submission Details and Assets
   const { data: submission, error: subError } = await supabase
     .from("submissions")
-    .select("id, title, tagline, description, repo_url, demo_url, video_url")
+    .select("id, teams(name)")
     .eq("id", submissionId)
     .single();
 
   if (subError || !submission) {
     return notFound();
   }
+
+  const { data: assets } = await supabase
+    .from("submission_assets")
+    .select("*, submission_requirements(name)")
+    .eq("submission_id", submissionId);
+
+  const assetMap = (assets || []).reduce((acc, asset) => {
+    const reqName = (asset.submission_requirements as { name?: string })?.name?.toLowerCase();
+    if (reqName) {
+      acc[reqName] = asset;
+    }
+    return acc;
+  }, {} as Record<string, { text_value?: string; url_value?: string }>);
+
+  const title = (submission.teams as { name?: string })?.name || "Untitled";
+  const tagline = assetMap['tagline']?.text_value || assetMap['tagline']?.url_value;
+  const description = assetMap['description']?.text_value || assetMap['project description']?.text_value;
+  const repoUrl = assetMap['github repository']?.url_value || assetMap['repository']?.url_value || assetMap['source code']?.url_value;
+  const demoUrl = assetMap['demo link']?.url_value || assetMap['demo']?.url_value || assetMap['live demo']?.url_value;
+  const videoUrl = assetMap['video demonstration']?.url_value || assetMap['video']?.url_value || assetMap['pitch video']?.url_value;
 
   // 4. Fetch Event Rubric
   const { data: criteria, error: critError } = await supabase
@@ -71,12 +91,20 @@ export default async function JudgingWorkspacePage(props: {
   // Format the data for the Client Component
   const formattedSubmission = {
     id: submission.id,
-    title: submission.title,
-    tagline: submission.tagline || undefined,
-    description: submission.description || undefined,
-    repoUrl: submission.repo_url || undefined,
-    demoUrl: submission.demo_url || undefined,
-    videoUrl: submission.video_url || undefined,
+    eventId,
+    title,
+    tagline,
+    short_description: tagline,
+    detailed_description: description,
+    problem_statement: assetMap['problem statement']?.text_value,
+    github_url: repoUrl,
+    live_demo_url: demoUrl,
+    video_url: videoUrl,
+    presentation_url: assetMap['presentation']?.url_value,
+    tech_stack: assetMap['tech stack']?.text_value ? assetMap['tech stack'].text_value.split(',') : undefined,
+    screenshots: assetMap['screenshots']?.url_value ? [assetMap['screenshots'].url_value] : [],
+    teamName: title,
+    status: "Submitted",
   };
 
   const formattedRubric = criteria.map((c) => ({

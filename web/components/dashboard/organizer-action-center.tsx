@@ -45,7 +45,7 @@ function deriveTasksForEvent(event: EventSummary): Task[] {
 
   // Blocking: pending member approvals
   if (event.pendingMemberCount > 0 && [
-    "RegistrationOpen", "RegistrationClosed", "TeamFormationLocked"
+    "RegistrationOpen", "RegistrationClosed"
   ].includes(event.state)) {
     tasks.push({
       id: `approve-${event.id}`,
@@ -59,37 +59,25 @@ function deriveTasksForEvent(event: EventSummary): Task[] {
     });
   }
 
-  // Suggested: no judges assigned yet — not blocking, but needed before judging begins.
-  // Judges can be assigned any time before SubmissionClosed → JudgingRound1.
-  if (event.judgeCount === 0 && ["Draft", "Published", "RegistrationOpen", "RegistrationClosed"].includes(event.state)) {
+  // Blocking if Draft (can't publish) or SubmissionClosed (can't begin judging). Urgent otherwise.
+  if (event.judgeCount === 0 && ["Draft", "Published", "RegistrationOpen", "RegistrationClosed", "SubmissionOpen", "SubmissionClosed"].includes(event.state)) {
+    const isBlocking = event.state === "Draft" || event.state === "SubmissionClosed";
     tasks.push({
       id: `judges-${event.id}`,
       eventId: event.id,
       eventTitle: event.title,
-      headline: "No judges assigned yet",
-      consequence: "Assign at least one judge before submissions close — required to begin judging.",
+      headline: "No judges assigned",
+      consequence: isBlocking 
+        ? (event.state === "Draft" ? "You must assign at least one judge before publishing." : "You must assign at least one judge to begin judging.")
+        : "Assign at least one judge before submissions close.",
       actionLabel: "Assign Judges",
       actionHref: `/events/${event.id}/members`,
-      priority: "suggested",
-    });
-  }
-
-  // Blocking: escrow needs funding
-  if (event.state === "PrizeApproved") {
-    tasks.push({
-      id: `fund-${event.id}`,
-      eventId: event.id,
-      eventTitle: event.title,
-      headline: `Fund ${event.prizePoolTarget ?? 0} XLM escrow`,
-      consequence: "Prizes cannot be distributed until escrow is fully funded on-chain.",
-      actionLabel: "Fund Escrow",
-      actionHref: `/events/${event.id}/escrow`,
-      priority: "blocking",
+      priority: isBlocking ? "blocking" : "urgent",
     });
   }
 
   // Urgent: judging phase with unscored submissions
-  if (event.state === "JudgingRound1" && event.submissionCount > 0 && event.evaluationCount < event.submissionCount) {
+  if (event.state === "Judging" && event.submissionCount > 0 && event.evaluationCount < event.submissionCount) {
     const unscored = event.submissionCount - event.evaluationCount;
     tasks.push({
       id: `score-${event.id}`,
@@ -99,34 +87,6 @@ function deriveTasksForEvent(event: EventSummary): Task[] {
       consequence: "All submissions must be scored before winners can be finalized.",
       actionLabel: "Score Submissions",
       actionHref: `/events/${event.id}/judging`,
-      priority: "urgent",
-    });
-  }
-
-  // Urgent: winners verified, needs escrow
-  if (event.state === "WinnerVerification") {
-    tasks.push({
-      id: `initiate-escrow-${event.id}`,
-      eventId: event.id,
-      eventTitle: event.title,
-      headline: "Winners set — initiate funding",
-      consequence: "Move to escrow funding phase so prizes can be distributed.",
-      actionLabel: "Start Funding",
-      actionHref: `/events/${event.id}`,
-      priority: "urgent",
-    });
-  }
-
-  // Urgent: prizes ready to disburse
-  if (event.state === "EscrowRelease") {
-    tasks.push({
-      id: `disburse-${event.id}`,
-      eventId: event.id,
-      eventTitle: event.title,
-      headline: "Ready to disburse prizes",
-      consequence: "Winners are waiting — distribute from escrow to complete the event.",
-      actionLabel: "Disburse Now",
-      actionHref: `/events/${event.id}/escrow`,
       priority: "urgent",
     });
   }

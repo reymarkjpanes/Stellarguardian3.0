@@ -22,13 +22,7 @@ export const GET = apiHandler({ requireAuth: false }, async ({ request, params }
     .from("submissions")
     .select(
       `
-        id,
-        team_id,
-        submitter_id,
-        status,
-        current_version,
-        created_at,
-        updated_at,
+        *,
         teams(name),
         users(name, email)
       `,

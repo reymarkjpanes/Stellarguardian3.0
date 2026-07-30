@@ -11,7 +11,7 @@ const DialogTrigger = ({ children, ...props }: ButtonProps) => (
   <button {...props}>{children}</button>
 );
 const DialogContent = ({ children, className, ...props }: DivProps) => (
-  <div className={cn("fixed inset-0 z-50 bg-background/80 backdrop-blur-sm", className)} {...props}>
+  <div className={cn("fixed inset-0 z-50 bg-[var(--bg)]/80 backdrop-blur-sm", className)} {...props}>
     {children}
   </div>
 );
@@ -34,7 +34,7 @@ const DialogTitle = ({ children, className, ...props }: HeadingProps) => (
   </h2>
 );
 const DialogDescription = ({ children, className, ...props }: ParaProps) => (
-  <p className={cn("text-sm text-muted-foreground", className)} {...props}>
+  <p className={cn("text-sm text-[var(--text-muted)]", className)} {...props}>
     {children}
   </p>
 );

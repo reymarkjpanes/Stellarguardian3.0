@@ -164,13 +164,49 @@ export class EscrowService {
       throw new Error("No allocations found for this batch");
     }
 
-    const instructionsToInsert = allocations.map((alloc) => ({
-      payout_batch_id: batchId,
-      allocation_id: alloc.id,
-      recipient_wallet: `G${Array.from({ length: 55 }, () => "A").join("")}`,
-      amount: alloc.amount,
-      currency: "USD",
-    }));
+    // Fetch all relevant submissions to determine ownership
+    const submissionIds = allocations.map(a => a.submission_id);
+    const { data: submissions } = await this.supabase
+      .from("submissions")
+      .select("id, team_id")
+      .in("id", submissionIds);
+      
+    const ownerIdsToSubId = new Map<string, string>();
+    const allOwnerIds = new Set<string>();
+    
+    if (submissions) {
+      for (const sub of submissions) {
+        allOwnerIds.add(sub.team_id);
+        ownerIdsToSubId.set(sub.id, sub.team_id);
+      }
+    }
+
+    // Fetch verified wallets
+    const { data: wallets } = await this.supabase
+      .from("wallet_verifications")
+      .select("owner_id, wallet_address")
+      .in("owner_id", Array.from(allOwnerIds))
+      .eq("status", "Verified");
+      
+    const walletMap = new Map<string, string>();
+    if (wallets) {
+      for (const w of wallets) {
+        walletMap.set(w.owner_id, w.wallet_address);
+      }
+    }
+
+    const instructionsToInsert = allocations.map((alloc) => {
+      const ownerId = ownerIdsToSubId.get(alloc.submission_id);
+      const wallet = (ownerId && walletMap.get(ownerId)) || `G${Array.from({ length: 55 }, () => "A").join("")}`; // fallback
+      
+      return {
+        payout_batch_id: batchId,
+        allocation_id: alloc.id,
+        recipient_wallet: wallet,
+        amount: alloc.amount,
+        currency: "USD",
+      };
+    });
 
     const { error: insertErr } = await this.supabase
       .from("payout_instructions")

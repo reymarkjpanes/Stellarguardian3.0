@@ -9,11 +9,32 @@ export function useMembersQuery(eventId: string, filters: Record<string, string>
       if (filters.role) queryParams.set("role", filters.role);
       if (filters.availability) queryParams.set("availability", filters.availability);
       
-      const res = await fetch(`/api/v1/events/${eventId}/members?${queryParams.toString()}`);
+      const res = await fetch(`/api/events/${eventId}/members?${queryParams.toString()}`);
       if (!res.ok) throw new Error("Failed to fetch members");
       
       const json = await res.json();
-      return (json.data ?? []) as MemberDirectoryProjection[];
+      return (json.data ?? []).map((m: any) => ({
+        id: m.id,
+        userId: m.user_id,
+        eventId: m.event_id,
+        handle: m.users?.display_name ?? "Unknown",
+        displayName: m.users?.display_name ?? "Unknown",
+        avatarUrl: m.users?.avatar_url ?? null,
+        eventRole: m.role,
+        membershipStatus: m.status ?? "Active",
+        activityStatus: m.availability ?? "Available for Team",
+        teamId: m.teamId,
+        teamName: m.teamId ? "Team" : null, // we'd need team name from somewhere, or just leave as is
+        teamRecruiting: false,
+        timezone: m.users?.timezone ?? null,
+        skills: m.users?.user_skills?.map((s: any) => ({
+          id: s.skills?.id,
+          name: s.skills?.name,
+          category: s.skills?.category,
+          experienceLevel: s.experience_level
+        })) ?? [],
+        profileCompletionScore: m.profileMissing?.length === 0 ? 100 : 50
+      })) as MemberDirectoryProjection[];
     },
   });
 }

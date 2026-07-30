@@ -65,13 +65,12 @@ export async function GET(
       case "submissions": {
         const { data: subs } = await supabase
           .from("submissions")
-          .select("id, submitter_id, team_id, status, current_version, content, created_at")
+          .select("id, submitter_id, team_id, status, current_version, title, created_at")
           .eq("event_id", eventId);
 
         csv = "submission_id,submitter_id,team_id,status,version,title,created_at\n";
         for (const s of subs ?? []) {
-          const content = s.content as Record<string, unknown> | null;
-          const title = content?.title ?? "";
+          const title = s.title ?? "";
           csv += `${s.id},${s.submitter_id},${s.team_id ?? ""},${s.status},${s.current_version},"${title}",${s.created_at}\n`;
         }
         filename = `submissions-${eventId.slice(0, 8)}.csv`;

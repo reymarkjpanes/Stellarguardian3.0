@@ -12,9 +12,12 @@ interface ProgressiveChecklistProps {
   onSave: (reqId: string, assetData: AssetSaveData) => void;
   onUpload: (
     reqId: string,
+    assetType: string,
     file: File,
     onProgress: (p: number) => void,
   ) => Promise<void | { storagePath: string; publicUrl?: string }>;
+  onRemove: (reqId: string) => Promise<void>;
+  isLocked?: boolean;
 }
 
 export function ProgressiveChecklist({
@@ -22,6 +25,8 @@ export function ProgressiveChecklist({
   assets,
   onSave,
   onUpload,
+  onRemove,
+  isLocked,
 }: ProgressiveChecklistProps) {
   const [expandedId, setExpandedId] = useState<string | null>(requirements[0]?.id ?? null);
 
@@ -116,8 +121,10 @@ export function ProgressiveChecklist({
                 <RequirementRenderer
                   requirement={req}
                   asset={asset}
-                  onSave={onSave}
-                  onUpload={onUpload}
+                  onSave={isLocked ? () => {} : onSave}
+                  onUpload={isLocked ? undefined : onUpload}
+                  onRemove={isLocked ? undefined : onRemove}
+                  isLocked={isLocked}
                 />
 
                 <div className="mt-6 flex justify-end">

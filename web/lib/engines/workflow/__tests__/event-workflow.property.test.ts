@@ -1,6 +1,6 @@
 /**
  * Property tests for EventWorkflowEngine.
- * Updated (Task 0.3) to use the canonical 16-state model — "Active" removed.
+ * Updated (Task 0.3) to use the canonical 10-state model.
  */
 import { describe, expect, it } from "vitest";
 import fc from "fast-check";
@@ -14,15 +14,9 @@ const ALL_EVENT_STATES: EventState[] = [
   "Published",
   "RegistrationOpen",
   "RegistrationClosed",
-  "TeamFormationLocked",
   "SubmissionOpen",
   "SubmissionClosed",
-  "JudgingRound1",
-  "JudgingRound2",
-  "WinnerVerification",
-  "DisputeWindow",
-  "PrizeApproved",
-  "EscrowRelease",
+  "Judging",
   "Completed",
   "Cancelled",
   "Archived",
@@ -46,6 +40,7 @@ function arbEventRuleContext(): fc.Arbitrary<EventRuleContext> {
     submissionCount: fc.nat({ max: 100 }),
     kycRequirementsSatisfied: fc.boolean(),
     minimumParticipantsMet: fc.boolean(),
+    prizePoolTarget: fc.integer({ min: 0, max: 10000 }),
   });
 }
 
@@ -99,13 +94,12 @@ describe("Property tests: Event Workflow Engine", () => {
     );
   });
 
-  // Feature: nextjs-platform-conversion, Property 4:
-  // Cannot approve prizes without review window elapsed and zero disputes
-  it("Cannot transition DisputeWindow→PrizeApproved without elapsed window or with open disputes", () => {
+  // Cannot transition to judging without submissions
+  it("Cannot transition SubmissionClosed→Judging without submissions", () => {
     fc.assert(
       fc.property(arbEventRuleContext(), (ctx) => {
-        if (!ctx.reviewWindowElapsed || ctx.unresolvedDisputes > 0) {
-          const result = EventWorkflowEngine.canTransition("DisputeWindow", "PrizeApproved", ctx);
+        if (!ctx.hasSubmissions) {
+          const result = EventWorkflowEngine.canTransition("SubmissionClosed", "Judging", ctx);
           expect(result.ok).toBe(false);
         }
       }),

@@ -11,7 +11,7 @@
  * - State changes → PATCH /api/events/[id]/state
  * - Member applications → POST /api/events/[id]/register
  */
-import { useState } from "react";
+import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { EventActionCenter } from "@/components/events/overview/event-action-center";
 
@@ -45,31 +45,13 @@ export function EventDetailClient({
   submissionStatus,
 }: EventDetailClientProps) {
   const router = useRouter();
+  const [isPending, startTransition] = useTransition();
   const [actionLoading, setActionLoading] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
+  
+  const loading = actionLoading || isPending;
 
-  async function handleApply() {
-    if (!userId) return;
-    setActionLoading(true);
-    setActionError(null);
-    try {
-      const res = await fetch(`/api/events/${event.id}/register`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ role: "Participant" }),
-      });
-      if (!res.ok) {
-        const { error } = await res.json();
-        setActionError(error?.message ?? "Failed to apply.");
-        return;
-      }
-      router.refresh();
-    } catch {
-      setActionError("Network error. Please try again.");
-    } finally {
-      setActionLoading(false);
-    }
-  }
+
 
   async function handleStateChange(newState: string) {
     setActionLoading(true);
@@ -95,7 +77,9 @@ export function EventDetailClient({
         }
         return;
       }
-      router.refresh();
+      startTransition(() => {
+        router.refresh();
+      });
     } catch {
       setActionError("Network error. Please try again.");
     } finally {
@@ -148,7 +132,7 @@ export function EventDetailClient({
             primary: isInTeam && !isSubmitted,
           },
         ]
-      : [{ id: "apply", label: "Apply to Participate", onClick: handleApply, primary: true }];
+      : [{ id: "apply", label: "Apply to Participate", href: `/events/${event.id}/register`, primary: true }];
 
   const roleStats = isOrganizer
     ? [
@@ -176,6 +160,8 @@ export function EventDetailClient({
     })),
   ].slice(0, 5);
 
+  const judgeCount = members.filter((m) => m.role === "Judge").length;
+
   return (
     <div className="space-y-6">
       {/* Error display */}
@@ -201,6 +187,7 @@ export function EventDetailClient({
         countdownText={(() => {
             const deadline = event.registration_deadline as string | null;
             if (!deadline) return "Deadline to be announced";
+            // eslint-disable-next-line react-hooks/purity
             const ms = new Date(deadline).getTime() - Date.now();
             if (ms <= 0) return "Registration closed";
             const days = Math.ceil(ms / (1000 * 60 * 60 * 24));
@@ -210,7 +197,7 @@ export function EventDetailClient({
         heroPrimaryActionLabel={!myMembership ? "Apply to Participate" : "Continue Workspace"}
         onHeroPrimaryAction={
           !myMembership
-            ? handleApply
+            ? () => router.push(`/events/${event.id}/register`)
             : () => router.push(`/events/${event.id as string}/submissions`)
         }
         role={roleName}
@@ -231,6 +218,7 @@ export function EventDetailClient({
             <PublishChecklist
               hasPrizePool={(event.prize_pool_target as number) > 0}
               hasDeadline={!!event.registration_deadline}
+              hasJudges={judgeCount > 0}
               prizeAmount={event.prize_pool_target as number | null}
               eventId={event.id as string}
             />
@@ -243,7 +231,7 @@ export function EventDetailClient({
                   label="Publish Event"
                   hint="Requires a prize pool and registration deadline"
                   onClick={() => handleStateChange("Published")}
-                  disabled={actionLoading}
+                  disabled={loading}
                 />
                 <a
                   href={`/events/${event.id as string}/edit`}
@@ -263,7 +251,7 @@ export function EventDetailClient({
                 <ActionButton
                   label="Open Registration"
                   onClick={() => handleStateChange("RegistrationOpen")}
-                  disabled={actionLoading}
+                  disabled={loading}
                 />
                 <a
                   href={`/events/${event.id as string}/edit`}
@@ -282,95 +270,38 @@ export function EventDetailClient({
               <ActionButton
                 label="Close Registration"
                 onClick={() => handleStateChange("RegistrationClosed")}
-                disabled={actionLoading}
+                disabled={loading}
               />
             )}
             {event.state === "RegistrationClosed" && (
               <ActionButton
-                label="Lock Team Formation"
-                hint="All participants must be assigned to a team"
-                onClick={() => handleStateChange("TeamFormationLocked")}
-                disabled={actionLoading}
-              />
-            )}
-            {event.state === "TeamFormationLocked" && (
-              <ActionButton
                 label="Open Submissions"
-                hint="Min team size must be met for all active teams"
+                hint="All participants must be assigned to a team"
                 onClick={() => handleStateChange("SubmissionOpen")}
-                disabled={actionLoading}
+                disabled={loading}
               />
             )}
             {event.state === "SubmissionOpen" && (
               <ActionButton
                 label="Close Submissions"
                 onClick={() => handleStateChange("SubmissionClosed")}
-                disabled={actionLoading}
+                disabled={loading}
               />
             )}
             {event.state === "SubmissionClosed" && (
               <ActionButton
-                label="Begin Judging (Round 1)"
+                label="Begin Judging"
                 hint="Requires at least one submission"
-                onClick={() => handleStateChange("JudgingRound1")}
-                disabled={actionLoading}
+                onClick={() => handleStateChange("Judging")}
+                disabled={loading}
               />
             )}
-            {event.state === "JudgingRound1" && (
-              <>
-                <ActionButton
-                  label="Advance to Round 2"
-                  hint="All submissions must be scored"
-                  onClick={() => handleStateChange("JudgingRound2")}
-                  disabled={actionLoading}
-                />
-                <ActionButton
-                  label="Skip to Winner Verification"
-                  hint="All submissions must be scored"
-                  onClick={() => handleStateChange("WinnerVerification")}
-                  disabled={actionLoading}
-                  variant="secondary"
-                />
-              </>
-            )}
-            {event.state === "JudgingRound2" && (
-              <ActionButton
-                label="Verify Winners"
-                hint="All submissions must be scored"
-                onClick={() => handleStateChange("WinnerVerification")}
-                disabled={actionLoading}
-              />
-            )}
-            {event.state === "WinnerVerification" && (
-              <ActionButton
-                label="Open Dispute Window"
-                hint="Winners must be explicitly confirmed"
-                onClick={() => handleStateChange("DisputeWindow")}
-                disabled={actionLoading}
-              />
-            )}
-            {event.state === "DisputeWindow" && (
-              <ActionButton
-                label="Approve Prizes"
-                hint="Review window must elapse with no open disputes"
-                onClick={() => handleStateChange("PrizeApproved")}
-                disabled={actionLoading}
-              />
-            )}
-            {event.state === "PrizeApproved" && (
-              <ActionButton
-                label="Release Escrow"
-                hint="Escrow must be fully funded and locked on-chain"
-                onClick={() => handleStateChange("EscrowRelease")}
-                disabled={actionLoading}
-              />
-            )}
-            {event.state === "EscrowRelease" && (
+            {event.state === "Judging" && (
               <ActionButton
                 label="Mark Completed"
-                hint="All disbursements must complete on-chain"
+                hint="All submissions must be scored"
                 onClick={() => handleStateChange("Completed")}
-                disabled={actionLoading}
+                disabled={loading}
               />
             )}
             {event.state === "Completed" && (
@@ -389,7 +320,7 @@ export function EventDetailClient({
                       handleStateChange("Cancelled");
                   }}
                   className="rounded-md border border-[var(--error)] px-3 py-1.5 text-xs font-medium text-[var(--error)] hover:bg-[var(--error-bg)] transition-colors disabled:opacity-50"
-                  disabled={actionLoading}
+                  disabled={loading}
                 >
                   Cancel Event
                 </button>
@@ -404,15 +335,17 @@ export function EventDetailClient({
 function PublishChecklist({
   hasPrizePool,
   hasDeadline,
+  hasJudges,
   prizeAmount,
   eventId,
 }: {
   hasPrizePool: boolean;
   hasDeadline: boolean;
+  hasJudges: boolean;
   prizeAmount: number | null;
   eventId: string;
 }) {
-  const allMet = hasPrizePool && hasDeadline;
+  const allMet = hasPrizePool && hasDeadline && hasJudges;
 
   return (
     <div
@@ -459,9 +392,18 @@ function PublishChecklist({
           }
         />
         <ChecklistItem
-          done={true}
-          label="Judges can be assigned after publishing"
-          optional
+          done={hasJudges}
+          label={hasJudges ? "Judges assigned" : "Assign at least one judge"}
+          action={
+            !hasJudges ? (
+              <a
+                href={`/events/${eventId}/members`}
+                className="text-[10px] font-medium text-[var(--accent)] hover:underline"
+              >
+                Manage members →
+              </a>
+            ) : undefined
+          }
         />
       </ul>
       {!allMet && (

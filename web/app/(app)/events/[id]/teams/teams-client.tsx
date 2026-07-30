@@ -64,8 +64,7 @@ interface Props {
 
 // ─── Primitive UI atoms ───────────────────────────────────────────────────────
 
-const I = "TeamFormationLocked"; // formation-open state (M10 naming legacy)
-
+const OPEN_STATES = new Set(["RegistrationOpen", "RegistrationClosed"]);
 function ago(iso: string) {
   const m = Math.floor((Date.now() - +new Date(iso)) / 60000);
   if (m < 1) return "just now";
@@ -298,8 +297,9 @@ function InviteForm({
 
 export function TeamsClient({ eventId, eventState, teams: init, userId, userRole }: Props) {
   const router = useRouter();
-  const open = eventState === I;
+  const open = OPEN_STATES.has(eventState);
   const isP = userRole === "Participant";
+  const isOrganizer = userRole === "Organizer";
   const canAct = isP && open;
 
   const myTeam = userId
@@ -771,6 +771,23 @@ export function TeamsClient({ eventId, eventState, teams: init, userId, userRole
                     </p>
                   )}
                 </div>
+
+                {/* Organizer controls */}
+                {isOrganizer && (
+                  <div className="pt-2 border-t border-[var(--border)] mt-2">
+                    <button
+                      onClick={async () => {
+                        if (!window.confirm(`Force disband team "${team.name}"?`)) return;
+                        const r = await fetch(`/api/events/${eventId}/teams/${team.id}`, { method: "DELETE" });
+                        if (r.ok) router.refresh();
+                        else alert("Failed to disband team.");
+                      }}
+                      className="text-xs text-[var(--error)] hover:underline"
+                    >
+                      Disband Team
+                    </button>
+                  </div>
+                )}
 
                 {/* join request — unteamed participant only */}
                 {canAct && !myTeam && (

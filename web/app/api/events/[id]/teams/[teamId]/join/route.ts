@@ -23,16 +23,16 @@ export const POST = apiHandler({ requireAuth: true, schema: JoinRequestSchema },
   const { id: eventId, teamId } = params as { id: string; teamId: string };
   const supabase = await createServerClient();
 
-  // Verify event is in TeamFormation
+  // Verify event is in RegistrationClosed (team joining phase)
   const { data: event } = await supabase
     .from("events")
     .select("state")
     .eq("id", eventId)
     .single();
 
-  if (!event || event.state !== "TeamFormationLocked") {
+  if (!event || event.state !== "RegistrationClosed") {
     return Response.json(
-      { error: { code: "CONFLICT", message: "Team joining is only available during TeamFormation phase." } },
+      { error: { code: "CONFLICT", message: "Team joining is only available during RegistrationClosed phase." } },
       { status: 409 },
     );
   }

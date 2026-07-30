@@ -91,12 +91,36 @@ export class SubmissionValidationService {
           }
         }
 
-        // Regex validation for text/urls
+        // Strict regex validation for text/urls based on requirement
         if (req.validationRegex && (asset.textValue || asset.urlValue)) {
           const val = asset.textValue || asset.urlValue || "";
           const regex = new RegExp(req.validationRegex);
           if (!regex.test(val)) {
             errors.push(`${req.name}: Format is invalid`);
+          }
+        }
+
+        // Specific validation for Repositories
+        if (req.assetType === "REPOSITORY" && asset.urlValue) {
+          const val = asset.urlValue;
+          if (!val.match(/^https?:\/\/(www\.)?github\.com\/[a-zA-Z0-9_-]+\/[a-zA-Z0-9_.-]+$/)) {
+            errors.push(`${req.name}: Must be a valid GitHub repository URL (e.g. https://github.com/user/repo)`);
+          }
+        }
+
+        // Specific validation for generic URLs
+        if (req.assetType === "URL" && asset.urlValue) {
+          const val = asset.urlValue;
+          if (!val.match(/^https?:\/\/[^\s/$.?#].[^\s]*$/)) {
+            errors.push(`${req.name}: Must be a valid URL starting with http:// or https://`);
+          }
+        }
+
+        // Specific validation for Videos
+        if (req.assetType === "VIDEO" && asset.storagePath) {
+          const mime = asset.metadata?.mimeType || "";
+          if (mime && !mime.startsWith("video/")) {
+            errors.push(`${req.name}: File must be a valid video format`);
           }
         }
       }

@@ -14,9 +14,19 @@ interface WalletRecord {
   network_mode: string;
 }
 
+interface UserData {
+  id: string;
+  email: string;
+  display_name: string;
+  bio: string | null;
+  avatar_url: string | null;
+  skills: string[];
+}
+
 export default function SettingsPage() {
-  const [user, setUser] = useState<{ id: string; email: string; name: string } | null>(null);
+  const [user, setUser] = useState<UserData | null>(null);
   const [wallets, setWallets] = useState<WalletRecord[]>([]);
+  const [availableSkills, setAvailableSkills] = useState<{id: string, name: string}[]>([]);
   const [removingId, setRemovingId] = useState<string | null>(null);
   const [confirmRemoveId, setConfirmRemoveId] = useState<string | null>(null);
   const [showAddWallet, setShowAddWallet] = useState(false);
@@ -26,24 +36,26 @@ export default function SettingsPage() {
   }, []);
 
   async function loadData() {
+    const res = await fetch("/api/users/me");
+    if (!res.ok) {
+      if (res.status === 401) window.location.href = "/login";
+      return;
+    }
+    const { data } = await res.json();
+    
     const supabase = createBrowserClient();
-    const {
-      data: { user: authUser },
-    } = await supabase.auth.getUser();
-    if (!authUser) return;
-
+    const { data: skillsData } = await supabase.from("skills").select("id, name");
+    setAvailableSkills(skillsData || []);
+    
     setUser({
-      id: authUser.id,
-      email: authUser.email ?? "",
-      name: authUser.user_metadata?.display_name ?? authUser.email ?? "",
+      id: data.id,
+      email: data.email,
+      display_name: data.display_name,
+      bio: data.bio,
+      avatar_url: data.avatar_url,
+      skills: data.skills || [],
     });
-
-    const { data: walletData } = await supabase
-      .from("wallets")
-      .select("id, public_key, verification_status, network_mode")
-      .eq("user_id", authUser.id);
-
-    setWallets(walletData ?? []);
+    setWallets(data.wallets ?? []);
   }
 
   async function removeWallet(walletId: string) {
@@ -87,12 +99,19 @@ export default function SettingsPage() {
 
       {/* Profile */}
       <section className="card p-5 space-y-4">
-        <h2 className="font-medium text-[var(--text)]">Profile</h2>
+        <div className="flex items-center justify-between">
+          <h2 className="font-medium text-[var(--text)]">Profile</h2>
+          <a
+            href={`/profile/${user.id}`}
+            className="text-xs font-medium text-[var(--accent)] hover:underline"
+          >
+            View public profile ↗
+          </a>
+        </div>
         <ProfileEditForm
-          userId={user.id}
-          initialName={user.name}
-          email={user.email}
-          onUpdate={(name) => setUser({ ...user, name })}
+          user={user}
+          availableSkills={availableSkills}
+          onUpdate={(updatedData) => setUser({ ...user, ...updatedData })}
         />
       </section>
 
@@ -477,20 +496,22 @@ function SendXlmForm({ senderPublicKey }: { senderPublicKey: string }) {
 }
 
 /**
- * Profile edit form — allows updating display name via PATCH /api/users/me.
+ * Profile edit form — allows updating display name, bio, and avatar via PATCH /api/users/me.
  */
 function ProfileEditForm({
-  initialName,
-  email,
+  user,
+  availableSkills,
   onUpdate,
 }: {
-  userId: string;
-  initialName: string;
-  email: string;
-  onUpdate: (name: string) => void;
+  user: UserData;
+  availableSkills: {id: string, name: string}[];
+  onUpdate: (data: Partial<UserData>) => void;
 }) {
   const [editing, setEditing] = useState(false);
-  const [name, setName] = useState(initialName);
+  const [name, setName] = useState(user.display_name);
+  const [bio, setBio] = useState(user.bio || "");
+  const [avatarUrl, setAvatarUrl] = useState(user.avatar_url || "");
+  const [selectedSkills, setSelectedSkills] = useState<string[]>(user.skills || []);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
@@ -501,10 +522,17 @@ function ProfileEditForm({
     setError(null);
     setSuccess(false);
 
+    const updates = { 
+      display_name: name,
+      bio: bio || null,
+      avatar_url: avatarUrl || null,
+      skills: selectedSkills,
+    };
+
     const res = await fetch("/api/users/me", {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ display_name: name }),
+      body: JSON.stringify(updates),
     });
 
     if (!res.ok) {
@@ -512,7 +540,7 @@ function ProfileEditForm({
       setError(apiErr?.message ?? "Failed to update profile.");
     } else {
       setSuccess(true);
-      onUpdate(name);
+      onUpdate(updates);
       setEditing(false);
       setTimeout(() => setSuccess(false), 3000);
     }
@@ -522,14 +550,41 @@ function ProfileEditForm({
   if (!editing) {
     return (
       <div className="space-y-3">
+        {user.avatar_url && (
+          <div className="mb-4">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src={user.avatar_url} alt="Avatar" className="w-16 h-16 rounded-full bg-[var(--bg-muted)] object-cover" />
+          </div>
+        )}
         <div className="grid grid-cols-2 gap-4 text-sm">
           <div>
             <p className="text-[var(--text-muted)]">Display name</p>
-            <p className="font-medium text-[var(--text)]">{initialName || "Not set"}</p>
+            <p className="font-medium text-[var(--text)]">{user.display_name || "Not set"}</p>
           </div>
           <div>
             <p className="text-[var(--text-muted)]">Email</p>
-            <p className="font-medium text-[var(--text)]">{email}</p>
+            <p className="font-medium text-[var(--text)]">{user.email}</p>
+          </div>
+          <div className="col-span-2">
+            <p className="text-[var(--text-muted)]">Bio</p>
+            <p className="font-medium text-[var(--text)] whitespace-pre-wrap">{user.bio || "No bio provided"}</p>
+          </div>
+          <div className="col-span-2">
+            <p className="text-[var(--text-muted)]">Skills</p>
+            {user.skills && user.skills.length > 0 ? (
+              <div className="flex flex-wrap gap-2 mt-1">
+                {user.skills.map(id => {
+                  const skill = availableSkills.find(s => s.id === id);
+                  return (
+                    <span key={id} className="badge-default px-2 py-1 text-xs">
+                      {skill ? skill.name : "Unknown"}
+                    </span>
+                  );
+                })}
+              </div>
+            ) : (
+              <p className="text-sm font-medium text-[var(--text)]">No skills added</p>
+            )}
           </div>
         </div>
         {success && <p className="text-xs text-[var(--success)]">Profile updated.</p>}
@@ -564,8 +619,70 @@ function ProfileEditForm({
         />
       </div>
       <div>
+        <label
+          htmlFor="avatar-url"
+          className="block text-sm font-medium text-[var(--text-secondary)] mb-1"
+        >
+          Avatar URL
+        </label>
+        <input
+          id="avatar-url"
+          type="url"
+          value={avatarUrl}
+          onChange={(e) => setAvatarUrl(e.target.value)}
+          placeholder="https://example.com/avatar.png"
+          className="w-full rounded-md border border-[var(--border)] bg-[var(--input-bg)] px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--accent)]"
+        />
+      </div>
+      <div>
+        <label
+          htmlFor="bio"
+          className="block text-sm font-medium text-[var(--text-secondary)] mb-1"
+        >
+          Bio
+        </label>
+        <textarea
+          id="bio"
+          value={bio}
+          onChange={(e) => setBio(e.target.value)}
+          maxLength={500}
+          rows={3}
+          className="w-full rounded-md border border-[var(--border)] bg-[var(--input-bg)] px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--accent)] resize-none"
+        />
+      </div>
+      <div>
+        <label className="block text-sm font-medium text-[var(--text-secondary)] mb-1">
+          Skills
+        </label>
+        <div className="flex flex-wrap gap-2 max-h-48 overflow-y-auto p-2 border border-[var(--border)] rounded-md bg-[var(--input-bg)]">
+          {availableSkills.map((skill) => {
+            const isSelected = selectedSkills.includes(skill.id);
+            return (
+              <button
+                key={skill.id}
+                type="button"
+                onClick={() => {
+                  if (isSelected) {
+                    setSelectedSkills(selectedSkills.filter(id => id !== skill.id));
+                  } else {
+                    setSelectedSkills([...selectedSkills, skill.id]);
+                  }
+                }}
+                className={`px-3 py-1 text-xs rounded-full border transition-colors ${
+                  isSelected 
+                    ? "bg-[var(--accent)] text-white border-[var(--accent)]" 
+                    : "bg-transparent text-[var(--text)] border-[var(--border)] hover:bg-[var(--bg-muted)]"
+                }`}
+              >
+                {skill.name}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+      <div>
         <label className="block text-sm font-medium text-[var(--text-secondary)] mb-1">Email</label>
-        <p className="text-sm text-[var(--text-muted)]">{email}</p>
+        <p className="text-sm text-[var(--text-muted)]">{user.email}</p>
         <p className="text-xs text-[var(--text-muted)] mt-1">Email cannot be changed here.</p>
       </div>
       {error && <p className="text-sm text-[var(--error)]">{error}</p>}
@@ -581,7 +698,10 @@ function ProfileEditForm({
           type="button"
           onClick={() => {
             setEditing(false);
-            setName(initialName);
+            setName(user.display_name);
+            setBio(user.bio || "");
+            setAvatarUrl(user.avatar_url || "");
+            setSelectedSkills(user.skills || []);
           }}
           className="text-sm text-[var(--text-muted)] hover:text-[var(--text)]"
         >

@@ -128,7 +128,7 @@ export async function cleanupIdempotencyRecords(): Promise<number> {
 
 /**
  * Auto-transition events past their review objection window.
- * Moves DisputeWindow → WinnerVerification when the review_window_hours has elapsed
+ * Stays in Judging state when the review_window_hours has elapsed
  * AND there are no unresolved disputes.
  */
 export async function enforceReviewWindowExpiry(): Promise<number> {
@@ -137,7 +137,7 @@ export async function enforceReviewWindowExpiry(): Promise<number> {
   const { data: events } = await supabase
     .from("events")
     .select("id, review_window_hours, updated_at, version")
-    .eq("state", "DisputeWindow");
+    .eq("state", "Judging");
 
   if (!events || events.length === 0) return 0;
 
@@ -166,11 +166,11 @@ export async function enforceReviewWindowExpiry(): Promise<number> {
       continue;
     }
 
-    // Transition to WinnerVerification
+    // Mark review window complete (remain in Judging)
     const { error } = await supabase
       .from("events")
       .update({
-        state: "WinnerVerification",
+        state: "Judging",
         version: event.version + 1,
         updated_at: now.toISOString(),
       })

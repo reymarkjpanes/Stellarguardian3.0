@@ -119,7 +119,17 @@ describe('EscrowService', () => {
             insert: insertMock
           };
         }
-        return { select: vi.fn(), insert: vi.fn(), update: vi.fn() };
+        const mockChain = {
+          eq: vi.fn().mockResolvedValue({ data: [], error: null }),
+          then: function(resolve: any) { resolve({ data: [], error: null }); }
+        };
+        return { 
+          select: vi.fn().mockReturnValue({
+            in: vi.fn().mockReturnValue(mockChain)
+          }), 
+          insert: vi.fn(), 
+          update: vi.fn() 
+        };
       });
 
       const batchId = await service.generatePayoutBatch('escrow-123', 'user-1', 'idempotent-key-1');

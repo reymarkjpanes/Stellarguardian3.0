@@ -1,14 +1,14 @@
 'use client';
 
 import React from 'react';
-import { SubmissionViewer } from './SubmissionViewer';
+import { ProjectDetailView, ProjectSummary } from '@/src/domains/submissions/components/ProjectDetailView';
 import { ScoringPanel, ScoringPanelProps } from './ScoringPanel';
 import { Button } from '@/components/ui/button';
 import { ChevronLeft, ChevronRight, X } from 'lucide-react';
 import Link from 'next/link';
 
 interface EvaluationWorkspaceClientProps {
-  submission: React.ComponentProps<typeof SubmissionViewer>['submission'];
+  submission: ProjectSummary;
   scoring: ScoringPanelProps;
   navigation: {
     prevSubmissionId: string | null;
@@ -28,10 +28,10 @@ export function EvaluationWorkspaceClient({
   return (
     <div className="flex flex-col h-full overflow-hidden">
       {/* Top Navigation Bar */}
-      <header className="h-14 border-b bg-background flex items-center justify-between px-4 shrink-0">
+      <header className="h-14 border-b bg-background flex items-center justify-between px-4 shrink-0 z-10 relative">
         <div className="flex items-center gap-4">
           <Button variant="ghost" size="icon" asChild>
-            <Link href={`/e/${eventId}`}>
+            <Link href={`/events/${eventId}/judging`}>
               <X className="w-4 h-4" />
             </Link>
           </Button>
@@ -66,8 +66,8 @@ export function EvaluationWorkspaceClient({
       {/* Split Pane */}
       <div className="flex-1 flex overflow-hidden">
         {/* Left Pane: Submission Context */}
-        <div className="w-2/3 h-full overflow-hidden border-r bg-background">
-          <SubmissionViewer submission={submission} />
+        <div className="w-2/3 h-full overflow-hidden border-r bg-background overflow-y-auto">
+          <ProjectDetailView project={submission} hideBackButton={true} />
         </div>
         
         {/* Right Pane: Scoring */}
@@ -78,3 +78,4 @@ export function EvaluationWorkspaceClient({
     </div>
   );
 }
+

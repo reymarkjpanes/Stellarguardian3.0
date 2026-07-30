@@ -9,7 +9,7 @@
  *  Participant + wrong phase → Phase gate message
  *  Organizer / Judge / any other role   → Read-only submissions list
  */
-import { SubmissionHubLayout } from "@/src/domains/submissions/components/SubmissionHubLayout";
+
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -56,14 +56,9 @@ function PhaseGate({ state }: { state: string }) {
     Draft: "Submissions open once the organizer starts the submission phase.",
     Published: "Submissions open once the organizer starts the submission phase.",
     RegistrationOpen: "Submissions open after registration closes.",
-    RegistrationClosed: "Submissions open after team formation.",
-    TeamFormationLocked: "Submissions open after team formation closes.",
+    RegistrationClosed: "Submissions open when the submission phase begins.",
     SubmissionClosed: "Submissions have closed.",
-    JudgingRound1: "Submissions are under review by judges.",
-    DisputeWindow: "Submissions are locked during the dispute window.",
-    WinnerVerification: "Submissions locked — winner verification in progress.",
-    PrizeApproved: "Submissions locked — prizes being distributed.",
-    EscrowRelease: "Submissions locked — escrow release in progress.",
+    Judging: "Submissions are under review by judges.",
     Completed: "This event has completed.",
     Archived: "This event is archived.",
     Cancelled: "This event was cancelled.",
@@ -183,13 +178,19 @@ export function SubmissionsClient({
   return (
     <div className="space-y-4">
       <h2 className="text-lg font-semibold text-[var(--text)]">Your Submission</h2>
-      <SubmissionHubLayout
-        eventId={eventId}
-        teamId={teamId}
-        teamName={teamName ?? "Your Team"}
-        eventName={eventName}
-        deadline={submissionDeadline}
-      />
+      <div className="card p-6 flex flex-col items-center justify-center space-y-4 text-center">
+        <p className="text-sm text-[var(--text-muted)]">
+          Manage your hackathon submission fields, links, and detailed description.
+        </p>
+        <a
+          href={`/events/${eventId}/submissions/new`}
+          className="inline-block rounded-md bg-[var(--accent)] px-4 py-2 text-sm font-medium text-white hover:bg-[var(--accent-hover)] transition-colors"
+        >
+          {submissions.some((s) => s.team_id === teamId)
+            ? "Edit Submission"
+            : "Create Submission"}
+        </a>
+      </div>
     </div>
   );
 }

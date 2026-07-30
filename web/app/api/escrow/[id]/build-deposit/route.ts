@@ -56,7 +56,7 @@ export async function POST(
     const serviceClient = createServiceClient();
     const { data: escrow } = await serviceClient
       .from("escrow_accounts")
-      .select("id, contract_address, event_id, state")
+      .select("id, contract_address, event_id, status")
       .eq("id", escrowId)
       .single();
 
@@ -68,10 +68,10 @@ export async function POST(
     }
 
     // Verify escrow is in a fundable state
-    const fundableStates = ["Draft", "Funding", "PendingFunding", "PartiallyFunded"];
-    if (!fundableStates.includes(escrow.state ?? "")) {
+    const fundableStates = ["Draft", "Funding", "Funded"];
+    if (!fundableStates.includes(escrow.status ?? "")) {
       return NextResponse.json(
-        { error: { code: "INVALID_STATE", message: `Escrow is in state "${escrow.state}" and cannot accept deposits.` } },
+        { error: { code: "INVALID_STATE", message: `Escrow is in status "${escrow.status}" and cannot accept deposits.` } },
         { status: 422 },
       );
     }

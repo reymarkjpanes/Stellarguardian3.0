@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { ThemeProvider } from "@/components/theme/theme-provider";
+import { ToastProvider } from "@/components/ui/use-toast";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -48,7 +49,9 @@ export default async function RootLayout({
           Skip to content
         </a>
         <ThemeProvider>
-          {children}
+          <ToastProvider>
+            {children}
+          </ToastProvider>
         </ThemeProvider>
       </body>
     </html>

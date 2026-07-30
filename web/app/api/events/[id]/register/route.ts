@@ -102,7 +102,7 @@ export async function DELETE(
     .eq("id", id)
     .single();
 
-  const withdrawAllowedStates = new Set(["RegistrationOpen", "RegistrationClosed", "TeamFormationLocked"]);
+  const withdrawAllowedStates = new Set(["RegistrationOpen", "RegistrationClosed"]);
   if (!event || !withdrawAllowedStates.has(event.state)) {
     return NextResponse.json(
       { error: { code: "INVALID_STATE", message: "Cannot withdraw at this stage." } },
