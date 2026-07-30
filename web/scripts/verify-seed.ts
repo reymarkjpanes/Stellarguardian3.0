@@ -63,7 +63,7 @@ async function main() {
   check("Workspace name correct", ws?.name === "Stellar Guardian HQ");
 
   if (ws) {
-    const { data: wsMembers, count } = await sb
+    const { data: _wsMembers, count } = await sb
       .from("workspace_members")
       .select("*", { count: "exact" })
       .eq("workspace_id", ws.id);
