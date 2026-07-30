@@ -80,9 +80,9 @@ export function HackathonSubmissionForm({
   const handleFinal = async (data: SubmissionFormData) => {
     const result = finalSchema.safeParse(data);
     if (!result.success) {
-      result.error.issues.forEach((err: any) => {
+      result.error.issues.forEach((err: z.ZodIssue) => {
         if (err.path[0]) {
-          setError(err.path[0] as any, { type: "manual", message: err.message });
+          setError(err.path[0] as keyof SubmissionFormData, { type: "manual", message: err.message });
         }
       });
       // Optionally alert the user
@@ -100,7 +100,7 @@ export function HackathonSubmissionForm({
           <button
             key={tab}
             type="button"
-            onClick={() => setActiveTab(tab as any)}
+            onClick={() => setActiveTab(tab as "basic" | "details" | "links" | "extra")}
             className={`px-4 py-2 font-medium text-sm transition-colors ${
               activeTab === tab
                 ? "border-b-2 border-[var(--accent)] text-[var(--accent)]"
@@ -130,7 +130,7 @@ export function HackathonSubmissionForm({
               <Controller
                 control={control}
                 name="categories_entered"
-                render={({ field }: { field: any }) => (
+                render={({ field }) => (
                   <ArrayInput value={field.value || []} onChange={field.onChange} placeholder="e.g. DeFi, NFTs" />
                 )}
               />
@@ -161,7 +161,7 @@ export function HackathonSubmissionForm({
               <Controller
                 control={control}
                 name="tech_stack"
-                render={({ field }: { field: any }) => (
+                render={({ field }) => (
                   <ArrayInput value={field.value || []} onChange={field.onChange} placeholder="e.g. React, Solidity, Rust" />
                 )}
               />
