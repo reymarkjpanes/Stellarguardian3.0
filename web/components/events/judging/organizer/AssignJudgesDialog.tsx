@@ -24,6 +24,7 @@ export function AssignJudgesDialog({ eventId }: AssignJudgesDialogProps) {
   useEffect(() => {
     let mounted = true;
     if (isOpen) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setLoading(true);
       fetchAssignmentDataAction(eventId).then((data) => {
         if (!mounted) return;

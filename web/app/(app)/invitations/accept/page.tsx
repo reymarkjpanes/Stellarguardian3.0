@@ -72,6 +72,7 @@ export default function AcceptInvitationPage() {
 
   useEffect(() => {
     if (token) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       loadPreview(token);
     }
   }, [token, loadPreview]);
