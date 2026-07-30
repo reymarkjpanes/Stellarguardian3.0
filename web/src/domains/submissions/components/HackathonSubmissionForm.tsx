@@ -35,7 +35,7 @@ const baseSchema = z.object({
   categories_entered: z.array(z.string()).optional(),
 });
 
-type FormData = z.infer<typeof baseSchema>;
+export type SubmissionFormData = z.infer<typeof baseSchema>;
 
 // The final schema enforces required fields
 const finalSchema = baseSchema.extend({
@@ -44,9 +44,9 @@ const finalSchema = baseSchema.extend({
 });
 
 interface Props {
-  initialData?: FormData;
-  onSaveDraft: (data: FormData) => Promise<void>;
-  onSubmitFinal: (data: FormData) => Promise<void>;
+  initialData?: SubmissionFormData;
+  onSaveDraft: (data: SubmissionFormData) => Promise<void>;
+  onSubmitFinal: (data: SubmissionFormData) => Promise<void>;
   isSaving?: boolean;
 }
 
@@ -64,7 +64,7 @@ export function HackathonSubmissionForm({
     control,
     setError,
     formState: { errors },
-  } = useForm<FormData>({
+  } = useForm<SubmissionFormData>({
     resolver: zodResolver(baseSchema),
     defaultValues: initialData || {
       tech_stack: [],
@@ -73,11 +73,11 @@ export function HackathonSubmissionForm({
     },
   });
 
-  const handleDraft = async (data: FormData) => {
+  const handleDraft = async (data: SubmissionFormData) => {
     await onSaveDraft(data);
   };
 
-  const handleFinal = async (data: FormData) => {
+  const handleFinal = async (data: SubmissionFormData) => {
     const result = finalSchema.safeParse(data);
     if (!result.success) {
       result.error.issues.forEach((err: any) => {

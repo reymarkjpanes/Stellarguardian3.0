@@ -2,13 +2,16 @@
 
 import React, { useState } from "react";
 import { useRouter } from "next/navigation";
-import { HackathonSubmissionForm } from "@/src/domains/submissions/components/HackathonSubmissionForm";
+import {
+  HackathonSubmissionForm,
+  type SubmissionFormData,
+} from "@/src/domains/submissions/components/HackathonSubmissionForm";
 import { useToast } from "@/components/ui/use-toast";
 
 interface Props {
   eventId: string;
   teamId: string;
-  initialData?: any;
+  initialData?: SubmissionFormData;
 }
 
 export function HackathonSubmissionClient({ eventId, teamId, initialData }: Props) {
@@ -16,7 +19,7 @@ export function HackathonSubmissionClient({ eventId, teamId, initialData }: Prop
   const router = useRouter();
   const { toast } = useToast();
 
-  const handleSaveDraft = async (data: any) => {
+  const handleSaveDraft = async (data: SubmissionFormData) => {
     setIsSaving(true);
     try {
       const res = await fetch(`/api/v1/events/${eventId}/submissions`, {
@@ -36,7 +39,7 @@ export function HackathonSubmissionClient({ eventId, teamId, initialData }: Prop
         description: "Your submission draft has been saved.",
       });
       router.refresh();
-    } catch (e) {
+    } catch (_e) {
       toast({
         title: "Error",
         description: "Failed to save draft. Please try again.",
@@ -47,7 +50,7 @@ export function HackathonSubmissionClient({ eventId, teamId, initialData }: Prop
     }
   };
 
-  const handleSubmitFinal = async (data: any) => {
+  const handleSubmitFinal = async (data: SubmissionFormData) => {
     setIsSaving(true);
     try {
       const res = await fetch(`/api/v1/events/${eventId}/submissions`, {
@@ -68,7 +71,7 @@ export function HackathonSubmissionClient({ eventId, teamId, initialData }: Prop
       });
       router.push(`/events/${eventId}/submissions`);
       router.refresh();
-    } catch (e) {
+    } catch (_e) {
       toast({
         title: "Error",
         description: "Failed to submit project. Please try again.",
