@@ -24,10 +24,9 @@ export function AssignJudgesDialog({ eventId }: AssignJudgesDialogProps) {
   useEffect(() => {
     let mounted = true;
     if (isOpen) {
-      // eslint-disable-next-line react-hooks/rules-of-hooks
-      // Not actually a rule of hook, just avoiding the warn if needed, or better, we set loading true when opening
-      fetchAssignmentDataAction(eventId).then(data => {
-
+      setLoading(true);
+      fetchAssignmentDataAction(eventId).then((data) => {
+        if (!mounted) return;
         setJudges(data.judges);
         setSubmissions(data.submissions);
         setLoading(false);
@@ -37,6 +36,9 @@ export function AssignJudgesDialog({ eventId }: AssignJudgesDialogProps) {
       setSelectedJudge("");
       setSelectedSubmission("");
     }
+    return () => {
+      mounted = false;
+    };
   }, [isOpen, eventId]);
 
   const handleAssign = async () => {

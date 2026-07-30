@@ -58,7 +58,13 @@ export default async function NewSubmissionPage({
           {existingSubmission ? "Edit Project Submission" : "New Project Submission"}
         </h1>
         <p className="text-[var(--text-muted)] mt-1">
-          Event: {event.title} • Team: {(teamMembership.teams as any)?.name}
+          Event: {event.title} • Team:{" "}
+          {(() => {
+            const teams = teamMembership.teams;
+            if (!teams) return "Unknown";
+            if (Array.isArray(teams)) return teams[0]?.name ?? "Unknown";
+            return (teams as { name: string }).name ?? "Unknown";
+          })()}
         </p>
       </div>
 

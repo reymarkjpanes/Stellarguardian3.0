@@ -114,7 +114,9 @@ export async function GET(
         ? `${contractBase}/${escrow.contract_address}`
         : null,
       transaction: onChainTx?.hash ? `${txBase}/${onChainTx.hash}` : null,
-      wallet: null,
+      wallet: latestFundTx?.funding_source_id
+        ? `${EXPLORER_ACCOUNT_URLS[network] ?? EXPLORER_ACCOUNT_URLS.testnet}/${latestFundTx.funding_source_id}`
+        : null,
     };
 
     return NextResponse.json({

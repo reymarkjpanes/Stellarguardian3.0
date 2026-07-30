@@ -123,7 +123,7 @@ export function SubmissionsClient({
     return (
       <div className="space-y-4">
         <div className="flex items-center justify-between">
-          <h2 className="text-lg font-semibold text-[var(--text)]">Submissions</h2>
+          <h2 className="text-lg font-semibold text-[var(--text)]">{eventName} — Submissions</h2>
           <span className="text-xs text-[var(--text-muted)]">
             {submissions.length} submission{submissions.length !== 1 && "s"}
           </span>
@@ -138,6 +138,11 @@ export function SubmissionsClient({
     return (
       <div className="space-y-4">
         <h2 className="text-lg font-semibold text-[var(--text)]">Submissions</h2>
+        {submissionDeadline && (
+          <p className="text-xs text-[var(--text-muted)] mb-2">
+            Deadline: {new Date(submissionDeadline).toLocaleDateString()}
+          </p>
+        )}
         <PhaseGate state={eventState} />
         {/* Still show submitted projects if any exist */}
         {submissions.length > 0 && (
@@ -177,7 +182,9 @@ export function SubmissionsClient({
   // ── Participant + team + SubmissionOpen → Full submission hub ──────────────
   return (
     <div className="space-y-4">
-      <h2 className="text-lg font-semibold text-[var(--text)]">Your Submission</h2>
+      <h2 className="text-lg font-semibold text-[var(--text)]">
+        {teamName ? `${teamName}'s Submission` : "Your Submission"}
+      </h2>
       <div className="card p-6 flex flex-col items-center justify-center space-y-4 text-center">
         <p className="text-sm text-[var(--text-muted)]">
           Manage your hackathon submission fields, links, and detailed description.
