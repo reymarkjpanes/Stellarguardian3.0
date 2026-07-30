@@ -88,9 +88,9 @@ BEGIN
 END;
 $$;
 
-COMMENT ON FUNCTION public.begin_disbursement IS
+COMMENT ON FUNCTION public.begin_disbursement(uuid, uuid) IS
   'Acquires advisory lock + transitions escrow to PendingRelease. Prevents double-disbursement.';
-COMMENT ON FUNCTION public.complete_disbursement IS
+COMMENT ON FUNCTION public.complete_disbursement(uuid, uuid) IS
   'Transitions escrow to Released after successful payout batch.';
-COMMENT ON FUNCTION public.abort_disbursement IS
+COMMENT ON FUNCTION public.abort_disbursement(uuid, text) IS
   'Reverts escrow from PendingRelease on failure.';

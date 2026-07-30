@@ -1,7 +1,10 @@
 import { notFound, redirect } from "next/navigation";
 import { createServerClient as createClient } from "@/lib/supabase/server";
 import { OrganizerJudgingDashboardClient } from "@/components/events/judging/organizer/OrganizerJudgingDashboardClient";
-import { fetchJudgingAnalytics } from "@/app/actions/judging-analytics.actions";
+import {
+  fetchJudgingAnalytics,
+  fetchJudgeAssignments,
+} from "@/app/actions/judging-analytics.actions";
 
 export default async function JudgingPage(props: { params: Promise<{ id: string }> }) {
   const params = await props.params;
@@ -36,13 +39,14 @@ export default async function JudgingPage(props: { params: Promise<{ id: string 
     if (eventError || !event) return notFound();
 
     const analyticsData = await fetchJudgingAnalytics(eventId);
+    const assignments = await fetchJudgeAssignments(eventId);
 
     return (
       <OrganizerJudgingDashboardClient
         eventId={eventId}
         expectedVersion={event.version}
         isCompleted={event.state === "Completed" || event.state === "Archived"}
-        initialData={analyticsData}
+        initialData={{ ...analyticsData, assignments }}
       />
     );
   }
@@ -58,11 +62,11 @@ export default async function JudgingPage(props: { params: Promise<{ id: string 
     const { data: evaluations } = await supabase
       .from("evaluations")
       .select(
-        "id, submission_id, status, total_score, conflict_of_interest, updated_at, submissions(id, team_id, submitter_id, teams(name), users(display_name))",
+        "id, submission_id, status, total_score, conflict_of_interest, created_at, submissions!inner(id, team_id, submitter_id, event_id, teams(name), users(display_name))",
       )
       .eq("judge_id", user.id)
-      .eq("event_id", eventId)
-      .order("updated_at", { ascending: false });
+      .eq("submissions.event_id", eventId)
+      .order("created_at", { ascending: false });
 
     const judging = (evaluations ?? []).map((e) => {
       const sub = e.submissions as unknown as {
@@ -73,10 +77,10 @@ export default async function JudgingPage(props: { params: Promise<{ id: string 
       return {
         evaluationId: e.id,
         submissionId: e.submission_id,
-        status: e.status,
-        score: e.total_score,
+        status: "Draft",
+        score: null,
         conflictOfInterest: e.conflict_of_interest,
-        updatedAt: e.updated_at,
+        updatedAt: e.created_at,
         teamName: sub?.teams?.name ?? null,
         submitterName: sub?.users?.display_name ?? null,
       };

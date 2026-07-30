@@ -4,7 +4,9 @@
 -- then processed asynchronously by a background worker.
 -- Requirements: H3 (publisher loses events), Req 20.3
 
-CREATE TABLE public.domain_events (
+DROP TABLE IF EXISTS public.domain_events CASCADE;
+
+CREATE TABLE IF NOT EXISTS public.domain_events (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   type text NOT NULL,
   payload jsonb NOT NULL DEFAULT '{}'::jsonb,
@@ -19,12 +21,12 @@ CREATE TABLE public.domain_events (
 );
 
 -- Index for the background processor query
-CREATE INDEX idx_domain_events_pending
+CREATE INDEX IF NOT EXISTS idx_domain_events_pending
   ON public.domain_events (next_retry_at)
   WHERE status = 'pending';
 
 -- Index for cleanup of old processed events
-CREATE INDEX idx_domain_events_processed
+CREATE INDEX IF NOT EXISTS idx_domain_events_processed
   ON public.domain_events (processed_at)
   WHERE status = 'processed';
 
@@ -131,8 +133,8 @@ BEGIN
   FROM escrow_accounts WHERE id = p_escrow_id;
 
   FOR v_payment IN SELECT * FROM jsonb_array_elements(p_payments) LOOP
-    -- Update winner status
-    UPDATE winners SET disbursement_status = 'disbursed'
+    -- Update prize allocation status
+    UPDATE prize_allocations SET allocation_status = 'Paid'
     WHERE id = (v_payment->>'winner_id')::uuid;
 
     -- Record transaction

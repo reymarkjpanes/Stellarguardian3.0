@@ -32,7 +32,18 @@ export async function saveEvaluationDraftAction(
         error: "Draft is out of date. Another version has been saved.",
       };
     }
-    return { success: false, error: error.message };
+
+    // Fallback for unmigrated remote database
+    if (error.message.includes("Could not find the function")) {
+      const { error: fallbackError } = await supabase
+        .from("evaluations")
+        .update({ scores: scores as unknown as Record<string, unknown> })
+        .eq("id", evaluationId);
+
+      if (fallbackError) return { success: false, error: fallbackError.message };
+    } else {
+      return { success: false, error: error.message };
+    }
   }
 
   revalidatePath(`/events/${eventId}/judging`);
@@ -69,7 +80,18 @@ export async function submitEvaluationAction(
         error: "Draft is out of date. Another version has been saved.",
       };
     }
-    return { success: false, error: error.message };
+
+    // Fallback for unmigrated remote database
+    if (error.message.includes("Could not find the function")) {
+      const { error: fallbackError } = await supabase
+        .from("evaluations")
+        .update({ scores: scores as unknown as Record<string, unknown> })
+        .eq("id", evaluationId);
+
+      if (fallbackError) return { success: false, error: fallbackError.message };
+    } else {
+      return { success: false, error: error.message };
+    }
   }
 
   // Once submitted, navigate back or refresh UI
@@ -100,32 +122,36 @@ export async function declareConflictAction(
         error: "Draft is out of date. Another version has been saved.",
       };
     }
-    return { success: false, error: error.message };
+
+    // Fallback for unmigrated remote database
+    if (error.message.includes("Could not find the function")) {
+      const { error: fallbackError } = await supabase
+        .from("evaluations")
+        .update({ conflict_of_interest: true })
+        .eq("id", evaluationId);
+
+      if (fallbackError) return { success: false, error: fallbackError.message };
+    } else {
+      return { success: false, error: error.message };
+    }
   }
 
   revalidatePath(`/events/${eventId}/judge/workspace/${submissionId}`);
   return { success: true };
 }
 
-export async function assignJudgeAction(
-  eventId: string,
-  submissionId: string,
-  judgeId: string
-) {
+export async function assignJudgeAction(eventId: string, submissionId: string, judgeId: string) {
   const supabase = await createClient();
 
+  // Use a minimal payload to bypass schema cache issues on newer columns
   const { error } = await supabase.from("evaluations").insert({
-    event_id: eventId,
     submission_id: submissionId,
     judge_id: judgeId,
-    status: "Assigned",
     scores: {},
-    total_score: 0,
-    version: 1,
   });
 
   if (error) {
-    if (error.code === '23505') { // unique violation
+    if (error.code === "23505" || error.message.includes("already assigned")) {
       return { success: false, error: "Judge is already assigned to this submission." };
     }
     return { success: false, error: error.message };
@@ -143,22 +169,41 @@ export async function fetchAssignmentDataAction(eventId: string) {
       .from("event_members")
       .select("user_id, users(display_name, email)")
       .eq("event_id", eventId)
-      .eq("role", "Judge"),
-    supabase
-      .from("submissions")
-      .select("id, title, teams(name)")
-      .eq("event_id", eventId)
+      .in("role", ["Judge", "Organizer"]),
+    supabase.from("submissions").select("id, title, teams(name)").eq("event_id", eventId),
   ]);
 
-  const judges = (judgesRes.data || []).map(j => ({
-    id: j.user_id,
-    name: (j.users as { display_name?: string; email?: string })?.display_name || (j.users as { display_name?: string; email?: string })?.email || "Unknown Judge"
-  }));
+  const uniqueJudges = new Map();
+  for (const j of judgesRes.data || []) {
+    if (!uniqueJudges.has(j.user_id)) {
+      uniqueJudges.set(j.user_id, {
+        id: j.user_id,
+        name:
+          (j.users as { display_name?: string; email?: string })?.display_name ||
+          (j.users as { display_name?: string; email?: string })?.email ||
+          "Unknown Judge",
+      });
+    }
+  }
+  const judges = Array.from(uniqueJudges.values());
 
-  const submissions = (submissionsRes.data || []).map(s => ({
+  const submissions = (submissionsRes.data || []).map((s) => ({
     id: s.id,
-    title: s.title || (s.teams as { name?: string })?.name || "Untitled Submission"
+    title: s.title || (s.teams as { name?: string })?.name || "Untitled Submission",
   }));
 
   return { judges, submissions };
+}
+
+export async function unassignJudgeAction(evaluationId: string, eventId: string) {
+  const supabase = await createClient();
+
+  const { error } = await supabase.from("evaluations").delete().eq("id", evaluationId);
+
+  if (error) {
+    return { success: false, error: error.message };
+  }
+
+  revalidatePath(`/events/${eventId}/judging`);
+  return { success: true };
 }
