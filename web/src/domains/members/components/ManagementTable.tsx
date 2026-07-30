@@ -12,7 +12,7 @@ function MemberActions({ member }: { member: MemberDirectoryProjection }) {
   const eventId = params.id as string;
   const [loading, setLoading] = useState(false);
 
-  async function updateMember(data: any) {
+  async function updateMember(data: { status: string } | { role: string }) {
     if (loading) return;
     setLoading(true);
     try {
