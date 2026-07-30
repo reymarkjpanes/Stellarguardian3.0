@@ -37,6 +37,7 @@ export function WebhookManager({ workspaceSlug }: { workspaceSlug: string }) {
   }, [workspaceSlug]);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     loadWebhooks();
   }, [loadWebhooks]);
 

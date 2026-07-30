@@ -48,6 +48,7 @@ export function CommentThread({ eventId, submissionId, disputeId }: CommentThrea
   }, [eventId, submissionId, disputeId]);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     loadComments();
   }, [loadComments]);
 

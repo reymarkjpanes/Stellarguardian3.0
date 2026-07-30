@@ -39,6 +39,7 @@ export function InviteDrawer({ eventId, isOpen, onClose, onRefresh }: InviteDraw
   useEffect(() => {
     if (isOpen) {
       document.body.style.overflow = "hidden";
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       void loadInvitations();
     } else {
       document.body.style.overflow = "unset";

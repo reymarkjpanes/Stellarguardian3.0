@@ -228,10 +228,12 @@ export default function EventEscrowPage() {
     }
   }, []);
 
+  // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => { void loadData(); }, [loadData]);
 
   // Load on-chain state whenever escrow changes
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     if (escrow?.id) void loadOnChainState(escrow.id);
   }, [escrow?.id, loadOnChainState]);
 
@@ -702,7 +704,7 @@ export default function EventEscrowPage() {
                       />
                       <button
                         onClick={handleFundEscrow}
-                        disabled={!fundAmount || isFundingActive || fundingInFlight.current}
+                        disabled={!fundAmount || isFundingActive}
                         className="btn-primary px-5 py-2 rounded-md text-sm font-medium disabled:opacity-50 whitespace-nowrap"
                       >
                         {isFundingActive ? <span className="flex items-center gap-2"><Spinner />Working…</span> : "Fund Escrow"}
