@@ -11,17 +11,16 @@
  * CSS variables throughout. System font. Single accent.
  */
 import { useState } from "react";
-import { createBrowserClient } from "@/lib/supabase/client";
 
 function slugify(text: string): string {
   return text
     .toLowerCase()
     .trim()
-    .replace(/[@.]/g, "-")          // treat @ and . as word separators
-    .replace(/[^\w\s-]/g, "")       // strip remaining special chars
-    .replace(/[\s_]+/g, "-")        // spaces/underscores → hyphens
-    .replace(/-+/g, "-")            // collapse multiple hyphens
-    .replace(/^-|-$/g, "")          // trim leading/trailing hyphens
+    .replace(/[@.]/g, "-") // treat @ and . as word separators
+    .replace(/[^\w\s-]/g, "") // strip remaining special chars
+    .replace(/[\s_]+/g, "-") // spaces/underscores → hyphens
+    .replace(/-+/g, "-") // collapse multiple hyphens
+    .replace(/^-|-$/g, "") // trim leading/trailing hyphens
     .slice(0, 40);
 }
 
@@ -59,45 +58,30 @@ export default function CreateWorkspacePage() {
     setSubmitting(true);
 
     try {
-      const supabase = createBrowserClient();
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-      if (!user) {
-        setError("You must be logged in.");
-        setSubmitting(false);
-        return;
-      }
-
-      const { data: workspace, error: wsError } = await supabase
-        .from("workspaces")
-        .insert({
+      const res = await fetch("/api/workspaces", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
           name: name.trim(),
           slug: finalSlug,
-          description: description.trim() || null,
-        })
-        .select("id, slug")
-        .single();
+          description: description.trim() || undefined,
+        }),
+      });
 
-      if (wsError) {
-        if (wsError.code === "23505") {
+      const json = await res.json();
+
+      if (!res.ok) {
+        if (json.error?.code === "CONFLICT") {
           setError("A workspace with this slug already exists. Choose a different name.");
         } else {
-          setError(wsError.message);
+          setError(json.error?.message || "Failed to create workspace.");
         }
         setSubmitting(false);
         return;
       }
 
-      // Add creator as Owner member
-      await supabase.from("workspace_members").insert({
-        workspace_id: workspace.id,
-        user_id: user.id,
-        role: "Owner",
-      });
-
       // Redirect directly to the new workspace page
-      window.location.href = `/workspaces/${workspace.slug}`;
+      window.location.href = `/workspaces/${json.data.slug}`;
     } catch {
       setError("Network error. Please try again.");
       setSubmitting(false);

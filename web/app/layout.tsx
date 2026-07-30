@@ -25,8 +25,6 @@ const themeScript = `
   })();
 `;
 
-import Script from "next/script";
-
 export default async function RootLayout({
   children,
 }: Readonly<{
@@ -38,9 +36,8 @@ export default async function RootLayout({
   return (
     <html lang="en" className="dark" suppressHydrationWarning>
       <head>
-        <Script
+        <script
           id="theme-script"
-          strategy="beforeInteractive"
           suppressHydrationWarning
           dangerouslySetInnerHTML={{ __html: themeScript }}
         />

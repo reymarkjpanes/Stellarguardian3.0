@@ -8,13 +8,22 @@ import { z } from "zod";
 
 const CreateWorkspaceSchema = z.object({
   name: z.string().min(1).max(200),
-  slug: z.string().regex(/^[a-z0-9]+(-[a-z0-9]+)*$/).min(2).max(60),
+  slug: z
+    .string()
+    .regex(/^[a-z0-9]+(-[a-z0-9]+)*$/)
+    .min(2)
+    .max(60),
   description: z.string().max(2000).optional(),
 });
 
+import { createWorkspace } from "@/lib/services/workspace";
+import { ConflictError, BadRequestError } from "@/lib/errors";
+
 export async function POST(request: NextRequest) {
   const supabase = await createServerClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
 
   if (!user) {
     return NextResponse.json(
@@ -28,61 +37,57 @@ export async function POST(request: NextRequest) {
 
   if (!parsed.success) {
     return NextResponse.json(
-      { error: { code: "VALIDATION_ERROR", message: "Invalid input.", details: parsed.error.flatten() } },
+      {
+        error: {
+          code: "VALIDATION_ERROR",
+          message: "Invalid input.",
+          details: parsed.error.flatten(),
+        },
+      },
       { status: 422 },
     );
   }
 
   const { name, slug, description } = parsed.data;
 
-  // Check slug uniqueness
-  const { data: existing } = await supabase
-    .from("workspaces")
-    .select("id")
-    .eq("slug", slug)
-    .maybeSingle();
-
-  if (existing) {
+  try {
+    const workspace = await createWorkspace({
+      creatorId: user.id,
+      name,
+      slug,
+      description,
+    });
+    return NextResponse.json({ data: workspace }, { status: 201 });
+  } catch (error: unknown) {
+    if (error instanceof ConflictError) {
+      return NextResponse.json(
+        { error: { code: "CONFLICT", message: error.message } },
+        { status: 409 },
+      );
+    }
+    if (error instanceof BadRequestError) {
+      return NextResponse.json(
+        { error: { code: "BAD_REQUEST", message: error.message } },
+        { status: 400 },
+      );
+    }
     return NextResponse.json(
-      { error: { code: "CONFLICT", message: "A workspace with this slug already exists." } },
-      { status: 409 },
-    );
-  }
-
-  // Create workspace + owner membership atomically
-  const { data: workspace, error: wsError } = await supabase
-    .from("workspaces")
-    .insert({ name, slug, description: description ?? null })
-    .select()
-    .single();
-
-  if (wsError) {
-    return NextResponse.json(
-      { error: { code: "INTERNAL_ERROR", message: wsError.message } },
+      {
+        error: {
+          code: "INTERNAL_ERROR",
+          message: error instanceof Error ? error.message : "Failed to create workspace.",
+        },
+      },
       { status: 500 },
     );
   }
-
-  // Add creator as Owner
-  const { error: memberError } = await supabase
-    .from("workspace_members")
-    .insert({ workspace_id: workspace.id, user_id: user.id, role: "Owner" });
-
-  if (memberError) {
-    // Rollback workspace on member creation failure
-    await supabase.from("workspaces").delete().eq("id", workspace.id);
-    return NextResponse.json(
-      { error: { code: "INTERNAL_ERROR", message: memberError.message } },
-      { status: 500 },
-    );
-  }
-
-  return NextResponse.json({ data: workspace }, { status: 201 });
 }
 
 export async function GET() {
   const supabase = await createServerClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
 
   if (!user) {
     return NextResponse.json(
