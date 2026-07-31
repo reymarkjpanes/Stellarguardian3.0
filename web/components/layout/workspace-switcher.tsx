@@ -49,6 +49,7 @@ export function WorkspaceSwitcher({ workspaces, currentWorkspaceId }: WorkspaceS
       >
         <div className="w-6 h-6 rounded-md bg-[var(--accent)] flex items-center justify-center text-white text-xs font-bold overflow-hidden shrink-0">
           {currentWorkspace?.logo_url ? (
+            /* eslint-disable-next-line @next/next/no-img-element */
             <img
               src={currentWorkspace.logo_url}
               alt={currentWorkspace.name}
@@ -103,6 +104,7 @@ export function WorkspaceSwitcher({ workspaces, currentWorkspaceId }: WorkspaceS
                 >
                   <div className="w-8 h-8 rounded-md bg-[var(--accent)] flex items-center justify-center text-white text-sm font-bold overflow-hidden shrink-0">
                     {ws.logo_url ? (
+                      /* eslint-disable-next-line @next/next/no-img-element */
                       <img src={ws.logo_url} alt={ws.name} className="w-full h-full object-cover" />
                     ) : (
                       ws.name.charAt(0).toUpperCase()

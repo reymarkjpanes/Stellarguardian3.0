@@ -90,14 +90,14 @@ describe("canEventTransition — basic valid paths", () => {
     expect(withSubs.ok).toBe(true);
   });
 
-  it("JudgingRound1 → Completed requires all validations", () => {
-    const notScored = canEventTransition("JudgingRound1", "Completed", {
+  it("JudgingRound1 → WinnerVerification requires all validations", () => {
+    const notScored = canEventTransition("JudgingRound1", "WinnerVerification", {
       actorRole: "Organizer",
       allSubmissionsScored: false,
     });
     expect(notScored.ok).toBe(false);
 
-    const fullValid = canEventTransition("JudgingRound1", "Completed", FULL_CTX);
+    const fullValid = canEventTransition("JudgingRound1", "WinnerVerification", FULL_CTX);
     expect(fullValid.ok).toBe(true);
   });
 });
