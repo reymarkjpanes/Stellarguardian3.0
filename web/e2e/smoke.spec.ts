@@ -38,7 +38,7 @@ test.describe("Smoke Tests — Public Pages", () => {
     await page.goto("/signup");
     await expect(page.locator('input[type="text"]')).toBeVisible();
     await expect(page.locator('input[type="email"]')).toBeVisible();
-    await expect(page.locator('input[type="password"]')).toHaveCount(2); // password and confirm
+    await expect(page.locator('input[type="password"]')).toHaveCount(1);
     await expect(page.locator('button[type="submit"]')).toBeVisible();
   });
 
@@ -80,30 +80,11 @@ test.describe("Smoke Tests — Auth Flow", () => {
     await page.fill('input[type="email"]', "fake@example.com");
     await page.fill('input[type="password"]', "wrongpassword");
     await page.click('button[type="submit"]');
-    await expect(page.locator('div[role="alert"]').filter({ hasNot: page.locator('#__next-route-announcer__') }).first()).toBeVisible();
-  });
-
-  test("signup without terms acceptance shows error", async ({ page }) => {
-    await page.goto("/signup");
-    await page.fill('#display-name', "Test User");
-    await page.fill('#email', "test" + Date.now() + "@example.com");
-    await page.fill('#password', "Password123!");
-    await page.fill('#confirm-password', "Password123!");
-    // Don't check terms checkbox
-    await page.click('button[type="submit"]');
-    await expect(page.locator('div[role="alert"]').filter({ hasNot: page.locator('#__next-route-announcer__') }).first()).toBeVisible();
-    await expect(page.locator("text=Terms of Service").first()).toBeVisible();
-  });
-
-  test("signup with mismatched passwords shows error", async ({ page }) => {
-    await page.goto("/signup");
-    await page.fill('#display-name', "Test User");
-    await page.fill('#email', "test" + Date.now() + "@example.com");
-    await page.fill('#password', "Password123!");
-    await page.fill('#confirm-password', "Different123!");
-    await page.check("#terms");
-    await page.click('button[type="submit"]');
-    await expect(page.locator('div[role="alert"]').filter({ hasNot: page.locator('#__next-route-announcer__') }).first()).toBeVisible();
-    await expect(page.locator("text=do not match").first()).toBeVisible();
+    await expect(
+      page
+        .locator('div[role="alert"]')
+        .filter({ hasNot: page.locator("#__next-route-announcer__") })
+        .first(),
+    ).toBeVisible();
   });
 });

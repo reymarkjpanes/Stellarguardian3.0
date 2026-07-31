@@ -1,213 +1,199 @@
-/**
- * Onboarding page — shown to new users after signup.
- * Guides through: name setup → wallet connection → first workspace.
- */
 "use client";
 
 import { useState, useEffect } from "react";
-import { useRouter } from "next/navigation";
-import Link from "next/link";
 import { createBrowserClient } from "@/lib/supabase/client";
-
-type Step = "profile" | "wallet" | "workspace" | "done";
+import { useRouter } from "next/navigation";
 
 export default function OnboardingPage() {
-  const router = useRouter();
-  const [step, setStep] = useState<Step>("profile");
-  const [displayName, setDisplayName] = useState("");
-  const [saving, setSaving] = useState(false);
+  const _router = useRouter();
+  const [loading, setLoading] = useState(true);
+  const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  const [workspaceName, setWorkspaceName] = useState("");
+  const [displayName, setDisplayName] = useState("");
+
   useEffect(() => {
-    async function checkProfile() {
-      const supabase = createBrowserClient();
+    const supabase = createBrowserClient();
+
+    async function checkState() {
       const {
         data: { user },
       } = await supabase.auth.getUser();
       if (!user) {
-        router.push("/login");
+        window.location.href = "/login";
         return;
       }
 
-      const { data: profile } = await supabase
-        .from("users")
-        .select("display_name, terms_accepted_version")
-        .eq("id", user.id)
-        .single();
+      // Pre-fill fields based on metadata if available
+      setDisplayName(user.user_metadata?.full_name || "");
+      setWorkspaceName(
+        user.user_metadata?.full_name ? `${user.user_metadata.full_name}'s Workspace` : "",
+      );
 
-      if (profile?.display_name && profile.display_name !== user.email) {
-        setStep("wallet");
+      // Check if user already has a workspace
+      const { data: workspaces } = await supabase
+        .from("workspace_members")
+        .select("workspace_id")
+        .eq("user_id", user.id)
+        .limit(1);
+
+      if (workspaces && workspaces.length > 0) {
+        // User already has a workspace, skip onboarding
+        window.location.href = "/dashboard";
+      } else {
+        setLoading(false);
       }
     }
-    checkProfile();
-  }, [router]);
 
-  async function handleProfileSave(e: React.FormEvent) {
+    checkState();
+  }, []);
+
+  async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
-    setSaving(true);
     setError(null);
+    setSubmitting(true);
 
-    const res = await fetch("/api/users/me", {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        display_name: displayName,
-        terms_accepted_version: "1.0",
-      }),
-    });
+    try {
+      const supabase = createBrowserClient();
 
-    if (!res.ok) {
-      const { error: err } = await res.json();
-      setError(err?.message ?? "Failed to save.");
-      setSaving(false);
-      return;
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      if (!user) throw new Error("Not authenticated");
+
+      // Update user display name if it changed
+      if (displayName !== user.user_metadata?.full_name) {
+        await supabase.auth.updateUser({
+          data: { full_name: displayName },
+        });
+      }
+
+      // Create the default workspace using the CreateWorkspaceAction (if available) or RPC
+      // Since we don't have a direct server action handy, we'll try to insert directly
+      // Wait, let's use the standard `workspaces` table insertion (needs RLS to allow it)
+      // Usually creating a workspace involves creating the workspace and then the member link.
+      // We'll call the `create_workspace` RPC if it exists, or insert directly.
+
+      const slug =
+        workspaceName
+          .toLowerCase()
+          .replace(/[^a-z0-9]+/g, "-")
+          .replace(/(^-|-$)/g, "") +
+        "-" +
+        Math.random().toString(36).substring(2, 6);
+
+      // Attempt manual insertion
+      const { error: wsError } = await supabase
+        .from("workspaces")
+        .insert({
+          slug,
+          name: workspaceName,
+          description: "My personal workspace",
+        })
+        .select("id")
+        .single();
+
+      if (wsError) throw new Error("Failed to create workspace: " + wsError.message);
+
+      // We don't need to manually insert into workspace_members if there's a trigger,
+      // but let's insert it explicitly just in case (assuming RLS allows it or RPC handles it).
+      // Wait, there is a trigger `tr_workspaces_insert` that automatically adds the creator as Owner!
+      // Let's rely on the trigger.
+
+      // We are done! Redirect to dashboard
+      window.location.href = "/dashboard";
+    } catch (err) {
+      if (err instanceof Error) {
+        setError(err.message || "An error occurred during onboarding.");
+      } else {
+        setError("An error occurred during onboarding.");
+      }
+      setSubmitting(false);
     }
-
-    setSaving(false);
-    setStep("wallet");
   }
 
-  function skipWallet() {
-    setStep("workspace");
-  }
-
-  function finishOnboarding() {
-    router.push("/dashboard");
+  if (loading) {
+    return (
+      <main className="min-h-screen flex items-center justify-center bg-[var(--bg)]">
+        <div className="w-6 h-6 border-2 border-[var(--accent)] rounded-full border-t-transparent animate-spin" />
+      </main>
+    );
   }
 
   return (
-    <main className="max-w-lg mx-auto px-4 py-16 space-y-8">
-      {/* Progress */}
-      <div className="flex items-center justify-center gap-2">
-        {(["profile", "wallet", "workspace"] as Step[]).map((s, idx) => (
-          <div key={s} className="flex items-center gap-2">
+    <main className="min-h-screen flex items-center justify-center px-4 bg-[var(--bg)]">
+      <div className="w-full max-w-md p-8 card space-y-6">
+        <div className="text-center space-y-2">
+          <div className="mx-auto w-12 h-12 bg-[var(--accent)] rounded-xl flex items-center justify-center mb-4">
             <div
-              className={`h-2.5 w-2.5 rounded-full ${
-                step === s
-                  ? "bg-[var(--accent)]"
-                  : ["profile", "wallet", "workspace"].indexOf(step) > idx
-                    ? "bg-green-400"
-                    : "bg-[var(--bg-muted)]"
-              }`}
+              className="w-5 h-5 border-2 border-white rounded-full border-t-transparent animate-spin"
+              style={{ animationDuration: "3s" }}
             />
-            {idx < 2 && <div className="w-8 h-px bg-[var(--border)]" />}
           </div>
-        ))}
+          <h1 className="text-2xl font-semibold tracking-tight text-[var(--text)]">
+            Welcome to Stellar Guardian
+          </h1>
+          <p className="text-sm text-[var(--text-muted)]">
+            Let&apos;s get your account set up. You can always change these details later.
+          </p>
+        </div>
+
+        <form onSubmit={handleSubmit} className="space-y-4 pt-4">
+          {error && (
+            <div className="rounded-md border border-[var(--error)] bg-[var(--error-bg)] px-4 py-3 text-sm text-[var(--error)]">
+              {error}
+            </div>
+          )}
+
+          <div className="space-y-2">
+            <label
+              htmlFor="displayName"
+              className="block text-sm font-medium text-[var(--text-secondary)]"
+            >
+              Your Name
+            </label>
+            <input
+              id="displayName"
+              type="text"
+              required
+              value={displayName}
+              onChange={(e) => setDisplayName(e.target.value)}
+              className="w-full rounded-md border border-[var(--border)] bg-[var(--input-bg)] px-3 py-2 text-sm text-[var(--text)] placeholder:text-[var(--text-muted)] focus:outline-none focus:ring-1 focus:ring-[var(--accent)]"
+              placeholder="Alice Organizer"
+            />
+          </div>
+
+          <div className="space-y-2">
+            <label
+              htmlFor="workspaceName"
+              className="block text-sm font-medium text-[var(--text-secondary)]"
+            >
+              Workspace Name
+            </label>
+            <p className="text-xs text-[var(--text-muted)]">
+              Workspaces organize your hackathons, members, and billing.
+            </p>
+            <input
+              id="workspaceName"
+              type="text"
+              required
+              value={workspaceName}
+              onChange={(e) => setWorkspaceName(e.target.value)}
+              className="w-full rounded-md border border-[var(--border)] bg-[var(--input-bg)] px-3 py-2 text-sm text-[var(--text)] placeholder:text-[var(--text-muted)] focus:outline-none focus:ring-1 focus:ring-[var(--accent)]"
+              placeholder="e.g. Acme Corp Hackathons"
+            />
+          </div>
+
+          <button
+            type="submit"
+            disabled={submitting}
+            className="w-full mt-6 rounded-md bg-[var(--accent)] px-4 py-2 text-sm font-medium text-white hover:bg-[var(--accent-hover)] focus:outline-none disabled:opacity-50 transition-colors"
+          >
+            {submitting ? "Setting up..." : "Complete Setup"}
+          </button>
+        </form>
       </div>
-
-      {/* Step: Profile */}
-      {step === "profile" && (
-        <div className="space-y-6">
-          <div className="text-center">
-            <h1 className="text-2xl font-semibold tracking-tight">Welcome to Stellar Guardian</h1>
-            <p className="text-sm text-[var(--text-muted)] mt-2">
-              Let&apos;s set up your profile to get started.
-            </p>
-          </div>
-          <form onSubmit={handleProfileSave} className="card p-6 space-y-4">
-            <div>
-              <label
-                htmlFor="onb-name"
-                className="block text-sm font-medium text-[var(--text-secondary)] mb-1"
-              >
-                Display Name
-              </label>
-              <input
-                id="onb-name"
-                type="text"
-                value={displayName}
-                onChange={(e) => setDisplayName(e.target.value)}
-                placeholder="How should others see you?"
-                required
-                className="w-full rounded-md border border-[var(--border)] bg-[var(--bg)] px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--accent)]"
-              />
-            </div>
-            <div className="text-xs text-[var(--text-muted)]">
-              By continuing, you agree to our{" "}
-              <a href="/terms" className="text-[var(--accent)] hover:underline">
-                Terms of Service
-              </a>{" "}
-              and{" "}
-              <a href="/privacy" className="text-[var(--accent)] hover:underline">
-                Privacy Policy
-              </a>
-              .
-            </div>
-            {error && <p className="text-sm text-[var(--error)]">{error}</p>}
-            <button
-              type="submit"
-              disabled={saving}
-              className="btn-primary w-full py-2.5 text-sm font-medium rounded-md disabled:opacity-50"
-            >
-              {saving ? "Saving..." : "Continue"}
-            </button>
-          </form>
-        </div>
-      )}
-
-      {/* Step: Wallet */}
-      {step === "wallet" && (
-        <div className="space-y-6">
-          <div className="text-center">
-            <h1 className="text-2xl font-semibold tracking-tight">Connect Your Wallet</h1>
-            <p className="text-sm text-[var(--text-muted)] mt-2">
-              Connect a Stellar wallet to fund events and receive prizes.
-            </p>
-          </div>
-          <div className="card p-6 space-y-4 text-center">
-            <p className="text-sm text-[var(--text-secondary)]">
-              You can connect your Freighter wallet now, or do it later from Settings.
-            </p>
-            <div className="flex gap-3 justify-center">
-              <a href="/settings" className="btn-primary px-5 py-2 text-sm font-medium rounded-md">
-                Connect Wallet
-              </a>
-              <button
-                onClick={skipWallet}
-                className="rounded-md border border-[var(--border)] px-5 py-2 text-sm font-medium text-[var(--text)] hover:bg-[var(--bg-muted)]"
-              >
-                Skip for Now
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Step: Workspace */}
-      {step === "workspace" && (
-        <div className="space-y-6">
-          <div className="text-center">
-            <h1 className="text-2xl font-semibold tracking-tight">You&apos;re All Set!</h1>
-            <p className="text-sm text-[var(--text-muted)] mt-2">
-              Create a workspace to organize events, or browse existing ones.
-            </p>
-          </div>
-          <div className="card p-6 space-y-4">
-            <div className="grid gap-3 sm:grid-cols-2">
-              <Link
-                href="/workspaces/new"
-                className="card p-4 text-center hover:border-[var(--accent)] transition-colors"
-              >
-                <p className="font-medium text-[var(--text)]">Create Workspace</p>
-                <p className="text-xs text-[var(--text-muted)] mt-1">Organize your own events</p>
-              </Link>
-              <Link
-                href="/discover"
-                className="card p-4 text-center hover:border-[var(--accent)] transition-colors"
-              >
-                <p className="font-medium text-[var(--text)]">Discover Events</p>
-                <p className="text-xs text-[var(--text-muted)] mt-1">Join as a participant</p>
-              </Link>
-            </div>
-            <button
-              onClick={finishOnboarding}
-              className="w-full text-center text-sm font-medium text-[var(--accent)] hover:underline mt-4"
-            >
-              Go to Dashboard →
-            </button>
-          </div>
-        </div>
-      )}
     </main>
   );
 }

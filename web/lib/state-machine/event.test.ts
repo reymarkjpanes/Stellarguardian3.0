@@ -76,28 +76,28 @@ describe("canEventTransition — basic valid paths", () => {
     );
   });
 
-  it("SubmissionClosed → Judging requires hasSubmissions", () => {
-    const noSubs = canEventTransition("SubmissionClosed", "Judging", {
+  it("SubmissionClosed → JudgingRound1 requires hasSubmissions", () => {
+    const noSubs = canEventTransition("SubmissionClosed", "JudgingRound1", {
       actorRole: "Organizer",
       hasSubmissions: false,
     });
     expect(noSubs.ok).toBe(false);
 
-    const withSubs = canEventTransition("SubmissionClosed", "Judging", {
+    const withSubs = canEventTransition("SubmissionClosed", "JudgingRound1", {
       actorRole: "Organizer",
       hasSubmissions: true,
     });
     expect(withSubs.ok).toBe(true);
   });
 
-  it("Judging → Completed requires all validations", () => {
-    const notScored = canEventTransition("Judging", "Completed", {
+  it("JudgingRound1 → Completed requires all validations", () => {
+    const notScored = canEventTransition("JudgingRound1", "Completed", {
       actorRole: "Organizer",
       allSubmissionsScored: false,
     });
     expect(notScored.ok).toBe(false);
 
-    const fullValid = canEventTransition("Judging", "Completed", FULL_CTX);
+    const fullValid = canEventTransition("JudgingRound1", "Completed", FULL_CTX);
     expect(fullValid.ok).toBe(true);
   });
 });
@@ -132,7 +132,7 @@ describe("Cancellation", () => {
     "RegistrationClosed",
     "SubmissionOpen",
     "SubmissionClosed",
-    "Judging",
+    "JudgingRound1",
   ] as const;
 
   cancelStates.forEach((state) => {

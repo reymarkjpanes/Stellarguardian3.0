@@ -96,6 +96,7 @@ export function isEventTerminal(state: EventState): boolean {
 
 const GRAPH: Record<EventState, Edge[]> = {
   Draft: [
+    { to: "Review", unmet: () => [] },
     {
       to: "Published",
       unmet: (ctx) => {
@@ -113,6 +114,11 @@ const GRAPH: Record<EventState, Edge[]> = {
       to: "Cancelled",
       unmet: (ctx) => adminCheck(ctx),
     },
+  ],
+  Review: [
+    { to: "Published", unmet: () => [] },
+    { to: "Draft", unmet: () => [] },
+    { to: "Cancelled", unmet: (ctx) => adminCheck(ctx) },
   ],
   Published: [
     {
@@ -136,6 +142,10 @@ const GRAPH: Record<EventState, Edge[]> = {
   ],
   RegistrationClosed: [
     {
+      to: "TeamFormationLocked",
+      unmet: (ctx) => organizerCheck(ctx),
+    },
+    {
       to: "SubmissionOpen",
       unmet: (ctx) => {
         const reasons = organizerCheck(ctx);
@@ -147,6 +157,16 @@ const GRAPH: Record<EventState, Edge[]> = {
         }
         return reasons;
       },
+    },
+    {
+      to: "Cancelled",
+      unmet: (ctx) => adminCheck(ctx),
+    },
+  ],
+  TeamFormationLocked: [
+    {
+      to: "SubmissionOpen",
+      unmet: (ctx) => organizerCheck(ctx),
     },
     {
       to: "Cancelled",
@@ -165,7 +185,7 @@ const GRAPH: Record<EventState, Edge[]> = {
   ],
   SubmissionClosed: [
     {
-      to: "Judging",
+      to: "JudgingRound1",
       unmet: (ctx) => {
         const reasons = organizerCheck(ctx);
         if (!ctx.hasSubmissions) {
@@ -179,31 +199,113 @@ const GRAPH: Record<EventState, Edge[]> = {
       unmet: (ctx) => adminCheck(ctx),
     },
   ],
-  Judging: [
+  JudgingRound1: [
     {
-      to: "Completed",
+      to: "JudgingRound2",
+      unmet: (ctx) => {
+        const reasons = organizerCheck(ctx);
+        if (!ctx.allSubmissionsScored) {
+          reasons.push("all submissions must be scored before proceeding (Req 23.5)");
+        }
+        return reasons;
+      },
+    },
+    {
+      to: "WinnerVerification",
       unmet: (ctx) => {
         const reasons = organizerCheck(ctx);
         if (!ctx.allSubmissionsScored) {
           reasons.push("all submissions must be scored before verifying winners (Req 23.5)");
         }
+        return reasons;
+      },
+    },
+    {
+      to: "Cancelled",
+      unmet: (ctx) => adminCheck(ctx),
+    },
+  ],
+  JudgingRound2: [
+    {
+      to: "WinnerVerification",
+      unmet: (ctx) => {
+        const reasons = organizerCheck(ctx);
+        if (!ctx.allSubmissionsScored) {
+          reasons.push("all submissions must be scored before verifying winners (Req 23.5)");
+        }
+        return reasons;
+      },
+    },
+    {
+      to: "Cancelled",
+      unmet: (ctx) => adminCheck(ctx),
+    },
+  ],
+  WinnerVerification: [
+    {
+      to: "DisputeWindow",
+      unmet: (ctx) => {
+        const reasons = organizerCheck(ctx);
         if (!ctx.winnersConfirmed) {
           reasons.push("winners must be explicitly confirmed (Req 23.6)");
         }
+        return reasons;
+      },
+    },
+    {
+      to: "Cancelled",
+      unmet: (ctx) => adminCheck(ctx),
+    },
+  ],
+  DisputeWindow: [
+    {
+      to: "PrizeApproved",
+      unmet: (ctx) => {
+        const reasons = organizerCheck(ctx);
         if (!ctx.reviewWindowElapsed) {
-          reasons.push("the review/dispute window must elapse before approving prizes (Req 23.7, 39.6)");
+          reasons.push(
+            "the review/dispute window must elapse before approving prizes (Req 23.7, 39.6)",
+          );
         }
         if ((ctx.unresolvedDisputes ?? 0) > 0) {
           reasons.push("all disputes must be resolved before approving prizes (Req 23.7, 39.9)");
         }
+        return reasons;
+      },
+    },
+    {
+      to: "Cancelled",
+      unmet: (ctx) => adminCheck(ctx),
+    },
+  ],
+  PrizeApproved: [
+    {
+      to: "EscrowRelease",
+      unmet: (ctx) => {
+        const reasons = organizerCheck(ctx);
         if (!ctx.escrowFullyFunded) {
           reasons.push("escrow must be fully funded on-chain before release (Req 26.2)");
         }
         if (!ctx.escrowLocked) {
           reasons.push("escrow must be locked before prize release begins (Req 26.3)");
         }
+        return reasons;
+      },
+    },
+    {
+      to: "Cancelled",
+      unmet: (ctx) => adminCheck(ctx),
+    },
+  ],
+  EscrowRelease: [
+    {
+      to: "Completed",
+      unmet: (ctx) => {
+        const reasons = organizerCheck(ctx);
         if (!ctx.allDisbursementsComplete) {
-          reasons.push("all prize disbursements must complete on-chain before marking complete (Req 8.7)");
+          reasons.push(
+            "all prize disbursements must complete on-chain before marking complete (Req 8.7)",
+          );
         }
         return reasons;
       },
@@ -225,6 +327,7 @@ const GRAPH: Record<EventState, Edge[]> = {
       unmet: (ctx) => adminCheck(ctx),
     },
   ],
+  Suspended: [],
   Archived: [],
 };
 

@@ -44,9 +44,10 @@ function deriveTasksForEvent(event: EventSummary): Task[] {
   const tasks: Task[] = [];
 
   // Blocking: pending member approvals
-  if (event.pendingMemberCount > 0 && [
-    "RegistrationOpen", "RegistrationClosed"
-  ].includes(event.state)) {
+  if (
+    event.pendingMemberCount > 0 &&
+    ["RegistrationOpen", "RegistrationClosed"].includes(event.state)
+  ) {
     tasks.push({
       id: `approve-${event.id}`,
       eventId: event.id,
@@ -60,15 +61,27 @@ function deriveTasksForEvent(event: EventSummary): Task[] {
   }
 
   // Blocking if Draft (can't publish) or SubmissionClosed (can't begin judging). Urgent otherwise.
-  if (event.judgeCount === 0 && ["Draft", "Published", "RegistrationOpen", "RegistrationClosed", "SubmissionOpen", "SubmissionClosed"].includes(event.state)) {
+  if (
+    event.judgeCount === 0 &&
+    [
+      "Draft",
+      "Published",
+      "RegistrationOpen",
+      "RegistrationClosed",
+      "SubmissionOpen",
+      "SubmissionClosed",
+    ].includes(event.state)
+  ) {
     const isBlocking = event.state === "Draft" || event.state === "SubmissionClosed";
     tasks.push({
       id: `judges-${event.id}`,
       eventId: event.id,
       eventTitle: event.title,
       headline: "No judges assigned",
-      consequence: isBlocking 
-        ? (event.state === "Draft" ? "You must assign at least one judge before publishing." : "You must assign at least one judge to begin judging.")
+      consequence: isBlocking
+        ? event.state === "Draft"
+          ? "You must assign at least one judge before publishing."
+          : "You must assign at least one judge to begin judging."
         : "Assign at least one judge before submissions close.",
       actionLabel: "Assign Judges",
       actionHref: `/events/${event.id}/members`,
@@ -77,7 +90,11 @@ function deriveTasksForEvent(event: EventSummary): Task[] {
   }
 
   // Urgent: judging phase with unscored submissions
-  if (event.state === "Judging" && event.submissionCount > 0 && event.evaluationCount < event.submissionCount) {
+  if (
+    (event.state === "JudgingRound1" || event.state === "JudgingRound2") &&
+    event.submissionCount > 0 &&
+    event.evaluationCount < event.submissionCount
+  ) {
     const unscored = event.submissionCount - event.evaluationCount;
     tasks.push({
       id: `score-${event.id}`,
@@ -151,11 +168,15 @@ export function OrganizerActionCenter({ events }: OrganizerActionCenterProps) {
         {sorted.map((task) => (
           <div key={task.id} className="px-4 py-3 flex items-start gap-3">
             {/* Priority dot */}
-            <div className={`mt-1 h-2 w-2 rounded-full flex-shrink-0 ${
-              task.priority === "blocking" ? "bg-[var(--error)]"
-              : task.priority === "urgent" ? "bg-[var(--warning)]"
-              : "bg-[var(--accent)]"
-            }`} />
+            <div
+              className={`mt-1 h-2 w-2 rounded-full flex-shrink-0 ${
+                task.priority === "blocking"
+                  ? "bg-[var(--error)]"
+                  : task.priority === "urgent"
+                    ? "bg-[var(--warning)]"
+                    : "bg-[var(--accent)]"
+              }`}
+            />
             {/* Content */}
             <div className="flex-1 min-w-0">
               <p className="text-[10px] text-[var(--text-muted)] uppercase tracking-wider font-medium truncate">
@@ -173,8 +194,8 @@ export function OrganizerActionCenter({ events }: OrganizerActionCenterProps) {
                 task.priority === "blocking"
                   ? "bg-[var(--error-bg)] text-[var(--error)] hover:opacity-80"
                   : task.priority === "urgent"
-                  ? "bg-[var(--warning-bg)] text-[var(--warning)] hover:opacity-80"
-                  : "bg-[var(--accent-muted)] text-[var(--accent)] hover:opacity-80"
+                    ? "bg-[var(--warning-bg)] text-[var(--warning)] hover:opacity-80"
+                    : "bg-[var(--accent-muted)] text-[var(--accent)] hover:opacity-80"
               }`}
             >
               {task.actionLabel}

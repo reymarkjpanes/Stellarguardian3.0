@@ -48,10 +48,8 @@ export function EventDetailClient({
   const [isPending, startTransition] = useTransition();
   const [actionLoading, setActionLoading] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
-  
+
   const loading = actionLoading || isPending;
-
-
 
   async function handleStateChange(newState: string) {
     setActionLoading(true);
@@ -132,7 +130,14 @@ export function EventDetailClient({
             primary: isInTeam && !isSubmitted,
           },
         ]
-      : [{ id: "apply", label: "Apply to Participate", href: `/events/${event.id}/register`, primary: true }];
+      : [
+          {
+            id: "apply",
+            label: "Apply to Participate",
+            href: `/events/${event.id}/register`,
+            primary: true,
+          },
+        ];
 
   const roleStats = isOrganizer
     ? [
@@ -180,20 +185,31 @@ export function EventDetailClient({
         </div>
       )}
 
+      {/* Draft pre-publish checklist — visible only in Draft state and only to organizers */}
+      {isOrganizer && event.state === "Draft" && (
+        <PublishChecklist
+          hasPrizePool={(event.prize_pool_target as number) > 0}
+          hasDeadline={!!event.registration_deadline}
+          hasJudges={judgeCount > 0}
+          prizeAmount={event.prize_pool_target as number | null}
+          eventId={event.id as string}
+        />
+      )}
+
       {/* Overview action center */}
       <EventActionCenter
         eventName={event.title as string}
         currentPhase={event.state as string}
         countdownText={(() => {
-            const deadline = event.registration_deadline as string | null;
-            if (!deadline) return "Deadline to be announced";
-            // eslint-disable-next-line react-hooks/purity
-            const ms = new Date(deadline).getTime() - Date.now();
-            if (ms <= 0) return "Registration closed";
-            const days = Math.ceil(ms / (1000 * 60 * 60 * 24));
-            if (days === 1) return "1 day left to register";
-            return `${days} days left to register`;
-          })()}
+          const deadline = event.registration_deadline as string | null;
+          if (!deadline) return "Deadline to be announced";
+          // eslint-disable-next-line react-hooks/purity
+          const ms = new Date(deadline).getTime() - Date.now();
+          if (ms <= 0) return "Registration closed";
+          const days = Math.ceil(ms / (1000 * 60 * 60 * 24));
+          if (days === 1) return "1 day left to register";
+          return `${days} days left to register`;
+        })()}
         heroPrimaryActionLabel={!myMembership ? "Apply to Participate" : "Continue Workspace"}
         onHeroPrimaryAction={
           !myMembership
@@ -213,20 +229,14 @@ export function EventDetailClient({
         <div className="space-y-4 pt-2 border-t border-[var(--border)]">
           <h2 className="text-sm font-semibold text-[var(--text)]">Lifecycle Controls</h2>
 
-          {/* Draft pre-publish checklist — visible only in Draft state */}
-          {event.state === "Draft" && (
-            <PublishChecklist
-              hasPrizePool={(event.prize_pool_target as number) > 0}
-              hasDeadline={!!event.registration_deadline}
-              hasJudges={judgeCount > 0}
-              prizeAmount={event.prize_pool_target as number | null}
-              eventId={event.id as string}
-            />
-          )}
-
           <div className="flex flex-wrap gap-2">
             {event.state === "Draft" && (
               <>
+                <ActionButton
+                  label="Submit for Review"
+                  onClick={() => handleStateChange("Review")}
+                  disabled={loading}
+                />
                 <ActionButton
                   label="Publish Event"
                   hint="Requires a prize pool and registration deadline"
@@ -244,6 +254,21 @@ export function EventDetailClient({
                     Update title, prize pool, deadline
                   </span>
                 </a>
+              </>
+            )}
+            {event.state === "Review" && (
+              <>
+                <ActionButton
+                  label="Publish Event"
+                  hint="Approve and make public"
+                  onClick={() => handleStateChange("Published")}
+                  disabled={loading}
+                />
+                <ActionButton
+                  label="Revert to Draft"
+                  onClick={() => handleStateChange("Draft")}
+                  disabled={loading}
+                />
               </>
             )}
             {event.state === "Published" && (
@@ -275,8 +300,16 @@ export function EventDetailClient({
             )}
             {event.state === "RegistrationClosed" && (
               <ActionButton
+                label="Lock Team Formation"
+                hint="Prevent participants from leaving/joining teams"
+                onClick={() => handleStateChange("TeamFormationLocked")}
+                disabled={loading}
+              />
+            )}
+            {event.state === "TeamFormationLocked" && (
+              <ActionButton
                 label="Open Submissions"
-                hint="All participants must be assigned to a team"
+                hint="Allow teams to submit their projects"
                 onClick={() => handleStateChange("SubmissionOpen")}
                 disabled={loading}
               />
@@ -290,16 +323,64 @@ export function EventDetailClient({
             )}
             {event.state === "SubmissionClosed" && (
               <ActionButton
-                label="Begin Judging"
+                label="Begin Judging (Round 1)"
                 hint="Requires at least one submission"
-                onClick={() => handleStateChange("Judging")}
+                onClick={() => handleStateChange("JudgingRound1")}
                 disabled={loading}
               />
             )}
-            {event.state === "Judging" && (
+            {event.state === "JudgingRound1" && (
+              <>
+                <ActionButton
+                  label="Promote to Round 2"
+                  hint="Move top teams to a second judging round"
+                  onClick={() => handleStateChange("JudgingRound2")}
+                  disabled={loading}
+                />
+                <ActionButton
+                  label="Skip Round 2 (Verify Winners)"
+                  hint="Directly verify winners without a second round"
+                  onClick={() => handleStateChange("WinnerVerification")}
+                  disabled={loading}
+                />
+              </>
+            )}
+            {event.state === "JudgingRound2" && (
+              <ActionButton
+                label="Verify Winners"
+                hint="All Round 2 submissions must be scored"
+                onClick={() => handleStateChange("WinnerVerification")}
+                disabled={loading}
+              />
+            )}
+            {event.state === "WinnerVerification" && (
+              <ActionButton
+                label="Open Dispute Window"
+                hint="Allow participants to flag issues"
+                onClick={() => handleStateChange("DisputeWindow")}
+                disabled={loading}
+              />
+            )}
+            {event.state === "DisputeWindow" && (
+              <ActionButton
+                label="Approve Prizes"
+                hint="Requires zero unresolved disputes"
+                onClick={() => handleStateChange("PrizeApproved")}
+                disabled={loading}
+              />
+            )}
+            {event.state === "PrizeApproved" && (
+              <ActionButton
+                label="Release Escrow"
+                hint="Trigger on-chain payout to winners"
+                onClick={() => handleStateChange("EscrowRelease")}
+                disabled={loading}
+              />
+            )}
+            {event.state === "EscrowRelease" && (
               <ActionButton
                 label="Mark Completed"
-                hint="All submissions must be scored"
+                hint="Event is fully concluded"
                 onClick={() => handleStateChange("Completed")}
                 disabled={loading}
               />
@@ -345,72 +426,106 @@ function PublishChecklist({
   prizeAmount: number | null;
   eventId: string;
 }) {
-  const allMet = hasPrizePool && hasDeadline && hasJudges;
+  const reqs = [
+    { done: hasPrizePool, weight: 1 },
+    { done: hasDeadline, weight: 1 },
+    { done: hasJudges, weight: 1 },
+    { done: true, weight: 1 }, // Basic details (completed in wizard)
+  ];
+
+  const completedCount = reqs.filter((r) => r.done).length;
+  const totalCount = reqs.length;
+  const percentage = Math.round((completedCount / totalCount) * 100);
+  const allMet = completedCount === totalCount;
 
   return (
-    <div
-      className={`rounded-lg border px-4 py-3 space-y-2.5 ${
-        allMet
-          ? "border-[var(--success,#22c55e)]/30 bg-[var(--success,#22c55e)]/5"
-          : "border-[var(--warning,#f59e0b)]/30 bg-[var(--warning,#f59e0b)]/5"
-      }`}
-    >
-      <p className="text-xs font-semibold text-[var(--text)]">
-        {allMet ? "✓ Ready to publish" : "Complete before publishing"}
-      </p>
-      <ul className="space-y-1.5">
-        <ChecklistItem
-          done={hasPrizePool}
-          label={
-            hasPrizePool
-              ? `Prize pool set — ${prizeAmount} XLM`
-              : "Set a prize pool amount"
-          }
-          action={
-            !hasPrizePool ? (
-              <a
-                href={`/events/${eventId}/edit`}
-                className="text-[10px] font-medium text-[var(--accent)] hover:underline"
-              >
-                Edit event →
-              </a>
-            ) : undefined
-          }
+    <div className="card p-6 border-2 border-[var(--border)] bg-[var(--bg-elevated)] shadow-sm mb-6">
+      <div className="flex items-start justify-between mb-4">
+        <div>
+          <h2 className="text-lg font-semibold text-[var(--text)]">Pre-flight Checklist</h2>
+          <p className="text-sm text-[var(--text-muted)] mt-1">
+            Complete these requirements to publish your event.
+          </p>
+        </div>
+        <div className="text-right">
+          <div className="text-2xl font-bold text-[var(--text)]">{percentage}%</div>
+          <div className="text-xs text-[var(--text-muted)] uppercase tracking-wider font-semibold">
+            Setup Complete
+          </div>
+        </div>
+      </div>
+
+      <div className="h-2 w-full bg-[var(--bg-muted)] rounded-full overflow-hidden mb-6">
+        <div
+          className={`h-full transition-all duration-500 ${allMet ? "bg-[var(--success,#22c55e)]" : "bg-[var(--accent)]"}`}
+          style={{ width: `${percentage}%` }}
         />
-        <ChecklistItem
-          done={hasDeadline}
-          label={hasDeadline ? "Registration deadline set" : "Set a registration deadline"}
-          action={
-            !hasDeadline ? (
-              <a
-                href={`/events/${eventId}/edit`}
-                className="text-[10px] font-medium text-[var(--accent)] hover:underline"
-              >
-                Edit event →
-              </a>
-            ) : undefined
-          }
-        />
-        <ChecklistItem
-          done={hasJudges}
-          label={hasJudges ? "Judges assigned" : "Assign at least one judge"}
-          action={
-            !hasJudges ? (
-              <a
-                href={`/events/${eventId}/members`}
-                className="text-[10px] font-medium text-[var(--accent)] hover:underline"
-              >
-                Manage members →
-              </a>
-            ) : undefined
-          }
-        />
-      </ul>
+      </div>
+
+      <div className="space-y-4">
+        <h3 className="text-sm font-semibold text-[var(--text)]">Required Settings</h3>
+        <ul className="grid grid-cols-1 md:grid-cols-2 gap-3">
+          <ChecklistItem done={true} label="Basic details configured" />
+          <ChecklistItem
+            done={hasPrizePool}
+            label={hasPrizePool ? `Prize pool set — ${prizeAmount} XLM` : "Set a prize pool amount"}
+            action={
+              !hasPrizePool ? (
+                <a
+                  href={`/events/${eventId}/edit`}
+                  className="text-[11px] font-semibold text-[var(--accent)] hover:underline ml-auto bg-[var(--accent-muted)] px-2 py-1 rounded"
+                >
+                  Configure
+                </a>
+              ) : undefined
+            }
+          />
+          <ChecklistItem
+            done={hasDeadline}
+            label={hasDeadline ? "Registration deadline set" : "Set a registration deadline"}
+            action={
+              !hasDeadline ? (
+                <a
+                  href={`/events/${eventId}/edit`}
+                  className="text-[11px] font-semibold text-[var(--accent)] hover:underline ml-auto bg-[var(--accent-muted)] px-2 py-1 rounded"
+                >
+                  Configure
+                </a>
+              ) : undefined
+            }
+          />
+          <ChecklistItem
+            done={hasJudges}
+            label={hasJudges ? "Judges assigned" : "Assign at least one judge"}
+            action={
+              !hasJudges ? (
+                <a
+                  href={`/events/${eventId}/members`}
+                  className="text-[11px] font-semibold text-[var(--accent)] hover:underline ml-auto bg-[var(--accent-muted)] px-2 py-1 rounded"
+                >
+                  Assign
+                </a>
+              ) : undefined
+            }
+          />
+        </ul>
+      </div>
+
       {!allMet && (
-        <p className="text-[10px] text-[var(--text-muted)] pt-1 border-t border-[var(--border)]">
-          Participants need to see a committed prize before they register. On-chain escrow
-          funding happens later, before prize release.
-        </p>
+        <div className="mt-6 p-3 rounded bg-[var(--warning-bg,#fffbeb)] border border-[var(--warning,#f59e0b)]/30">
+          <p className="text-xs text-[var(--warning,#b45309)] font-medium flex items-center gap-2">
+            <span className="font-bold">Blocking Issue:</span> Missing requirements prevent the
+            event from being published.
+          </p>
+        </div>
+      )}
+
+      {allMet && (
+        <div className="mt-6 p-4 rounded-lg bg-[var(--success,#22c55e)]/10 border border-[var(--success,#22c55e)]/30 text-center">
+          <p className="text-sm font-semibold text-[var(--success,#16a34a)] mb-3">
+            All requirements met! Your event is ready to go live.
+          </p>
+        </div>
       )}
     </div>
   );
@@ -442,7 +557,11 @@ function ChecklistItem({
       </span>
       <span
         className={`text-xs flex-1 ${
-          done ? "text-[var(--text-secondary)]" : optional ? "text-[var(--text-muted)]" : "text-[var(--text)]"
+          done
+            ? "text-[var(--text-secondary)]"
+            : optional
+              ? "text-[var(--text-muted)]"
+              : "text-[var(--text)]"
         }`}
       >
         {label}

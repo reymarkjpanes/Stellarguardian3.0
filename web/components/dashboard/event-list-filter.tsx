@@ -11,16 +11,19 @@ interface EventItem {
   status: string;
   event_title: string;
   event_state: string;
+  team_name?: string;
+  submission_status?: string;
 }
 
 export function EventListFilter({ events }: { events: EventItem[] }) {
   const [search, setSearch] = useState("");
 
   const filtered = search
-    ? events.filter((e) =>
-        e.event_title.toLowerCase().includes(search.toLowerCase()) ||
-        e.role.toLowerCase().includes(search.toLowerCase()) ||
-        e.event_state.toLowerCase().includes(search.toLowerCase())
+    ? events.filter(
+        (e) =>
+          e.event_title.toLowerCase().includes(search.toLowerCase()) ||
+          e.role.toLowerCase().includes(search.toLowerCase()) ||
+          e.event_state.toLowerCase().includes(search.toLowerCase()),
       )
     : events;
 
@@ -50,13 +53,33 @@ export function EventListFilter({ events }: { events: EventItem[] }) {
               className="rounded-lg card p-4 flex items-center justify-between group"
             >
               <a
-                href={`/events/${event.event_id}`}
+                href={
+                  event.role === "Participant"
+                    ? `/events/${event.event_id}/submissions/new`
+                    : `/events/${event.event_id}`
+                }
                 className="flex-1 min-w-0 hover:text-[var(--accent)] transition-colors"
               >
                 <p className="font-medium text-[var(--text)] truncate">{event.event_title}</p>
-                <p className="text-xs text-[var(--text-muted)] mt-0.5">
-                  {event.role} · {event.event_state}
-                </p>
+                <div className="flex flex-wrap items-center gap-2 text-xs text-[var(--text-muted)] mt-0.5">
+                  <span>{event.event_state}</span>
+                  {event.team_name && (
+                    <>
+                      <span>·</span>
+                      <span>Team: {event.team_name}</span>
+                    </>
+                  )}
+                  {event.submission_status && (
+                    <>
+                      <span>·</span>
+                      <span
+                        className={`font-medium ${event.submission_status === "SUBMITTED" ? "text-green-600 dark:text-green-400" : "text-amber-600 dark:text-amber-400"}`}
+                      >
+                        {event.submission_status === "SUBMITTED" ? "Submitted" : "Draft"}
+                      </span>
+                    </>
+                  )}
+                </div>
               </a>
               <div className="flex items-center gap-2">
                 <span className="rounded-full badge-default px-2.5 py-0.5 text-xs font-medium">

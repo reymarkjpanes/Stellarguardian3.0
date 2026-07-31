@@ -5,6 +5,7 @@ import {
   fetchJudgingAnalytics,
   fetchJudgeAssignments,
 } from "@/app/actions/judging-analytics.actions";
+import { EmptyState } from "@/components/ui/empty-state";
 
 export default async function JudgingPage(props: { params: Promise<{ id: string }> }) {
   const params = await props.params;
@@ -134,7 +135,13 @@ function JudgeEvaluationsView({
   eventState: string;
   assignments: EvalRow[];
 }) {
-  const judging = eventState === "Judging";
+  const judging = eventState === "JudgingRound1" || eventState === "JudgingRound2";
+
+  const totalAssignments = assignments.length;
+  const scoredCount = assignments.filter(
+    (ev) => ev.status === "Submitted" || ev.status === "Finalized" || ev.conflictOfInterest,
+  ).length;
+  const progressPercentage = totalAssignments > 0 ? (scoredCount / totalAssignments) * 100 : 0;
 
   return (
     <div className="space-y-6 max-w-3xl">
@@ -147,12 +154,28 @@ function JudgeEvaluationsView({
         </p>
       </div>
 
-      {assignments.length === 0 ? (
-        <div className="card p-10 text-center">
-          <p className="text-sm text-[var(--text-muted)]">
-            No submissions have been assigned to you yet.
-          </p>
+      {assignments.length > 0 && (
+        <div className="card p-4 bg-muted/20 border-border/50">
+          <div className="flex justify-between items-center mb-2">
+            <h3 className="text-sm font-medium">Judging Progress</h3>
+            <span className="text-sm font-semibold">
+              {scoredCount} / {totalAssignments} Scored
+            </span>
+          </div>
+          <div className="w-full bg-muted rounded-full h-2">
+            <div
+              className="bg-primary h-2 rounded-full transition-all"
+              style={{ width: `${progressPercentage}%` }}
+            />
+          </div>
         </div>
+      )}
+
+      {assignments.length === 0 ? (
+        <EmptyState
+          title="No assignments yet."
+          description="No submissions have been assigned to you yet."
+        />
       ) : (
         <div className="space-y-3">
           {assignments.map((ev) => (

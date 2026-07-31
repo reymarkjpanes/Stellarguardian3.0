@@ -13,13 +13,12 @@ const TransitionSchema = z.object({
   target_state: z.string(),
 });
 
-export async function PATCH(
-  request: NextRequest,
-  { params }: { params: Promise<{ id: string }> },
-) {
+export async function PATCH(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const supabase = await createServerClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
 
   if (!user) {
     return NextResponse.json(
@@ -43,7 +42,9 @@ export async function PATCH(
   // Fetch event with current state
   const { data: event } = await supabase
     .from("events")
-    .select("id, state, version, organizer_id, workspace_id, team_size_min, registration_deadline, review_window_hours, prize_pool_target")
+    .select(
+      "id, state, version, organizer_id, workspace_id, team_size_min, registration_deadline, review_window_hours, prize_pool_target",
+    )
     .eq("id", id)
     .single();
 
@@ -95,10 +96,22 @@ export async function PATCH(
     { count: registrationCount },
     { count: unresolvedDisputes },
   ] = await Promise.all([
-    supabase.from("event_members").select("*", { count: "exact", head: true }).eq("event_id", id).eq("role", "Judge"),
+    supabase
+      .from("event_members")
+      .select("*", { count: "exact", head: true })
+      .eq("event_id", id)
+      .eq("role", "Judge"),
     supabase.from("submissions").select("*", { count: "exact", head: true }).eq("event_id", id),
-    supabase.from("event_members").select("*", { count: "exact", head: true }).eq("event_id", id).eq("role", "Participant"),
-    supabase.from("disputes").select("*", { count: "exact", head: true }).eq("event_id", id).in("state", ["Open", "UnderReview"]),
+    supabase
+      .from("event_members")
+      .select("*", { count: "exact", head: true })
+      .eq("event_id", id)
+      .eq("role", "Participant"),
+    supabase
+      .from("disputes")
+      .select("*", { count: "exact", head: true })
+      .eq("event_id", id)
+      .in("state", ["Open", "UnderReview"]),
   ]);
 
   // Check escrow status if needed
@@ -125,16 +138,14 @@ export async function PATCH(
         .eq("status", "Submitted");
 
       // Check that every submission has at least one completed evaluation
-      const scoredSubmissionIds = new Set(
-        (evaluations ?? []).map((e) => e.submission_id),
-      );
+      const scoredSubmissionIds = new Set((evaluations ?? []).map((e) => e.submission_id));
       allSubmissionsScored = submissions.every((s) => scoredSubmissionIds.has(s.id));
     }
   }
 
   // Compute reviewWindowElapsed from event timestamps
   let reviewWindowElapsed = false;
-  if (event.state === "Judging" && event.review_window_hours) {
+  if (event.state === "DisputeWindow" && event.review_window_hours) {
     // Find when the event entered Judging state (use updated_at as proxy)
     const { data: auditEntry } = await supabase
       .from("audit_records")
@@ -147,7 +158,9 @@ export async function PATCH(
 
     if (auditEntry?.created_at) {
       const windowStart = new Date(auditEntry.created_at);
-      const windowEnd = new Date(windowStart.getTime() + event.review_window_hours * 60 * 60 * 1000);
+      const windowEnd = new Date(
+        windowStart.getTime() + event.review_window_hours * 60 * 60 * 1000,
+      );
       reviewWindowElapsed = new Date() >= windowEnd;
     }
   }
@@ -194,7 +207,11 @@ export async function PATCH(
   // Apply transition with optimistic concurrency
   const { data: updated, error } = await supabase
     .from("events")
-    .update({ state: targetState, version: event.version + 1, updated_at: new Date().toISOString() })
+    .update({
+      state: targetState,
+      version: event.version + 1,
+      updated_at: new Date().toISOString(),
+    })
     .eq("id", id)
     .eq("version", event.version)
     .select()
@@ -203,7 +220,12 @@ export async function PATCH(
   if (error) {
     if (error.code === "PGRST116") {
       return NextResponse.json(
-        { error: { code: "CONFLICT", message: "Event was modified concurrently. Please refresh the page and try again." } },
+        {
+          error: {
+            code: "CONFLICT",
+            message: "Event was modified concurrently. Please refresh the page and try again.",
+          },
+        },
         { status: 409 },
       );
     }

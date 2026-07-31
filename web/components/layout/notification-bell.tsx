@@ -34,8 +34,8 @@ export function NotificationBell({ userId }: { userId: string }) {
         .limit(8);
 
       const items = data ?? [];
-      setNotifications(items);
-      setUnreadCount(items.filter((n) => !n.read).length);
+      setNotifications(items as unknown as NotificationItem[]);
+      setUnreadCount((items as unknown as NotificationItem[]).filter((n) => !n.read).length);
     }
 
     load();
@@ -45,7 +45,12 @@ export function NotificationBell({ userId }: { userId: string }) {
       .channel("nav-notifications")
       .on(
         "postgres_changes",
-        { event: "INSERT", schema: "public", table: "notifications", filter: `user_id=eq.${userId}` },
+        {
+          event: "INSERT",
+          schema: "public",
+          table: "notifications",
+          filter: `user_id=eq.${userId}`,
+        },
         (payload) => {
           const n = payload.new as NotificationItem;
           setNotifications((prev) => [n, ...prev].slice(0, 8));
@@ -54,7 +59,9 @@ export function NotificationBell({ userId }: { userId: string }) {
       )
       .subscribe();
 
-    return () => { supabase.removeChannel(channel); };
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, [userId]);
 
   useEffect(() => {
@@ -74,7 +81,7 @@ export function NotificationBell({ userId }: { userId: string }) {
 
     await supabase
       .from("notifications")
-      .update({ read: true })
+      .update({ read: true, read_at: new Date().toISOString() })
       .in("id", unreadIds);
 
     setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
@@ -88,7 +95,16 @@ export function NotificationBell({ userId }: { userId: string }) {
         className="relative p-1.5 text-[var(--text-muted)] hover:text-[var(--text)] transition-colors"
         aria-label={`Notifications${unreadCount > 0 ? ` (${unreadCount} unread)` : ""}`}
       >
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <svg
+          width="18"
+          height="18"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        >
           <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
           <path d="M13.73 21a2 2 0 0 1-3.46 0" />
         </svg>
@@ -129,10 +145,14 @@ export function NotificationBell({ userId }: { userId: string }) {
                   }`}
                 >
                   <div className="flex items-start gap-2">
-                    {!n.read && <span className="mt-1.5 h-1.5 w-1.5 rounded-full bg-[var(--accent)] shrink-0" />}
+                    {!n.read && (
+                      <span className="mt-1.5 h-1.5 w-1.5 rounded-full bg-[var(--accent)] shrink-0" />
+                    )}
                     <div className="min-w-0 flex-1">
                       <p className="text-xs font-medium text-[var(--text)] truncate">{n.title}</p>
-                      <p className="text-xs text-[var(--text-muted)] line-clamp-1 mt-0.5">{n.body}</p>
+                      <p className="text-xs text-[var(--text-muted)] line-clamp-1 mt-0.5">
+                        {n.body}
+                      </p>
                     </div>
                   </div>
                 </a>

@@ -95,8 +95,14 @@ export default function EventRegisterPage() {
         </div>
         <div className="card p-6 space-y-6">
           <div className="grid gap-3 sm:grid-cols-2">
-            <div className="space-y-2"><div className="h-3 w-16 bg-[var(--bg-muted)] rounded" /><div className="h-4 w-24 bg-[var(--bg-muted)] rounded" /></div>
-            <div className="space-y-2"><div className="h-3 w-20 bg-[var(--bg-muted)] rounded" /><div className="h-4 w-24 bg-[var(--bg-muted)] rounded" /></div>
+            <div className="space-y-2">
+              <div className="h-3 w-16 bg-[var(--bg-muted)] rounded" />
+              <div className="h-4 w-24 bg-[var(--bg-muted)] rounded" />
+            </div>
+            <div className="space-y-2">
+              <div className="h-3 w-20 bg-[var(--bg-muted)] rounded" />
+              <div className="h-4 w-24 bg-[var(--bg-muted)] rounded" />
+            </div>
           </div>
           <div className="h-16 w-full bg-[var(--bg-muted)] rounded" />
           <div className="h-10 w-full bg-[var(--bg-muted)] rounded" />
@@ -146,28 +152,49 @@ export default function EventRegisterPage() {
         </div>
 
         {success ? (
-          <div className="rounded-md bg-green-50 border border-green-200 p-4 dark:bg-green-900/20 dark:border-green-800">
-            <p className="text-sm font-medium text-green-800 dark:text-green-300">
-              ✓ You&apos;ve been registered!
+          <div className="rounded-md bg-green-50 border border-green-200 p-6 dark:bg-green-900/20 dark:border-green-800 text-center space-y-3">
+            <div className="text-2xl">🎉</div>
+            <p className="text-base font-medium text-green-800 dark:text-green-300">
+              You have successfully registered for {String(event.title)}!
             </p>
-            <a
-              href={`/events/${eventId}`}
-              className="text-sm text-green-600 hover:underline mt-1 inline-block"
-            >
-              Go to event →
-            </a>
+            <p className="text-sm text-green-700 dark:text-green-400 max-w-sm mx-auto">
+              Your next step is to form a team. You can create a new team or request to join an
+              existing one.
+            </p>
+            <div className="pt-2 flex items-center justify-center gap-3">
+              <a
+                href={`/events/${eventId}/teams`}
+                className="inline-block bg-green-600 text-white px-4 py-2 rounded-md font-medium text-sm hover:bg-green-700 transition-colors"
+              >
+                Go to Teams
+              </a>
+              <a
+                href={`/events/${eventId}`}
+                className="inline-block text-green-700 hover:underline text-sm font-medium"
+              >
+                Event Overview
+              </a>
+            </div>
           </div>
         ) : alreadyRegistered ? (
-          <div className="rounded-md bg-blue-50 border border-blue-200 p-4 dark:bg-blue-900/20 dark:border-blue-800">
-            <p className="text-sm font-medium text-blue-800 dark:text-blue-300">
+          <div className="rounded-md bg-blue-50 border border-blue-200 p-6 dark:bg-blue-900/20 dark:border-blue-800 text-center space-y-3">
+            <p className="text-base font-medium text-blue-800 dark:text-blue-300">
               You&apos;re already registered for this event.
             </p>
-            <a
-              href={`/events/${eventId}`}
-              className="text-sm text-blue-600 hover:underline mt-1 inline-block"
-            >
-              Go to event →
-            </a>
+            <div className="pt-2 flex flex-col sm:flex-row items-center justify-center gap-3">
+              <a
+                href={`/events/${eventId}/teams`}
+                className="inline-block bg-blue-600 text-white px-4 py-2 rounded-md font-medium text-sm hover:bg-blue-700 transition-colors"
+              >
+                Manage Team
+              </a>
+              <a
+                href={`/events/${eventId}`}
+                className="inline-block text-blue-700 hover:underline text-sm font-medium"
+              >
+                Event Overview
+              </a>
+            </div>
           </div>
         ) : !isOpen ? (
           <div className="rounded-md bg-amber-50 border border-amber-200 p-4 dark:bg-amber-900/20 dark:border-amber-800">
@@ -176,15 +203,18 @@ export default function EventRegisterPage() {
             </p>
           </div>
         ) : (
-          <form className="space-y-4" onSubmit={(e) => {
-            e.preventDefault();
-            const formData = new FormData(e.currentTarget);
-            if (!formData.get("terms")) {
-              setError("You must accept the event rules and terms to register.");
-              return;
-            }
-            handleRegister();
-          }}>
+          <form
+            className="space-y-4"
+            onSubmit={(e) => {
+              e.preventDefault();
+              const formData = new FormData(e.currentTarget);
+              if (!formData.get("terms")) {
+                setError("You must accept the event rules and terms to register.");
+                return;
+              }
+              handleRegister();
+            }}
+          >
             <div className="flex items-start gap-2 p-3 border border-[var(--border)] rounded-md bg-[var(--bg-muted)]/50">
               <input
                 type="checkbox"
@@ -192,13 +222,28 @@ export default function EventRegisterPage() {
                 name="terms"
                 className="mt-1 rounded border-gray-300 text-[var(--accent)] focus:ring-[var(--accent)]"
               />
-              <label htmlFor="terms" className="text-sm text-[var(--text-secondary)] leading-relaxed cursor-pointer">
-                I agree to participate in good faith and abide by the <a href={`/events/${eventId}`} className="text-[var(--accent)] hover:underline" target="_blank">event rules</a> and the platform&apos;s <a href="/terms" className="text-[var(--accent)] hover:underline" target="_blank">Terms of Service</a>.
+              <label
+                htmlFor="terms"
+                className="text-sm text-[var(--text-secondary)] leading-relaxed cursor-pointer"
+              >
+                I agree to participate in good faith and abide by the{" "}
+                <a
+                  href={`/events/${eventId}`}
+                  className="text-[var(--accent)] hover:underline"
+                  target="_blank"
+                >
+                  event rules
+                </a>{" "}
+                and the platform&apos;s{" "}
+                <a href="/terms" className="text-[var(--accent)] hover:underline" target="_blank">
+                  Terms of Service
+                </a>
+                .
               </label>
             </div>
-            
+
             {error && <p className="text-sm text-[var(--error)]">{error}</p>}
-            
+
             <button
               type="submit"
               disabled={registering}

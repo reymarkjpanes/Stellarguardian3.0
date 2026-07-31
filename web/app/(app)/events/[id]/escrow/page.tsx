@@ -12,6 +12,7 @@
  */
 import { useState, useEffect, useCallback, useRef } from "react";
 import { useParams } from "next/navigation";
+import { EmptyState } from "@/components/ui/empty-state";
 import { createBrowserClient } from "@/lib/supabase/client";
 import { BackButton } from "@/components/ui/back-button";
 import {
@@ -112,16 +113,29 @@ interface OnChainState {
 // ── Step metadata ─────────────────────────────────────────────────────────────
 
 const FUNDING_STEPS: { key: FundingStep; label: string; description: string }[] = [
-  { key: "connecting",   label: "Connect Wallet",           description: "Opening your Stellar wallet" },
-  { key: "preparing",    label: "Prepare Transaction",      description: "Building the deposit transaction" },
-  { key: "signing",      label: "Waiting for Signature",    description: "Review and approve in your wallet" },
-  { key: "broadcasting", label: "Broadcasting",             description: "Sending to the Stellar network" },
-  { key: "confirming",   label: "Awaiting Confirmation",    description: "Waiting for ledger finality" },
-  { key: "done",         label: "Escrow Funded",            description: "Funds locked in the smart contract" },
+  { key: "connecting", label: "Connect Wallet", description: "Opening your Stellar wallet" },
+  {
+    key: "preparing",
+    label: "Prepare Transaction",
+    description: "Building the deposit transaction",
+  },
+  {
+    key: "signing",
+    label: "Waiting for Signature",
+    description: "Review and approve in your wallet",
+  },
+  { key: "broadcasting", label: "Broadcasting", description: "Sending to the Stellar network" },
+  { key: "confirming", label: "Awaiting Confirmation", description: "Waiting for ledger finality" },
+  { key: "done", label: "Escrow Funded", description: "Funds locked in the smart contract" },
 ];
 
 const STEP_ORDER: FundingStep[] = [
-  "connecting", "preparing", "signing", "broadcasting", "confirming", "done",
+  "connecting",
+  "preparing",
+  "signing",
+  "broadcasting",
+  "confirming",
+  "done",
 ];
 
 function stepIndex(step: FundingStep): number {
@@ -135,6 +149,7 @@ export default function EventEscrowPage() {
 
   // DB-backed state
   const [loading, setLoading] = useState(true);
+  const [eventState, setEventState] = useState<string | null>(null);
   const [prizeBatch, setPrizeBatch] = useState<PrizeBatch | null>(null);
   const [escrow, setEscrow] = useState<EscrowAccount | null>(null);
   const [payoutBatch, setPayoutBatch] = useState<PayoutBatch | null>(null);
@@ -167,11 +182,13 @@ export default function EventEscrowPage() {
   const loadData = useCallback(async () => {
     try {
       const supabase = createBrowserClient();
-      const { data: { user } } = await supabase.auth.getUser();
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
       if (!user) return;
 
       const [{ data: evt }, { data: pb }] = await Promise.all([
-        supabase.from("events").select("id").eq("id", eventId).single(),
+        supabase.from("events").select("id, state").eq("id", eventId).single(),
         supabase
           .from("prize_allocation_batches")
           .select("id, event_id, status, total_amount")
@@ -181,12 +198,15 @@ export default function EventEscrowPage() {
       ]);
 
       if (!evt) return;
+      setEventState(evt.state);
       setPrizeBatch(pb as PrizeBatch | null);
 
       if (pb) {
         const { data: esc } = await supabase
           .from("escrow_accounts")
-          .select("id, status, network, contract_address, expected_balance, prize_allocation_batch_id")
+          .select(
+            "id, status, network, contract_address, expected_balance, prize_allocation_batch_id",
+          )
           .eq("prize_allocation_batch_id", pb.id)
           .maybeSingle();
         setEscrow(esc as EscrowAccount | null);
@@ -194,7 +214,9 @@ export default function EventEscrowPage() {
         if (esc) {
           const { data: pbatch } = await supabase
             .from("payout_batches")
-            .select("id, status, total_amount, payout_instructions(id, destination_address, amount, status)")
+            .select(
+              "id, status, total_amount, payout_instructions(id, destination_address, amount, status)",
+            )
             .eq("escrow_id", esc.id)
             .maybeSingle();
           setPayoutBatch(pbatch as PayoutBatch | null);
@@ -228,8 +250,10 @@ export default function EventEscrowPage() {
     }
   }, []);
 
-  // eslint-disable-next-line react-hooks/set-state-in-effect
-  useEffect(() => { void loadData(); }, [loadData]);
+   
+  useEffect(() => {
+    void loadData();
+  }, [loadData]);
 
   // Load on-chain state whenever escrow changes
   useEffect(() => {
@@ -252,7 +276,16 @@ export default function EventEscrowPage() {
 
     const channel = supabase
       .channel(`escrow-rt-${eventId}`)
-      .on("postgres_changes", { event: "*", schema: "public", table: "escrow_accounts", filter: `event_id=eq.${eventId}` }, flash)
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "escrow_accounts",
+          filter: `event_id=eq.${eventId}`,
+        },
+        flash,
+      )
       .on("postgres_changes", { event: "*", schema: "public", table: "payout_batches" }, flash)
       .on("postgres_changes", { event: "*", schema: "public", table: "payout_instructions" }, flash)
       .on("postgres_changes", { event: "INSERT", schema: "public", table: "settlements" }, flash)
@@ -271,7 +304,11 @@ export default function EventEscrowPage() {
     setActionLoading("create");
     setActionError(null);
     try {
-      const created = await createEscrowAction(eventId, prizeBatch.id, prizeBatch.total_amount ?? 0);
+      const created = await createEscrowAction(
+        eventId,
+        prizeBatch.id,
+        prizeBatch.total_amount ?? 0,
+      );
       await generatePayoutBatchAction(created.escrowId, prizeBatch.id);
       await loadData();
     } catch (err) {
@@ -288,7 +325,9 @@ export default function EventEscrowPage() {
       const { getAvailableAdapters } = await import("@/lib/wallet/registry");
       const adapters = await getAvailableAdapters();
       if (adapters.length === 0) {
-        throw new Error("No Stellar wallet detected. Install Freighter, xBull, or LOBSTR and try again.");
+        throw new Error(
+          "No Stellar wallet detected. Install Freighter, xBull, or LOBSTR and try again.",
+        );
       }
       const adapter = adapters[0]!;
       const { publicKey } = await adapter.connect();
@@ -323,7 +362,10 @@ export default function EventEscrowPage() {
       const buildRes = await fetch(`/api/escrow/${escrow.id}/build-deposit`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ organizerPublicKey: wallet.publicKey, amountStroops: amountStroops.toString() }),
+        body: JSON.stringify({
+          organizerPublicKey: wallet.publicKey,
+          amountStroops: amountStroops.toString(),
+        }),
       });
       if (!buildRes.ok) {
         const e = await buildRes.json();
@@ -337,7 +379,7 @@ export default function EventEscrowPage() {
       const adapters = await getAvailableAdapters();
       if (adapters.length === 0) throw new Error("Wallet disconnected. Reconnect and try again.");
       const adapter = adapters[0]!;
-      const networkMode = escrow.network === "public" ? "mainnet" as const : "testnet" as const;
+      const networkMode = escrow.network === "public" ? ("mainnet" as const) : ("testnet" as const);
       const signedXdr = await adapter.signTransaction(unsignedXdr, networkMode);
 
       // Step: broadcast to Stellar network
@@ -366,7 +408,11 @@ export default function EventEscrowPage() {
     } catch (err) {
       const msg = err instanceof Error ? err.message : "Funding failed.";
       // User rejection is a normal flow — don't show as error
-      if (msg.toLowerCase().includes("reject") || msg.toLowerCase().includes("cancel") || msg.toLowerCase().includes("denied")) {
+      if (
+        msg.toLowerCase().includes("reject") ||
+        msg.toLowerCase().includes("cancel") ||
+        msg.toLowerCase().includes("denied")
+      ) {
         setFundingStep("connected");
         setFundingError("Transaction was cancelled. You can try again.");
       } else {
@@ -472,7 +518,9 @@ export default function EventEscrowPage() {
   // ── Derived state ─────────────────────────────────────────────────────────
 
   const isFundingActive = !["idle", "done"].includes(fundingStep) && fundingStep !== "error";
-  const isFunded = ["Funded", "Verified", "Locked", "Releasing", "Completed"].includes(escrow?.status ?? "");
+  const isFunded = ["Funded", "Verified", "Locked", "Releasing", "Completed"].includes(
+    escrow?.status ?? "",
+  );
   const explorerNetwork = onChain?.network ?? escrow?.network ?? "testnet";
 
   return (
@@ -480,24 +528,39 @@ export default function EventEscrowPage() {
       <div className="flex items-center justify-between">
         <BackButton href={`/events/${eventId}`} label="Back to Event" />
         {/* Live indicator */}
-        <span className={`inline-flex items-center gap-1.5 text-xs text-[var(--text-muted)] transition-opacity ${liveFlash ? "opacity-100" : "opacity-40"}`}>
-          <span className={`h-1.5 w-1.5 rounded-full bg-green-400 ${liveFlash ? "animate-ping" : ""}`} />
+        <span
+          className={`inline-flex items-center gap-1.5 text-xs text-[var(--text-muted)] transition-opacity ${liveFlash ? "opacity-100" : "opacity-40"}`}
+        >
+          <span
+            className={`h-1.5 w-1.5 rounded-full bg-green-400 ${liveFlash ? "animate-ping" : ""}`}
+          />
           Live
         </span>
       </div>
 
       <div>
-        <h2 className="text-xl font-semibold tracking-tight text-[var(--text)]">Escrow & Prize Disbursement</h2>
+        <h2 className="text-xl font-semibold tracking-tight text-[var(--text)]">
+          Escrow & Prize Disbursement
+        </h2>
         <p className="text-sm text-[var(--text-muted)] mt-0.5">
-          Funds are held in a Soroban smart contract on Stellar — transparent, verifiable, and tamper-proof.
+          Funds are held in a Soroban smart contract on Stellar — transparent, verifiable, and
+          tamper-proof.
         </p>
       </div>
 
       {/* Global action error */}
       {actionError && (
-        <div className="rounded-lg border border-[var(--error)]/40 bg-[var(--error-bg)] px-4 py-3 flex items-start justify-between gap-3" role="alert">
+        <div
+          className="rounded-lg border border-[var(--error)]/40 bg-[var(--error-bg)] px-4 py-3 flex items-start justify-between gap-3"
+          role="alert"
+        >
           <p className="text-sm text-[var(--error)]">{actionError}</p>
-          <button onClick={() => setActionError(null)} className="text-xs text-[var(--error)] hover:underline shrink-0">Dismiss</button>
+          <button
+            onClick={() => setActionError(null)}
+            className="text-xs text-[var(--error)] hover:underline shrink-0"
+          >
+            Dismiss
+          </button>
         </div>
       )}
 
@@ -506,9 +569,9 @@ export default function EventEscrowPage() {
         <div className="rounded-lg border border-amber-500/30 bg-amber-500/8 px-4 py-3">
           <p className="text-sm font-medium text-amber-400">⚠ Balance mismatch detected</p>
           <p className="text-xs text-[var(--text-muted)] mt-1">
-            On-chain: <span className="font-mono">{onChain.onChainBalance} XLM</span> ·
-            Expected: <span className="font-mono">{onChain.expectedBalance} XLM</span>.
-            Automated transitions are paused. Contact platform support if this persists.
+            On-chain: <span className="font-mono">{onChain.onChainBalance} XLM</span> · Expected:{" "}
+            <span className="font-mono">{onChain.expectedBalance} XLM</span>. Automated transitions
+            are paused. Contact platform support if this persists.
           </p>
         </div>
       )}
@@ -518,7 +581,11 @@ export default function EventEscrowPage() {
         <div className="flex items-center justify-between mb-3">
           <h3 className="text-sm font-semibold text-[var(--text)]">Financial Workflow</h3>
           <span className="text-xs text-[var(--text-muted)]">
-            {settlement ? "Complete" : escrow ? `Step ${isFunded ? "3–7" : "2"} of 7` : "Step 1 of 7"}
+            {settlement
+              ? "Complete"
+              : escrow
+                ? `Step ${isFunded ? "3–7" : "2"} of 7`
+                : "Step 1 of 7"}
           </span>
         </div>
         <div className="grid grid-cols-7 gap-1">
@@ -526,14 +593,35 @@ export default function EventEscrowPage() {
             { label: "Prize Batch", done: !!prizeBatch },
             { label: "Escrow Created", done: !!escrow },
             { label: "Funded", done: isFunded },
-            { label: "Simulated", done: ["Preparing","Signing","Broadcast","Confirmed","Partially Completed"].includes(payoutBatch?.status ?? "") },
-            { label: "Broadcast", done: ["Broadcast","Confirmed","Partially Completed"].includes(payoutBatch?.status ?? "") },
-            { label: "Confirmed", done: ["Confirmed","Partially Completed"].includes(payoutBatch?.status ?? "") },
+            {
+              label: "Simulated",
+              done: [
+                "Preparing",
+                "Signing",
+                "Broadcast",
+                "Confirmed",
+                "Partially Completed",
+              ].includes(payoutBatch?.status ?? ""),
+            },
+            {
+              label: "Broadcast",
+              done: ["Broadcast", "Confirmed", "Partially Completed"].includes(
+                payoutBatch?.status ?? "",
+              ),
+            },
+            {
+              label: "Confirmed",
+              done: ["Confirmed", "Partially Completed"].includes(payoutBatch?.status ?? ""),
+            },
             { label: "Settled", done: !!settlement },
           ].map((s, i) => (
             <div key={i} className="flex flex-col items-center gap-1">
-              <div className={`h-2 w-full rounded-full transition-colors ${s.done ? "bg-[var(--accent)]" : "bg-[var(--bg-muted)]"}`} />
-              <span className="text-[9px] text-[var(--text-muted)] text-center leading-tight hidden sm:block">{s.label}</span>
+              <div
+                className={`h-2 w-full rounded-full transition-colors ${s.done ? "bg-[var(--accent)]" : "bg-[var(--bg-muted)]"}`}
+              />
+              <span className="text-[9px] text-[var(--text-muted)] text-center leading-tight hidden sm:block">
+                {s.label}
+              </span>
             </div>
           ))}
         </div>
@@ -541,12 +629,11 @@ export default function EventEscrowPage() {
 
       {/* ── No prize batch yet ── */}
       {!prizeBatch && (
-        <div className="card p-8 text-center space-y-2">
-          <div className="text-2xl">🏆</div>
-          <p className="text-sm font-medium text-[var(--text)]">Prize allocation not locked yet</p>
-          <p className="text-xs text-[var(--text-muted)]">
-            Complete judging and lock the prize allocation batch before initializing escrow.
-          </p>
+        <div className="mb-4">
+          <EmptyState
+            title="Prize allocation not locked yet"
+            description="Complete judging and lock the prize allocation batch before initializing escrow."
+          />
         </div>
       )}
 
@@ -554,12 +641,15 @@ export default function EventEscrowPage() {
       {prizeBatch && !escrow && (
         <div className="card p-6 space-y-4">
           <div className="flex items-start gap-3">
-            <div className="h-9 w-9 rounded-lg bg-[var(--accent-muted)] flex items-center justify-center text-base shrink-0">🔒</div>
+            <div className="h-9 w-9 rounded-lg bg-[var(--accent-muted)] flex items-center justify-center text-base shrink-0">
+              🔒
+            </div>
             <div>
               <p className="text-sm font-semibold text-[var(--text)]">Ready to create escrow</p>
               <p className="text-xs text-[var(--text-muted)] mt-0.5">
                 Prize batch is locked at <strong>{prizeBatch.total_amount ?? 0} XLM</strong>.
-                Creating the escrow deploys your Soroban smart contract on Stellar {explorerNetwork}.
+                Creating the escrow deploys your Soroban smart contract on Stellar {explorerNetwork}
+                .
               </p>
             </div>
           </div>
@@ -569,8 +659,13 @@ export default function EventEscrowPage() {
             className="btn-primary px-5 py-2.5 rounded-md text-sm font-medium disabled:opacity-50 transition-opacity"
           >
             {actionLoading === "create" ? (
-              <span className="flex items-center gap-2"><Spinner />Deploying contract…</span>
-            ) : "Create Escrow Smart Contract"}
+              <span className="flex items-center gap-2">
+                <Spinner />
+                Deploying contract…
+              </span>
+            ) : (
+              "Create Escrow Smart Contract"
+            )}
           </button>
         </div>
       )}
@@ -578,30 +673,42 @@ export default function EventEscrowPage() {
       {/* ── Escrow exists ── */}
       {escrow && (
         <div className="space-y-6">
-
           {/* Contract summary card */}
           <div className="card p-5 grid grid-cols-2 sm:grid-cols-4 gap-4">
-            <InfoCell label="Escrow Status" value={
-              <StatusBadge status={escrow.status} />
-            } />
-            <InfoCell label="Network" value={
-              <span className={`inline-flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-full ${escrow.network === "mainnet" ? "bg-amber-500/15 text-amber-400" : "bg-blue-500/15 text-blue-400"}`}>
-                <span className="h-1.5 w-1.5 rounded-full bg-current" />
-                {escrow.network}
-              </span>
-            } />
+            <InfoCell label="Escrow Status" value={<StatusBadge status={escrow.status} />} />
+            <InfoCell
+              label="Network"
+              value={
+                <span
+                  className={`inline-flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-full ${escrow.network === "mainnet" ? "bg-amber-500/15 text-amber-400" : "bg-blue-500/15 text-blue-400"}`}
+                >
+                  <span className="h-1.5 w-1.5 rounded-full bg-current" />
+                  {escrow.network}
+                </span>
+              }
+            />
             <InfoCell label="Target" value={`${escrow.expected_balance} XLM`} mono />
             <InfoCell
               label="On-Chain Balance"
-              value={onChainLoading ? <span className="text-[var(--text-muted)]">…</span> : `${onChain?.onChainBalance ?? "—"} XLM`}
+              value={
+                onChainLoading ? (
+                  <span className="text-[var(--text-muted)]">…</span>
+                ) : (
+                  `${onChain?.onChainBalance ?? "—"} XLM`
+                )
+              }
               mono
-              highlight={onChain && parseFloat(onChain.onChainBalance) >= parseFloat(escrow.expected_balance)}
+              highlight={
+                onChain && parseFloat(onChain.onChainBalance) >= parseFloat(escrow.expected_balance)
+              }
             />
             {escrow.contract_address && (
               <div className="col-span-2 sm:col-span-4">
                 <p className="text-[10px] text-[var(--text-muted)] mb-1">Contract Address</p>
                 <div className="flex items-center gap-2 bg-[var(--bg-muted)] rounded-md px-3 py-2">
-                  <code className="text-xs font-mono text-[var(--text)] break-all flex-1">{escrow.contract_address}</code>
+                  <code className="text-xs font-mono text-[var(--text)] break-all flex-1">
+                    {escrow.contract_address}
+                  </code>
                   <CopyButton value={escrow.contract_address} />
                 </div>
               </div>
@@ -610,7 +717,9 @@ export default function EventEscrowPage() {
               <div className="col-span-2 sm:col-span-4">
                 <p className="text-[10px] text-[var(--text-muted)] mb-1">Escrow Wallet Address</p>
                 <div className="flex items-center gap-2 bg-[var(--bg-muted)] rounded-md px-3 py-2">
-                  <code className="text-xs font-mono text-[var(--text)] break-all flex-1">{onChain.walletAddress}</code>
+                  <code className="text-xs font-mono text-[var(--text)] break-all flex-1">
+                    {onChain.walletAddress}
+                  </code>
                   <CopyButton value={onChain.walletAddress} />
                 </div>
               </div>
@@ -618,18 +727,30 @@ export default function EventEscrowPage() {
           </div>
 
           {/* Explorer links */}
-          {(onChain?.explorerLinks.contract || onChain?.explorerLinks.wallet || onChain?.explorerLinks.transaction) && (
+          {(onChain?.explorerLinks.contract ||
+            onChain?.explorerLinks.wallet ||
+            onChain?.explorerLinks.transaction) && (
             <div className="card p-4">
-              <p className="text-xs font-semibold text-[var(--text-muted)] uppercase tracking-wider mb-3">Verify On-Chain</p>
+              <p className="text-xs font-semibold text-[var(--text-muted)] uppercase tracking-wider mb-3">
+                Verify On-Chain
+              </p>
               <div className="flex flex-wrap gap-2">
                 {onChain.explorerLinks.contract && (
-                  <ExplorerLink href={onChain.explorerLinks.contract} label="View Contract" icon="📄" />
+                  <ExplorerLink
+                    href={onChain.explorerLinks.contract}
+                    label="View Contract"
+                    icon="📄"
+                  />
                 )}
                 {onChain.explorerLinks.wallet && (
                   <ExplorerLink href={onChain.explorerLinks.wallet} label="View Wallet" icon="👛" />
                 )}
                 {onChain.explorerLinks.transaction && (
-                  <ExplorerLink href={onChain.explorerLinks.transaction} label="View Transaction" icon="🔗" />
+                  <ExplorerLink
+                    href={onChain.explorerLinks.transaction}
+                    label="View Transaction"
+                    icon="🔗"
+                  />
                 )}
                 {pendingTxHash && !onChain?.explorerLinks.transaction && (
                   <ExplorerLink
@@ -648,7 +769,9 @@ export default function EventEscrowPage() {
               <div className="flex items-center gap-2">
                 <h3 className="text-sm font-semibold text-[var(--text)]">Fund the Escrow</h3>
                 <span className="text-xs text-[var(--text-muted)] bg-[var(--bg-muted)] px-2 py-0.5 rounded-full">
-                  {wallet ? `Connected: ${wallet.publicKey.slice(0,6)}…${wallet.publicKey.slice(-4)}` : "Wallet not connected"}
+                  {wallet
+                    ? `Connected: ${wallet.publicKey.slice(0, 6)}…${wallet.publicKey.slice(-4)}`
+                    : "Wallet not connected"}
                 </span>
               </div>
               <p className="text-xs text-[var(--text-muted)]">
@@ -707,7 +830,14 @@ export default function EventEscrowPage() {
                         disabled={!fundAmount || isFundingActive}
                         className="btn-primary px-5 py-2 rounded-md text-sm font-medium disabled:opacity-50 whitespace-nowrap"
                       >
-                        {isFundingActive ? <span className="flex items-center gap-2"><Spinner />Working…</span> : "Fund Escrow"}
+                        {isFundingActive ? (
+                          <span className="flex items-center gap-2">
+                            <Spinner />
+                            Working…
+                          </span>
+                        ) : (
+                          "Fund Escrow"
+                        )}
                       </button>
                     </div>
                     <p className="text-[10px] text-[var(--text-muted)] mt-1.5">
@@ -715,7 +845,10 @@ export default function EventEscrowPage() {
                     </p>
                   </div>
                   <button
-                    onClick={() => { setWallet(null); setFundingStep("idle"); }}
+                    onClick={() => {
+                      setWallet(null);
+                      setFundingStep("idle");
+                    }}
                     className="text-xs text-[var(--text-muted)] hover:text-[var(--text)]"
                   >
                     Disconnect wallet
@@ -727,10 +860,12 @@ export default function EventEscrowPage() {
               {fundingStep === "done" && (
                 <div className="space-y-3">
                   <div className="rounded-lg border border-green-500/30 bg-green-500/8 px-4 py-3">
-                    <p className="text-sm font-medium text-green-400">✓ Transaction broadcast successfully</p>
+                    <p className="text-sm font-medium text-green-400">
+                      ✓ Transaction broadcast successfully
+                    </p>
                     {pendingTxHash && (
                       <p className="text-xs text-[var(--text-muted)] mt-1 font-mono">
-                        Hash: {pendingTxHash.slice(0,16)}…{pendingTxHash.slice(-8)}
+                        Hash: {pendingTxHash.slice(0, 16)}…{pendingTxHash.slice(-8)}
                       </p>
                     )}
                     <p className="text-xs text-[var(--text-muted)] mt-1">
@@ -742,7 +877,14 @@ export default function EventEscrowPage() {
                     disabled={!!actionLoading}
                     className="btn-primary px-5 py-2.5 rounded-md text-sm font-medium disabled:opacity-50"
                   >
-                    {actionLoading === "verify" ? <span className="flex items-center gap-2"><Spinner />Verifying…</span> : "Confirm Funding On-Chain"}
+                    {actionLoading === "verify" ? (
+                      <span className="flex items-center gap-2">
+                        <Spinner />
+                        Verifying…
+                      </span>
+                    ) : (
+                      "Confirm Funding On-Chain"
+                    )}
                   </button>
                 </div>
               )}
@@ -750,7 +892,9 @@ export default function EventEscrowPage() {
               {/* Manual verify fallback (always available while not funded) */}
               {fundingStep === "idle" && wallet && (
                 <div className="pt-2 border-t border-[var(--border)]">
-                  <p className="text-xs text-[var(--text-muted)] mb-2">Already sent funds manually?</p>
+                  <p className="text-xs text-[var(--text-muted)] mb-2">
+                    Already sent funds manually?
+                  </p>
                   <button
                     onClick={handleVerifyFunding}
                     disabled={!!actionLoading}
@@ -767,12 +911,16 @@ export default function EventEscrowPage() {
           {onChain?.transaction && (
             <div className="card p-5 space-y-3">
               <div className="flex items-center justify-between">
-                <p className="text-xs font-semibold text-[var(--text-muted)] uppercase tracking-wider">Latest Funding Transaction</p>
-                <span className={`text-[10px] font-medium px-2 py-0.5 rounded-full ${
-                  onChain.transaction.confirmed
-                    ? "bg-green-500/15 text-green-400"
-                    : "bg-amber-500/15 text-amber-400"
-                }`}>
+                <p className="text-xs font-semibold text-[var(--text-muted)] uppercase tracking-wider">
+                  Latest Funding Transaction
+                </p>
+                <span
+                  className={`text-[10px] font-medium px-2 py-0.5 rounded-full ${
+                    onChain.transaction.confirmed
+                      ? "bg-green-500/15 text-green-400"
+                      : "bg-amber-500/15 text-amber-400"
+                  }`}
+                >
                   {onChain.transaction.confirmed ? "Confirmed" : "Pending"}
                 </span>
               </div>
@@ -784,13 +932,18 @@ export default function EventEscrowPage() {
                   <TxCell label="Ledger Number" value={String(onChain.transaction.ledger)} mono />
                 )}
                 {onChain.transaction.blockTimestamp && (
-                  <TxCell label="Block Timestamp" value={new Date(onChain.transaction.blockTimestamp).toLocaleString()} />
+                  <TxCell
+                    label="Block Timestamp"
+                    value={new Date(onChain.transaction.blockTimestamp).toLocaleString()}
+                  />
                 )}
                 {onChain.transaction.fromAddress && (
                   <div className="col-span-2 sm:col-span-3">
                     <p className="text-[10px] text-[var(--text-muted)] mb-1">Funding Wallet</p>
                     <div className="flex items-center gap-2 bg-[var(--bg-muted)] rounded px-2.5 py-1.5">
-                      <code className="text-xs font-mono text-[var(--text)] flex-1 break-all">{onChain.transaction.fromAddress}</code>
+                      <code className="text-xs font-mono text-[var(--text)] flex-1 break-all">
+                        {onChain.transaction.fromAddress}
+                      </code>
                       <CopyButton value={onChain.transaction.fromAddress} />
                     </div>
                   </div>
@@ -798,11 +951,17 @@ export default function EventEscrowPage() {
                 <div className="col-span-2 sm:col-span-3">
                   <p className="text-[10px] text-[var(--text-muted)] mb-1">Transaction Hash</p>
                   <div className="flex items-center gap-2 bg-[var(--bg-muted)] rounded px-2.5 py-1.5">
-                    <code className="text-xs font-mono text-[var(--text)] flex-1 break-all">{onChain.transaction.hash}</code>
+                    <code className="text-xs font-mono text-[var(--text)] flex-1 break-all">
+                      {onChain.transaction.hash}
+                    </code>
                     <CopyButton value={onChain.transaction.hash} />
                     {onChain.explorerLinks.transaction && (
-                      <a href={onChain.explorerLinks.transaction} target="_blank" rel="noopener noreferrer"
-                        className="text-[10px] text-[var(--accent)] hover:underline shrink-0">
+                      <a
+                        href={onChain.explorerLinks.transaction}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-[10px] text-[var(--accent)] hover:underline shrink-0"
+                      >
                         Explorer ↗
                       </a>
                     )}
@@ -817,64 +976,141 @@ export default function EventEscrowPage() {
             <div className="card p-6 space-y-4">
               <h3 className="text-sm font-semibold text-[var(--text)]">Payout Execution</h3>
               <div className="grid grid-cols-2 gap-4 pb-4 border-b border-[var(--border)]">
-                <InfoCell label="Batch Status" value={<StatusBadge status={payoutBatch.status} />} />
+                <InfoCell
+                  label="Batch Status"
+                  value={<StatusBadge status={payoutBatch.status} />}
+                />
                 <InfoCell label="Total Payouts" value={`${payoutBatch.total_amount} XLM`} mono />
               </div>
 
               {simulationResult && (
-                <div className={`rounded-lg p-3 text-sm space-y-1 ${simulationResult.success ? "bg-green-500/8 border border-green-500/20" : "bg-[var(--error-bg)] border border-[var(--error)]/30"}`}>
-                  <p className={`font-medium text-xs ${simulationResult.success ? "text-green-400" : "text-[var(--error)]"}`}>
+                <div
+                  className={`rounded-lg p-3 text-sm space-y-1 ${simulationResult.success ? "bg-green-500/8 border border-green-500/20" : "bg-[var(--error-bg)] border border-[var(--error)]/30"}`}
+                >
+                  <p
+                    className={`font-medium text-xs ${simulationResult.success ? "text-green-400" : "text-[var(--error)]"}`}
+                  >
                     {simulationResult.success ? "✓ Simulation passed" : "✗ Simulation failed"}
                   </p>
                   {simulationResult.estimatedFee && (
-                    <p className="text-xs text-[var(--text-muted)]">Estimated fee: {simulationResult.estimatedFee} XLM</p>
+                    <p className="text-xs text-[var(--text-muted)]">
+                      Estimated fee: {simulationResult.estimatedFee} XLM
+                    </p>
                   )}
-                  {simulationResult.error && <p className="text-xs text-[var(--error)]">{simulationResult.error}</p>}
+                  {simulationResult.error && (
+                    <p className="text-xs text-[var(--error)]">{simulationResult.error}</p>
+                  )}
+                </div>
+              )}
+
+              {/* Automation Status Banner */}
+              {(eventState === "PrizeApproved" || eventState === "EscrowRelease") && (
+                <div className="rounded-lg border border-[var(--accent)]/30 bg-[var(--accent)]/5 p-4 mb-4 flex gap-3">
+                  <div className="shrink-0 mt-0.5">
+                    <span className="relative flex h-3 w-3">
+                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[var(--accent)] opacity-75"></span>
+                      <span className="relative inline-flex rounded-full h-3 w-3 bg-[var(--accent)]"></span>
+                    </span>
+                  </div>
+                  <div>
+                    <h4 className="text-sm font-semibold text-[var(--accent)]">
+                      Automated Payout System Active
+                    </h4>
+                    <p className="text-xs text-[var(--text-muted)] mt-1">
+                      {eventState === "PrizeApproved"
+                        ? "Waiting for all disputes to be resolved. Once disputes are clear, payouts will execute automatically."
+                        : "Payout execution is currently in progress on-chain."}
+                    </p>
+                  </div>
                 </div>
               )}
 
               <div className="flex flex-wrap gap-2">
                 {["Pending", "Preparing"].includes(payoutBatch.status) && (
-                  <button onClick={handleSimulate} disabled={!!actionLoading}
-                    className="btn-secondary px-4 py-2 rounded-md text-sm disabled:opacity-50">
-                    {actionLoading === "simulate" ? <span className="flex items-center gap-2"><Spinner />Simulating…</span> : "Simulate Payout"}
+                  <button
+                    onClick={handleSimulate}
+                    disabled={!!actionLoading}
+                    className="btn-secondary px-4 py-2 rounded-md text-sm disabled:opacity-50"
+                  >
+                    {actionLoading === "simulate" ? (
+                      <span className="flex items-center gap-2">
+                        <Spinner />
+                        Simulating…
+                      </span>
+                    ) : (
+                      "Simulate Payout"
+                    )}
                   </button>
                 )}
-                {["Preparing", "Signing"].includes(payoutBatch.status) && simulationResult?.success && (
-                  <button onClick={handleRelease} disabled={!!actionLoading}
-                    className="rounded-md bg-green-600 text-white px-5 py-2 text-sm font-medium hover:bg-green-700 disabled:opacity-50 transition-colors">
-                    {actionLoading === "release" ? <span className="flex items-center gap-2"><Spinner />Broadcasting…</span> : "Release & Disburse Prizes"}
-                  </button>
-                )}
+                {["Preparing", "Signing"].includes(payoutBatch.status) &&
+                  simulationResult?.success && (
+                    <button
+                      onClick={handleRelease}
+                      disabled={
+                        !!actionLoading ||
+                        eventState === "PrizeApproved" ||
+                        eventState === "EscrowRelease"
+                      }
+                      className="rounded-md bg-green-600 text-white px-5 py-2 text-sm font-medium hover:bg-green-700 disabled:opacity-50 transition-colors"
+                    >
+                      {actionLoading === "release" ? (
+                        <span className="flex items-center gap-2">
+                          <Spinner />
+                          Broadcasting…
+                        </span>
+                      ) : (
+                        "Release & Disburse Prizes"
+                      )}
+                    </button>
+                  )}
                 {["Confirmed", "Partially Completed"].includes(payoutBatch.status) && (
-                  <button onClick={handleSettle} disabled={!!actionLoading}
-                    className="btn-primary px-4 py-2 rounded-md text-sm disabled:opacity-50">
+                  <button
+                    onClick={handleSettle}
+                    disabled={!!actionLoading}
+                    className="btn-primary px-4 py-2 rounded-md text-sm disabled:opacity-50"
+                  >
                     {actionLoading === "settle" ? "Settling…" : "Record Settlement"}
                   </button>
                 )}
               </div>
 
               {/* Per-winner execution progress */}
-              {["Broadcast","Confirmed","Partially Completed","Failed"].includes(payoutBatch.status) && (
+              {["Broadcast", "Confirmed", "Partially Completed", "Failed"].includes(
+                payoutBatch.status,
+              ) && (
                 <div className="border border-[var(--border)] rounded-lg overflow-hidden">
                   <div className="px-4 py-2 bg-[var(--bg-muted)] border-b border-[var(--border)]">
-                    <p className="text-xs font-semibold text-[var(--text-muted)]">Disbursement Progress</p>
+                    <p className="text-xs font-semibold text-[var(--text-muted)]">
+                      Disbursement Progress
+                    </p>
                   </div>
                   <div className="divide-y divide-[var(--border)]">
                     {payoutBatch.payout_instructions.map((inst) => (
                       <div key={inst.id} className="flex items-center gap-3 px-4 py-2.5 text-sm">
                         <code className="font-mono text-[10px] text-[var(--text-muted)] flex-1 truncate">
-                          {inst.destination_address.slice(0,8)}…{inst.destination_address.slice(-6)}
+                          {inst.destination_address.slice(0, 8)}…
+                          {inst.destination_address.slice(-6)}
                         </code>
-                        <span className="text-xs font-medium text-[var(--text)] shrink-0">{inst.amount} XLM</span>
-                        <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full shrink-0 ${
-                          inst.status === "Confirmed" ? "bg-green-500/15 text-green-400"
-                          : inst.status === "Failed" ? "bg-[var(--error-bg)] text-[var(--error)]"
-                          : "bg-[var(--bg-muted)] text-[var(--text-muted)]"
-                        }`}>{inst.status}</span>
+                        <span className="text-xs font-medium text-[var(--text)] shrink-0">
+                          {inst.amount} XLM
+                        </span>
+                        <span
+                          className={`text-[10px] font-semibold px-2 py-0.5 rounded-full shrink-0 ${
+                            inst.status === "Confirmed"
+                              ? "bg-green-500/15 text-green-400"
+                              : inst.status === "Failed"
+                                ? "bg-[var(--error-bg)] text-[var(--error)]"
+                                : "bg-[var(--bg-muted)] text-[var(--text-muted)]"
+                          }`}
+                        >
+                          {inst.status}
+                        </span>
                         {inst.status === "Failed" && (
-                          <button onClick={() => handleRetryInstruction(inst.id)} disabled={!!actionLoading}
-                            className="text-[10px] border border-[var(--border)] rounded px-2 py-0.5 hover:bg-[var(--bg-muted)] transition-colors disabled:opacity-50 shrink-0">
+                          <button
+                            onClick={() => handleRetryInstruction(inst.id)}
+                            disabled={!!actionLoading}
+                            className="text-[10px] border border-[var(--border)] rounded px-2 py-0.5 hover:bg-[var(--bg-muted)] transition-colors disabled:opacity-50 shrink-0"
+                          >
                             Retry
                           </button>
                         )}
@@ -894,13 +1130,23 @@ export default function EventEscrowPage() {
                 <h3 className="text-sm font-semibold text-green-400">Settlement Complete</h3>
               </div>
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
-                <InfoCell label="Amount Released" value={`${settlement.reconciled_amount} XLM`} mono highlight />
-                <InfoCell label="Winners Paid" value={String(payoutBatch?.payout_instructions.length ?? 0)} />
-                <InfoCell label="Settled At" value={new Date(settlement.created_at).toLocaleString()} />
+                <InfoCell
+                  label="Amount Released"
+                  value={`${settlement.reconciled_amount} XLM`}
+                  mono
+                  highlight
+                />
+                <InfoCell
+                  label="Winners Paid"
+                  value={String(payoutBatch?.payout_instructions.length ?? 0)}
+                />
+                <InfoCell
+                  label="Settled At"
+                  value={new Date(settlement.created_at).toLocaleString()}
+                />
               </div>
             </div>
           )}
-
         </div>
       )}
     </div>
@@ -918,21 +1164,28 @@ function FundingStepProgress({ currentStep }: { currentStep: FundingStep }) {
         const isActive = idx === current;
         const isDone = idx < current || currentStep === "done";
         return (
-          <div key={s.key} className={`flex items-center gap-3 transition-opacity ${idx > current ? "opacity-30" : "opacity-100"}`}>
-            <div className={`h-6 w-6 rounded-full flex items-center justify-center text-[10px] font-bold shrink-0 transition-colors ${
-              isDone ? "bg-green-500 text-white"
-              : isActive ? "bg-[var(--accent)] text-white"
-              : "bg-[var(--bg-muted)] text-[var(--text-muted)]"
-            }`}>
+          <div
+            key={s.key}
+            className={`flex items-center gap-3 transition-opacity ${idx > current ? "opacity-30" : "opacity-100"}`}
+          >
+            <div
+              className={`h-6 w-6 rounded-full flex items-center justify-center text-[10px] font-bold shrink-0 transition-colors ${
+                isDone
+                  ? "bg-green-500 text-white"
+                  : isActive
+                    ? "bg-[var(--accent)] text-white"
+                    : "bg-[var(--bg-muted)] text-[var(--text-muted)]"
+              }`}
+            >
               {isDone ? "✓" : isActive ? <span className="animate-pulse">●</span> : i + 1}
             </div>
             <div className="flex-1 min-w-0">
-              <p className={`text-xs font-medium ${isActive ? "text-[var(--text)]" : isDone ? "text-[var(--text-secondary)]" : "text-[var(--text-muted)]"}`}>
+              <p
+                className={`text-xs font-medium ${isActive ? "text-[var(--text)]" : isDone ? "text-[var(--text-secondary)]" : "text-[var(--text-muted)]"}`}
+              >
                 {s.label}
               </p>
-              {isActive && (
-                <p className="text-[10px] text-[var(--text-muted)]">{s.description}</p>
-              )}
+              {isActive && <p className="text-[10px] text-[var(--text-muted)]">{s.description}</p>}
             </div>
           </div>
         );
@@ -942,19 +1195,28 @@ function FundingStepProgress({ currentStep }: { currentStep: FundingStep }) {
 }
 
 function StatusBadge({ status }: { status: string }) {
-  const color =
-    ["Funded","Verified","Locked","Completed"].includes(status) ? "text-green-400 bg-green-500/15"
-    : ["Releasing","Broadcast"].includes(status) ? "text-blue-400 bg-blue-500/15"
-    : ["Failed","Refunded"].includes(status) ? "text-[var(--error)] bg-[var(--error-bg)]"
-    : "text-[var(--text-muted)] bg-[var(--bg-muted)]";
+  const color = ["Funded", "Verified", "Locked", "Completed"].includes(status)
+    ? "text-green-400 bg-green-500/15"
+    : ["Releasing", "Broadcast"].includes(status)
+      ? "text-blue-400 bg-blue-500/15"
+      : ["Failed", "Refunded"].includes(status)
+        ? "text-[var(--error)] bg-[var(--error-bg)]"
+        : "text-[var(--text-muted)] bg-[var(--bg-muted)]";
   return (
-    <span className={`inline-flex items-center text-[10px] font-semibold px-2 py-0.5 rounded-full ${color}`}>
+    <span
+      className={`inline-flex items-center text-[10px] font-semibold px-2 py-0.5 rounded-full ${color}`}
+    >
       {status}
     </span>
   );
 }
 
-function InfoCell({ label, value, mono, highlight }: {
+function InfoCell({
+  label,
+  value,
+  mono,
+  highlight,
+}: {
   label: string;
   value: React.ReactNode;
   mono?: boolean;
@@ -963,7 +1225,9 @@ function InfoCell({ label, value, mono, highlight }: {
   return (
     <div>
       <p className="text-[10px] text-[var(--text-muted)] mb-0.5">{label}</p>
-      <p className={`text-sm font-medium ${mono ? "font-mono" : ""} ${highlight ? "text-green-400" : "text-[var(--text)]"}`}>
+      <p
+        className={`text-sm font-medium ${mono ? "font-mono" : ""} ${highlight ? "text-green-400" : "text-[var(--text)]"}`}
+      >
         {value}
       </p>
     </div>

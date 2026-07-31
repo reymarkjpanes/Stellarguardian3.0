@@ -8,6 +8,8 @@ import { redirect } from "next/navigation";
 import { createServerClient } from "@/lib/supabase/server";
 import { OrganizerActionCenter } from "@/components/dashboard/organizer-action-center";
 import { EventListFilter } from "@/components/dashboard/event-list-filter";
+import { SponsorEventList } from "@/components/dashboard/sponsor-event-list";
+import { EmptyState } from "@/components/ui/empty-state";
 
 interface EventMembership {
   event_id: string;
@@ -33,22 +35,16 @@ export default async function DashboardPage() {
   if (!user) redirect("/login");
 
   // --- Fast shell data (2 queries) ---
-  const [
-    { data: profile },
-    { data: rawEventMemberships },
-    { data: rawWorkspaceMemberships },
-  ] = await Promise.all([
-    supabase.from("users").select("display_name").eq("id", user.id).single(),
-    supabase
-      .from("event_members")
-      .select("event_id, role, status")
-      .eq("user_id", user.id)
-      .limit(20),
-    supabase
-      .from("workspace_members")
-      .select("workspace_id, role")
-      .eq("user_id", user.id),
-  ]);
+  const [{ data: profile }, { data: rawEventMemberships }, { data: rawWorkspaceMemberships }] =
+    await Promise.all([
+      supabase.from("users").select("display_name").eq("id", user.id).single(),
+      supabase
+        .from("event_members")
+        .select("event_id, role, status")
+        .eq("user_id", user.id)
+        .limit(20),
+      supabase.from("workspace_members").select("workspace_id, role").eq("user_id", user.id),
+    ]);
 
   const displayName = profile?.display_name ?? user.email ?? "User";
 
@@ -80,6 +76,21 @@ export default async function DashboardPage() {
     .filter((m) => m.role === "Organizer")
     .map((m) => m.event_id);
 
+  // Participant data setup
+  const participantEventIds = (rawEventMemberships ?? [])
+    .filter((m) => m.role === "Participant")
+    .map((m) => m.event_id);
+
+  // Sponsor data setup
+  const sponsorEventIds = (rawEventMemberships ?? [])
+    .filter((m) => m.role === "Sponsor")
+    .map((m) => m.event_id);
+
+  // Combined for escrow query
+  const organizerAndSponsorEventIds = Array.from(
+    new Set([...organizerEventIds, ...sponsorEventIds]),
+  );
+
   // --- Organizer enrichment: parallel fetch ---
   const [
     { data: pendingMembers },
@@ -87,6 +98,7 @@ export default async function DashboardPage() {
     { data: userWallet },
     { data: escrowAccounts },
     { data: submissionsData },
+    { data: userTeamsData },
   ] = await Promise.all([
     organizerEventIds.length > 0
       ? supabase
@@ -109,25 +121,27 @@ export default async function DashboardPage() {
       .eq("verification_status", "Verified")
       .limit(1)
       .maybeSingle(),
-    organizerEventIds.length > 0
+    organizerAndSponsorEventIds.length > 0
       ? supabase
           .from("escrow_accounts")
-          .select("event_id, state")
-          .in("event_id", organizerEventIds)
+          .select("event_id, state, expected_balance")
+          .in("event_id", organizerAndSponsorEventIds)
       : Promise.resolve({ data: [] }),
     organizerEventIds.length > 0
+      ? supabase.from("submissions").select("id, event_id").in("event_id", organizerEventIds)
+      : Promise.resolve({ data: [] }),
+    participantEventIds.length > 0
       ? supabase
-          .from("submissions")
-          .select("id, event_id")
-          .in("event_id", organizerEventIds)
+          .from("team_members")
+          .select("event_id, team_id, teams(name)")
+          .eq("user_id", user.id)
+          .in("event_id", participantEventIds)
       : Promise.resolve({ data: [] }),
   ]);
 
   // Fix: evaluations query — fetch by submission_id instead of broken PostgREST join filter
   const submissionIds = (submissionsData ?? []).map((s) => s.id);
-  const submissionEventMap = new Map(
-    (submissionsData ?? []).map((s) => [s.id, s.event_id]),
-  );
+  const submissionEventMap = new Map((submissionsData ?? []).map((s) => [s.id, s.event_id]));
 
   const { data: evaluationsData } =
     submissionIds.length > 0
@@ -148,9 +162,14 @@ export default async function DashboardPage() {
     judgesByEvent.set(m.event_id, (judgesByEvent.get(m.event_id) ?? 0) + 1);
   }
 
-  const escrowByEvent = new Map<string, string>();
+  interface EscrowInfo {
+    event_id: string;
+    state: string;
+    expected_balance?: string;
+  }
+  const escrowByEvent = new Map<string, EscrowInfo>();
   for (const e of escrowAccounts ?? []) {
-    escrowByEvent.set(e.event_id, e.state);
+    escrowByEvent.set(e.event_id, e as EscrowInfo);
   }
 
   const submissionsByEvent = new Map<string, number>();
@@ -175,12 +194,38 @@ export default async function DashboardPage() {
       pendingMemberCount: pendingByEvent.get(eid) ?? 0,
       judgeCount: judgesByEvent.get(eid) ?? 0,
       hasWallet: !!userWallet,
-      escrowState: escrowByEvent.get(eid) ?? null,
+      escrowState: escrowByEvent.get(eid)?.state ?? null,
       prizePoolTarget: Number(eventRecord?.prize_pool_target ?? 0) || null,
       submissionCount: submissionsByEvent.get(eid) ?? 0,
       evaluationCount: evalsByEvent.get(eid) ?? 0,
     };
   });
+
+  // Participant Enrichment
+  const participantTeamMap = new Map();
+  const participantTeamIds = [];
+
+  for (const tm of userTeamsData ?? []) {
+    const teamName = Array.isArray(tm.teams)
+      ? tm.teams[0]?.name
+      : (tm.teams as { name: string })?.name;
+    participantTeamMap.set(tm.event_id, { team_id: tm.team_id, team_name: teamName });
+    participantTeamIds.push(tm.team_id);
+  }
+
+  // Fetch submissions for those participant teams
+  const { data: participantSubmissionsData } =
+    participantTeamIds.length > 0
+      ? await supabase
+          .from("submissions")
+          .select("event_id, status")
+          .in("team_id", participantTeamIds)
+      : { data: [] };
+
+  const participantSubMap = new Map();
+  for (const s of participantSubmissionsData ?? []) {
+    participantSubMap.set(s.event_id, s.status);
+  }
 
   // Fetch workspace details
   const workspaceIds = (rawWorkspaceMemberships ?? []).map((m) => m.workspace_id);
@@ -204,22 +249,27 @@ export default async function DashboardPage() {
   const isOrganizer = events.some((e) => e.role === "Organizer");
   const isJudge = events.some((e) => e.role === "Judge");
   const isParticipant = events.some((e) => e.role === "Participant");
+  const isSponsor = events.some((e) => e.role === "Sponsor");
   const terminalStates = new Set(["Completed", "Cancelled", "Archived"]);
 
   return (
     <main className="max-w-6xl mx-auto px-4 py-8">
       <div className="space-y-8">
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight">
-            Welcome back, {displayName}
-          </h1>
+          <h1 className="text-2xl font-semibold tracking-tight">Welcome back, {displayName}</h1>
           <p className="mt-1 text-sm text-[var(--text-muted)]">
             {isOrganizer && "Organizer"}
             {isOrganizer && isJudge && " · "}
             {isJudge && "Judge"}
-            {(isOrganizer || isJudge) && isParticipant && " · "}
+            {(isOrganizer || isJudge) && (isParticipant || isSponsor) && " · "}
             {isParticipant && "Participant"}
-            {!isOrganizer && !isJudge && !isParticipant && "Get started by joining an event"}
+            {isParticipant && isSponsor && " · "}
+            {isSponsor && "Sponsor"}
+            {!isOrganizer &&
+              !isJudge &&
+              !isParticipant &&
+              !isSponsor &&
+              "Get started by joining an event"}
           </p>
         </div>
 
@@ -227,14 +277,9 @@ export default async function DashboardPage() {
           <KpiCard label="Workspaces" value={String(workspaces.length)} />
           <KpiCard
             label="Active Events"
-            value={String(
-              events.filter((e) => !terminalStates.has(e.event_state)).length,
-            )}
+            value={String(events.filter((e) => !terminalStates.has(e.event_state)).length)}
           />
-          <KpiCard
-            label="Roles Held"
-            value={String(new Set(events.map((e) => e.role)).size)}
-          />
+          <KpiCard label="Roles Held" value={String(new Set(events.map((e) => e.role)).size)} />
           <KpiCard
             label="Completed"
             value={String(events.filter((e) => e.event_state === "Completed").length)}
@@ -255,17 +300,91 @@ export default async function DashboardPage() {
           </div>
         </section>
 
-        {events.length > 0 && (
+        {events.length === 0 && (
+          <section className="mt-8">
+            <EmptyState
+              title="No events yet"
+              description="You aren't participating, judging, or organizing any events yet."
+              action={{ label: "Discover Events", href: "/discover" }}
+            />
+          </section>
+        )}
+
+        {/* Role-aware Event Lists */}
+        {events.filter((e) => e.role === "Participant").length > 0 && (
           <section>
-            <h2 className="text-lg font-medium mb-3">Your Events</h2>
+            <h2 className="text-lg font-medium mb-3">Your Hackathons (Participating)</h2>
             <EventListFilter
-              events={events.map((e) => ({
-                event_id: e.event_id,
-                role: e.role,
-                status: e.status,
-                event_title: e.event_title,
-                event_state: e.event_state,
-              }))}
+              events={events
+                .filter((e) => e.role === "Participant")
+                .map((e) => ({
+                  event_id: e.event_id,
+                  role: e.role,
+                  status: e.status,
+                  event_title: e.event_title,
+                  event_state: e.event_state,
+                  team_name: participantTeamMap.get(e.event_id)?.team_name,
+                  submission_status: participantSubMap.get(e.event_id),
+                }))}
+            />
+          </section>
+        )}
+
+        {events.filter((e) => e.role === "Judge").length > 0 && (
+          <section>
+            <h2 className="text-lg font-medium mb-3">Judging Assignments</h2>
+            <EventListFilter
+              events={events
+                .filter((e) => e.role === "Judge")
+                .map((e) => ({
+                  event_id: e.event_id,
+                  role: e.role,
+                  status: e.status,
+                  event_title: e.event_title,
+                  event_state: e.event_state,
+                }))}
+            />
+          </section>
+        )}
+
+        {events.filter((e) => e.role === "Organizer").length > 0 && (
+          <section>
+            <h2 className="text-lg font-medium mb-3">Organizing</h2>
+            <EventListFilter
+              events={events
+                .filter((e) => e.role === "Organizer")
+                .map((e) => ({
+                  event_id: e.event_id,
+                  role: e.role,
+                  status: e.status,
+                  event_title: e.event_title,
+                  event_state: e.event_state,
+                }))}
+            />
+          </section>
+        )}
+
+        {events.filter((e) => e.role === "Sponsor").length > 0 && (
+          <section>
+            <h2 className="text-lg font-medium mb-3">Sponsoring (Funded Events)</h2>
+            <SponsorEventList
+              events={events
+                .filter((e) => e.role === "Sponsor")
+                .map((e) => {
+                  const escrowInfo = (escrowByEvent.get(e.event_id) || {}) as Record<
+                    string,
+                    unknown
+                  >;
+                  return {
+                    id: e.event_id,
+                    title: e.event_title,
+                    state: e.event_state,
+                    prizePoolTarget:
+                      Number(eventsMap.get(e.event_id)?.prize_pool_target ?? 0) || null,
+                    escrowState: escrowInfo.state ?? null,
+                    expectedBalance: escrowInfo.expected_balance ?? null,
+                  };
+                })}
             />
           </section>
         )}
@@ -277,7 +396,11 @@ export default async function DashboardPage() {
               {workspaces.map((ws) => (
                 <a
                   key={ws.workspace_id}
-                  href={ws.workspace_slug ? `/workspaces/${ws.workspace_slug}` : `/workspaces/id/${ws.workspace_id}`}
+                  href={
+                    ws.workspace_slug
+                      ? `/workspaces/${ws.workspace_slug}`
+                      : `/workspaces/id/${ws.workspace_id}`
+                  }
                   className="rounded-lg card p-4 hover:border-[var(--accent)] transition-colors"
                 >
                   <p className="font-medium">{ws.workspace_name}</p>

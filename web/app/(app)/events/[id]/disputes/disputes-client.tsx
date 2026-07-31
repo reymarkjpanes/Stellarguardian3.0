@@ -62,7 +62,7 @@ export function DisputesClient({
   const router = useRouter();
   const isParticipant = userRole === "Participant";
   const isOrganizer = userRole === "Organizer";
-  const canFile = isParticipant && eventState === "Judging";
+  const canFile = isParticipant && eventState === "DisputeWindow";
 
   const [disputes, setDisputes] = useState<Dispute[]>(initialDisputes);
   const [showForm, setShowForm] = useState(false);
@@ -129,7 +129,7 @@ export function DisputesClient({
         <div>
           <h2 className="text-lg font-semibold text-[var(--text)]">Disputes</h2>
           <p className="text-xs text-[var(--text-muted)] mt-0.5">
-            {eventState === "Judging"
+            {eventState === "DisputeWindow"
               ? "The review window is open. Participants can file disputes about judging decisions."
               : "Disputes can only be filed during the Judging phase."}
           </p>
@@ -240,7 +240,7 @@ export function DisputesClient({
       {disputes.length === 0 ? (
         <div className="card p-10 text-center">
           <p className="text-sm text-[var(--text-muted)]">
-            {eventState === "Judging"
+            {eventState === "DisputeWindow"
               ? "No disputes filed yet."
               : "No disputes were filed during this event."}
           </p>

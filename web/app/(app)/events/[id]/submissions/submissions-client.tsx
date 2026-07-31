@@ -10,6 +10,7 @@
  *  Organizer / Judge / any other role   → Read-only submissions list
  */
 
+import { EmptyState } from "@/components/ui/empty-state";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -79,9 +80,10 @@ function PhaseGate({ state }: { state: string }) {
 function SubmissionsList({ submissions }: { submissions: Submission[] }) {
   if (submissions.length === 0) {
     return (
-      <div className="card p-10 text-center">
-        <p className="text-sm text-[var(--text-muted)]">No submissions yet.</p>
-      </div>
+      <EmptyState
+        title="No submissions yet."
+        description="Projects will appear here once teams submit them."
+      />
     );
   }
   return (
@@ -190,11 +192,9 @@ export function SubmissionsClient({
         <h2 className="text-lg font-semibold text-[var(--text)]">
           {teamName ? `${teamName}'s Submission` : "Your Submission"}
         </h2>
-        {mySubmission && (
-          <StatusBadge status={mySubmission.status} />
-        )}
+        {mySubmission && <StatusBadge status={mySubmission.status} />}
       </div>
-      
+
       {mySubmission ? (
         <div className="card p-6">
           <div className="flex flex-col md:flex-row justify-between md:items-start gap-4">

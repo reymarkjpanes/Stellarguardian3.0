@@ -2,6 +2,7 @@
 
 import Image from "next/image";
 import { MemberDirectoryProjection } from "../api/dto/MemberProjections";
+import { EmptyState } from "@/components/ui/empty-state";
 
 export function CommunityDirectory({
   members,
@@ -22,10 +23,10 @@ export function CommunityDirectory({
 
   if (!members || members.length === 0) {
     return (
-      <div className="flex flex-col items-center justify-center p-12 border border-dashed rounded-xl">
-        <h3 className="text-lg font-medium">Nobody matches your filters.</h3>
-        <p className="text-muted-foreground mt-1">Try adjusting your role or skills criteria.</p>
-      </div>
+      <EmptyState
+        title="Nobody matches your filters."
+        description="Try adjusting your role or skills criteria."
+      />
     );
   }
 

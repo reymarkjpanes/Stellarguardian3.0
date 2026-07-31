@@ -25,41 +25,54 @@ interface Phase {
 const PHASES: Phase[] = [
   {
     label: "Setup",
-    states: ["Draft", "Published"],
+    states: ["Draft", "Review", "Published"],
     description: "Configure event details and assign judges",
   },
   {
     label: "Registration",
-    states: ["RegistrationOpen", "RegistrationClosed"],
+    states: ["RegistrationOpen", "RegistrationClosed", "TeamFormationLocked"],
     description: "Accept participants and form teams",
   },
   {
-    label: "Execution",
+    label: "Submissions",
     states: ["SubmissionOpen", "SubmissionClosed"],
     description: "Participants build and submit projects",
   },
   {
     label: "Judging",
-    states: ["Judging"],
+    states: ["JudgingRound1", "JudgingRound2"],
     description: "Score submissions and resolve disputes",
   },
   {
-    label: "Completed",
-    states: ["Completed"],
+    label: "Winners",
+    states: ["WinnerVerification", "DisputeWindow", "PrizeApproved"],
+    description: "Verify winners and handle disputes",
+  },
+  {
+    label: "Escrow",
+    states: ["EscrowRelease", "Completed"],
     description: "Approve prizes, release escrow, disburse on-chain",
   },
 ];
 
 const STATE_LABELS: Record<EventState, string> = {
   Draft: "Draft",
+  Review: "Under Review",
   Published: "Published",
   RegistrationOpen: "Registration Open",
   RegistrationClosed: "Registration Closed",
+  TeamFormationLocked: "Team Formation Locked",
   SubmissionOpen: "Submissions Open",
   SubmissionClosed: "Submissions Closed",
-  Judging: "Judging",
+  JudgingRound1: "Judging (Round 1)",
+  JudgingRound2: "Judging (Round 2)",
+  WinnerVerification: "Winner Verification",
+  DisputeWindow: "Dispute Window",
+  PrizeApproved: "Prize Approved",
+  EscrowRelease: "Escrow Release",
   Completed: "Completed",
   Cancelled: "Cancelled",
+  Suspended: "Suspended",
   Archived: "Archived",
 };
 

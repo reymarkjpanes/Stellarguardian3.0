@@ -26,6 +26,7 @@ const _TERMINAL_STATES = new Set<EventState>(["Completed", "Archived"]);
  */
 const WORKFLOW_GRAPH: Partial<Record<EventState, TransitionEdge[]>> = {
   Draft: [
+    { to: "Review", validators: [] },
     {
       to: "Published",
       validators: [
@@ -34,6 +35,11 @@ const WORKFLOW_GRAPH: Partial<Record<EventState, TransitionEdge[]>> = {
         EventBusinessRules.requiresRegistrationDeadline,
       ],
     },
+    { to: "Cancelled", validators: [] },
+  ],
+  Review: [
+    { to: "Published", validators: [] },
+    { to: "Draft", validators: [] },
     { to: "Cancelled", validators: [] },
   ],
   Published: [
@@ -45,6 +51,11 @@ const WORKFLOW_GRAPH: Partial<Record<EventState, TransitionEdge[]>> = {
     { to: "Cancelled", validators: [] },
   ],
   RegistrationClosed: [
+    { to: "TeamFormationLocked", validators: [] },
+    { to: "SubmissionOpen", validators: [] },
+    { to: "Cancelled", validators: [] },
+  ],
+  TeamFormationLocked: [
     { to: "SubmissionOpen", validators: [] },
     { to: "Cancelled", validators: [] },
   ],
@@ -54,17 +65,39 @@ const WORKFLOW_GRAPH: Partial<Record<EventState, TransitionEdge[]>> = {
   ],
   SubmissionClosed: [
     {
-      to: "Judging",
+      to: "JudgingRound1",
       validators: [EventBusinessRules.hasSubmissions],
     },
     { to: "Cancelled", validators: [] },
   ],
-  Judging: [
-    { to: "Completed", validators: [EventBusinessRules.allSubmissionsScored] },
+  JudgingRound1: [
+    { to: "JudgingRound2", validators: [EventBusinessRules.allSubmissionsScored] },
+    { to: "WinnerVerification", validators: [EventBusinessRules.allSubmissionsScored] },
+    { to: "Cancelled", validators: [] },
+  ],
+  JudgingRound2: [
+    { to: "WinnerVerification", validators: [EventBusinessRules.allSubmissionsScored] },
+    { to: "Cancelled", validators: [] },
+  ],
+  WinnerVerification: [
+    { to: "DisputeWindow", validators: [] },
+    { to: "Cancelled", validators: [] },
+  ],
+  DisputeWindow: [
+    { to: "PrizeApproved", validators: [EventBusinessRules.zeroUnresolvedDisputes] },
+    { to: "Cancelled", validators: [] },
+  ],
+  PrizeApproved: [
+    { to: "EscrowRelease", validators: [] },
+    { to: "Cancelled", validators: [] },
+  ],
+  EscrowRelease: [
+    { to: "Completed", validators: [] },
     { to: "Cancelled", validators: [] },
   ],
   Completed: [{ to: "Archived", validators: [] }],
   Cancelled: [{ to: "Archived", validators: [] }],
+  Suspended: [],
   Archived: [],
 };
 

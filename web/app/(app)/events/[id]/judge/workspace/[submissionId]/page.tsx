@@ -145,7 +145,11 @@ export default async function JudgingWorkspacePage(props: {
         initialScores,
         expectedVersion: evaluation.version || 1, // Fallback since column missing
         rubric: formattedRubric,
-        isReadOnly: evaluation.status === "Submitted" || evaluation.status === "Finalized", // Will be false if undefined
+        isConflict: evaluation.conflict_of_interest ?? false,
+        isReadOnly:
+          evaluation.status === "Submitted" ||
+          evaluation.status === "Finalized" ||
+          evaluation.conflict_of_interest, // Will be false if undefined
       }}
       navigation={{
         prevSubmissionId,

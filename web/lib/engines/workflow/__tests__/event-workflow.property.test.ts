@@ -16,7 +16,7 @@ const ALL_EVENT_STATES: EventState[] = [
   "RegistrationClosed",
   "SubmissionOpen",
   "SubmissionClosed",
-  "Judging",
+  "JudgingRound1",
   "Completed",
   "Cancelled",
   "Archived",
@@ -95,11 +95,15 @@ describe("Property tests: Event Workflow Engine", () => {
   });
 
   // Cannot transition to judging without submissions
-  it("Cannot transition SubmissionClosed→Judging without submissions", () => {
+  it("Cannot transition SubmissionClosed→JudgingRound1 without submissions", () => {
     fc.assert(
       fc.property(arbEventRuleContext(), (ctx) => {
         if (!ctx.hasSubmissions) {
-          const result = EventWorkflowEngine.canTransition("SubmissionClosed", "Judging", ctx);
+          const result = EventWorkflowEngine.canTransition(
+            "SubmissionClosed",
+            "JudgingRound1",
+            ctx,
+          );
           expect(result.ok).toBe(false);
         }
       }),

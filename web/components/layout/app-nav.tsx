@@ -13,15 +13,25 @@ import { createBrowserClient } from "@/lib/supabase/client";
 import { ThemeToggle } from "@/components/theme/theme-toggle";
 import { NotificationBell } from "@/components/layout/notification-bell";
 import { WalletButton } from "@/components/wallet/WalletButton";
+import { WorkspaceSwitcher, type WorkspaceItem } from "@/components/layout/workspace-switcher";
 
 interface AppNavProps {
   user: { id: string; name: string; email: string } | null;
+  workspaces?: WorkspaceItem[];
+  currentWorkspaceId?: string;
 }
 
-export function AppNav({ user }: AppNavProps) {
+export function AppNav({ user, workspaces = [], currentWorkspaceId }: AppNavProps) {
   const [mobileOpen, setMobileOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
+
+  // Redirect to onboarding if profile is incomplete
+  useEffect(() => {
+    if (user && user.name === user.email && window.location.pathname !== "/onboarding") {
+      window.location.href = "/onboarding";
+    }
+  }, [user]);
 
   // Close profile dropdown on Escape
   useEffect(() => {
@@ -44,7 +54,6 @@ export function AppNav({ user }: AppNavProps) {
     <header className="nav-surface sticky top-0 z-50 border-b border-[var(--nav-border)]">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex justify-between h-14">
-
           {/* Logo */}
           <div className="flex items-center">
             <Link href="/" className="flex items-center gap-2 group">
@@ -55,11 +64,20 @@ export function AppNav({ user }: AppNavProps) {
                   aria-hidden="true"
                 />
               </div>
-              <span className="text-lg font-bold tracking-tight text-[var(--text)]">
-                Stellar{" "}
-                <span className="text-[var(--text-secondary)]">Guardian</span>
+              <span className="text-lg font-bold tracking-tight text-[var(--text)] hidden sm:inline-block">
+                Stellar <span className="text-[var(--text-secondary)]">Guardian</span>
               </span>
             </Link>
+
+            {user && workspaces.length > 0 && (
+              <>
+                <div className="h-6 w-px bg-[var(--border)] mx-1" aria-hidden="true" />
+                <WorkspaceSwitcher
+                  workspaces={workspaces}
+                  currentWorkspaceId={currentWorkspaceId}
+                />
+              </>
+            )}
           </div>
 
           {/* Desktop nav */}
@@ -118,9 +136,7 @@ export function AppNav({ user }: AppNavProps) {
                           <p className="text-sm font-medium text-[var(--text)] truncate">
                             {user.name}
                           </p>
-                          <p className="text-xs text-[var(--text-muted)] truncate">
-                            {user.email}
-                          </p>
+                          <p className="text-xs text-[var(--text-muted)] truncate">{user.email}</p>
                         </div>
                         <div className="p-1">
                           <Link

@@ -64,7 +64,7 @@ const STEPS = [
   { num: 1, label: "Basic Info", hint: "Name, category, description" },
   { num: 2, label: "Team & Timeline", hint: "Sizes, dates" },
   { num: 3, label: "Prize & Network", hint: "Pool, network, review window" },
-  { num: 4, label: "Review & Launch", hint: "Confirm before creating" },
+  { num: 4, label: "Review & Save Draft", hint: "Confirm before creating" },
 ] as const;
 
 const CATEGORY_OPTIONS = ["hackathon", "challenge", "bounty", "competition", "grant"];
@@ -650,7 +650,7 @@ export default function CreateEventPage() {
                   <div className="space-y-5">
                     <div>
                       <h2 className="text-base font-semibold text-[var(--text)]">
-                        Review & Launch
+                        Review & Save Draft
                       </h2>
                       <p className="text-xs text-[var(--text-muted)] mt-0.5">
                         Your event will be created in Draft state. You can edit details before
@@ -758,7 +758,7 @@ export default function CreateEventPage() {
                       disabled={submitting}
                       className="btn-primary px-6 py-2.5 text-sm font-medium rounded-md disabled:opacity-50"
                     >
-                      {submitting ? "Creating event…" : "Create Event"}
+                      {submitting ? "Saving Draft…" : "Save Draft & Continue"}
                     </button>
                   )}
                 </div>

@@ -1,152 +1,103 @@
-/**
- * Reset Password page — set a new password after clicking the email link.
- *
- * The user arrives here after Supabase Auth verifies the recovery token
- * via /auth/callback and redirects with an active session.
- * Uses supabase.auth.updateUser({ password }) to set the new password.
- */
 "use client";
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { createBrowserClient } from "@/lib/supabase/client";
 
 export default function ResetPasswordPage() {
   const router = useRouter();
   const [password, setPassword] = useState("");
-  const [confirmPassword, setConfirmPassword] = useState("");
-  const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [success, setSuccess] = useState(false);
+  const [message, setMessage] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     setError(null);
-
-    if (password.length < 8) {
-      setError("Password must be at least 8 characters.");
-      return;
-    }
-    if (password !== confirmPassword) {
-      setError("Passwords do not match.");
-      return;
-    }
-
+    setMessage(null);
     setLoading(true);
+
     try {
-      const res = await fetch("/api/auth/reset-password", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ password }),
+      const supabase = createBrowserClient();
+
+      const { error: updateError } = await supabase.auth.updateUser({
+        password,
       });
 
-      if (!res.ok) {
-        let errorMessage = "Failed to update password.";
-        try {
-          const errorData = await res.json();
-          errorMessage = errorData.error?.message || errorMessage;
-        } catch {
-          // keep default error
-        }
-        setError(errorMessage);
-        setLoading(false);
+      if (updateError) {
+        setError(updateError.message);
         return;
       }
-    } catch (err) {
-      setError(
-        `An unexpected error occurred: ${err instanceof Error ? err.message : "Unknown error"}`,
-      );
+
+      setMessage("Password updated successfully.");
+
+      // Redirect to login after a brief pause
+      setTimeout(() => {
+        router.push("/login");
+      }, 2000);
+    } catch {
+      setError("An unexpected error occurred. Please try again.");
+    } finally {
       setLoading(false);
-      return;
     }
-
-    setSuccess(true);
-    setLoading(false);
-    // Redirect to dashboard after brief delay
-    setTimeout(() => router.push("/dashboard"), 2000);
-  }
-
-  if (success) {
-    return (
-      <div className="min-h-screen flex items-center justify-center px-4">
-        <div className="w-full max-w-sm space-y-6 text-center">
-          <div className="h-12 w-12 mx-auto rounded-full bg-green-100 flex items-center justify-center">
-            <span className="text-green-700 text-lg">✓</span>
-          </div>
-          <h1 className="text-2xl font-semibold tracking-tight">Password updated</h1>
-          <p className="text-sm text-[var(--text-muted)]">
-            Your password has been successfully reset. Redirecting to dashboard…
-          </p>
-        </div>
-      </div>
-    );
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center px-4">
+    <main className="min-h-screen flex items-center justify-center px-4 bg-[var(--bg)]">
       <div className="w-full max-w-sm space-y-6">
-        <div className="text-center">
-          <h1 className="text-2xl font-semibold tracking-tight">Set new password</h1>
-          <p className="text-sm text-[var(--text-muted)] mt-2">
-            Choose a strong password for your account.
-          </p>
+        <div className="text-center space-y-2">
+          <h1 className="text-2xl font-semibold tracking-tight text-[var(--text)]">
+            Set new password
+          </h1>
+          <p className="text-sm text-[var(--text-muted)]">Please enter your new password below.</p>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-4">
-          <div>
+          {error && (
+            <div
+              role="alert"
+              className="rounded-md border border-[var(--error)] bg-[var(--error-bg)] px-4 py-3 text-sm text-[var(--error)]"
+            >
+              {error}
+            </div>
+          )}
+          {message && (
+            <div
+              role="alert"
+              className="rounded-md border border-[var(--accent)] bg-[var(--accent-muted)] px-4 py-3 text-sm text-[var(--accent)]"
+            >
+              {message}
+            </div>
+          )}
+
+          <div className="space-y-2">
             <label
               htmlFor="password"
-              className="block text-sm font-medium text-[var(--text-secondary)] mb-1"
+              className="block text-sm font-medium text-[var(--text-secondary)]"
             >
-              New password
+              New Password
             </label>
             <input
               id="password"
               type="password"
+              required
+              autoComplete="new-password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              required
-              minLength={8}
-              autoComplete="new-password"
-              className="w-full rounded-md border border-[var(--border)] bg-[var(--bg)] px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--accent)]"
+              className="w-full rounded-md border border-[var(--border)] bg-[var(--input-bg)] px-3 py-2 text-sm text-[var(--text)] placeholder:text-[var(--text-muted)] focus:border-[var(--accent)] focus:outline-none focus:ring-1 focus:ring-[var(--accent)]"
               placeholder="••••••••"
             />
           </div>
-
-          <div>
-            <label
-              htmlFor="confirm-password"
-              className="block text-sm font-medium text-[var(--text-secondary)] mb-1"
-            >
-              Confirm password
-            </label>
-            <input
-              id="confirm-password"
-              type="password"
-              value={confirmPassword}
-              onChange={(e) => setConfirmPassword(e.target.value)}
-              required
-              minLength={8}
-              autoComplete="new-password"
-              className="w-full rounded-md border border-[var(--border)] bg-[var(--bg)] px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--accent)]"
-              placeholder="••••••••"
-            />
-          </div>
-
-          {error && (
-            <p className="text-sm text-[var(--error)]" role="alert">
-              {error}
-            </p>
-          )}
 
           <button
             type="submit"
             disabled={loading}
-            className="w-full rounded-md bg-[var(--btn-primary-bg)] px-4 py-2.5 text-sm font-medium text-white hover:bg-[var(--btn-primary-hover)] disabled:opacity-50 transition-colors"
+            className="w-full rounded-md bg-[var(--accent)] px-4 py-2 text-sm font-medium text-white hover:bg-[var(--accent-hover)] focus:outline-none focus:ring-2 focus:ring-[var(--accent)] focus:ring-offset-2 focus:ring-offset-[var(--bg)] disabled:opacity-50 transition-colors"
           >
-            {loading ? "Updating…" : "Update password"}
+            {loading ? "Updating..." : "Update Password"}
           </button>
         </form>
       </div>
-    </div>
+    </main>
   );
 }

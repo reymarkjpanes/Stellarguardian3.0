@@ -7,8 +7,9 @@
  *  Team Member (any)     → Invite unteamed participants (live search) | View sent invites | Leave
  *  Captain               → All of the above + Accept/Reject incoming join requests
  */
-import { useState, useEffect, useRef, type FormEvent } from "react";
+import React, { useState, useEffect, useRef, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
+import { EmptyState } from "@/components/ui/empty-state";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -486,6 +487,19 @@ export function TeamsClient({ eventId, eventState, teams: init, userId, userRole
 
       {err && <Err msg={err} clear={() => setErr(null)} />}
 
+      {/* ── ONBOARDING BANNER (unteamed participant) ─── */}
+      {isP && !myTeam && canAct && inbox.length === 0 && (
+        <div className="rounded-md bg-blue-50 border border-blue-200 p-5 dark:bg-blue-900/20 dark:border-blue-800">
+          <h3 className="text-sm font-medium text-blue-800 dark:text-blue-300">
+            You need a team to participate
+          </h3>
+          <p className="text-xs text-blue-700 dark:text-blue-400 mt-1 max-w-lg">
+            Create a new team below to compete solo or invite friends, or scroll down to request to
+            join an existing team.
+          </p>
+        </div>
+      )}
+
       {/* ── A. INBOUND INVITATIONS (unteamed participant) ─── */}
       {isP && !myTeam && inbox.length > 0 && (
         <section className="card p-4 space-y-3">
@@ -733,13 +747,12 @@ export function TeamsClient({ eventId, eventState, teams: init, userId, userRole
 
       {/* ── D. TEAM BROWSER ─── */}
       {init.length === 0 ? (
-        <div className="card p-10 text-center">
-          <p className="text-sm text-[var(--text-muted)]">
-            {open
-              ? "No teams yet — be the first to create one."
-              : "Teams will appear once team formation begins."}
-          </p>
-        </div>
+        <EmptyState
+          title="No teams yet."
+          description={
+            open ? "Be the first to create one." : "Teams will appear once team formation begins."
+          }
+        />
       ) : (
         <div className="grid gap-3 sm:grid-cols-2">
           {init.map((team) => {
@@ -778,7 +791,9 @@ export function TeamsClient({ eventId, eventState, teams: init, userId, userRole
                     <button
                       onClick={async () => {
                         if (!window.confirm(`Force disband team "${team.name}"?`)) return;
-                        const r = await fetch(`/api/events/${eventId}/teams/${team.id}`, { method: "DELETE" });
+                        const r = await fetch(`/api/events/${eventId}/teams/${team.id}`, {
+                          method: "DELETE",
+                        });
                         if (r.ok) router.refresh();
                         else alert("Failed to disband team.");
                       }}

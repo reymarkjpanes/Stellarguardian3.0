@@ -7,7 +7,11 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { AlertCircle, CheckCircle2, Send } from "lucide-react";
-import { saveEvaluationDraftAction, submitEvaluationAction } from "@/app/actions/judging.actions";
+import {
+  saveEvaluationDraftAction,
+  submitEvaluationAction,
+  declareConflictAction,
+} from "@/app/actions/judging.actions";
 import { EvaluationScores, CriterionScore } from "@/src/domains/judging/domain/EvaluationAggregate";
 import { ScoreCalculator } from "@/src/domains/judging/domain/ScoreCalculator";
 import { useRouter } from "next/navigation";
@@ -26,6 +30,7 @@ export interface ScoringPanelProps {
     weight: number;
     required: boolean;
   }[];
+  isConflict?: boolean;
   isReadOnly?: boolean;
 }
 
@@ -36,6 +41,7 @@ export function ScoringPanel({
   initialScores,
   expectedVersion: initialVersion,
   rubric,
+  isConflict = false,
   isReadOnly = false,
 }: ScoringPanelProps) {
   const router = useRouter();
@@ -180,6 +186,32 @@ export function ScoringPanel({
     setConflictError(null);
   };
 
+  const handleDeclareConflict = async () => {
+    if (
+      !window.confirm(
+        "Are you sure you want to declare a conflict of interest? You will be excused from scoring this submission.",
+      )
+    )
+      return;
+
+    setSaveState("saving");
+    const res = await declareConflictAction(
+      evaluationId,
+      draftNotes,
+      version,
+      eventId,
+      submissionId,
+    );
+
+    if (res.success) {
+      setSaveState("saved");
+      router.refresh(); // Will reload the page and pass down isConflict=true, isReadOnly=true
+    } else {
+      setSaveState("error");
+      alert(`Failed to declare conflict: ${res.error}`);
+    }
+  };
+
   return (
     <div className="flex flex-col h-full border-l bg-background">
       <div className="p-4 border-b shadow-sm flex items-center justify-between sticky top-0 bg-background z-10">
@@ -206,6 +238,17 @@ export function ScoringPanel({
       </div>
 
       <div className="flex-1 overflow-y-auto p-4 space-y-6">
+        {isConflict && (
+          <Alert variant="destructive" className="bg-red-500/10 text-red-600 border-red-500/20">
+            <AlertCircle className="h-4 w-4" color="currentColor" />
+            <AlertTitle>Conflict of Interest Declared</AlertTitle>
+            <AlertDescription>
+              You have declared a conflict of interest for this submission. You are excused from
+              scoring it.
+            </AlertDescription>
+          </Alert>
+        )}
+
         {conflictError && (
           <Alert variant="destructive">
             <AlertCircle className="h-4 w-4" />
@@ -301,11 +344,26 @@ export function ScoringPanel({
         )}
 
         <div className="flex gap-2">
+          {!isReadOnly && !isConflict && (
+            <Button
+              variant="outline"
+              className="text-red-500 hover:text-red-600 hover:bg-red-50 shrink-0"
+              onClick={handleDeclareConflict}
+              disabled={saveState === "saving"}
+              title="Flag Conflict of Interest"
+            >
+              <AlertCircle className="w-4 h-4 mr-2" />
+              Conflict
+            </Button>
+          )}
+
           {!isReadOnly && (
             <Button
               className="flex-1"
               onClick={handleSubmit}
-              disabled={!validationResult.isValid || saveState === "saving" || !!conflictError}
+              disabled={
+                !validationResult.isValid || saveState === "saving" || !!conflictError || isConflict
+              }
             >
               <Send className="w-4 h-4 mr-2" />
               Submit Evaluation
@@ -313,7 +371,7 @@ export function ScoringPanel({
           )}
           {isReadOnly && (
             <Button className="flex-1" disabled variant="secondary">
-              Evaluation Submitted
+              {isConflict ? "Evaluation Locked" : "Evaluation Submitted"}
             </Button>
           )}
         </div>

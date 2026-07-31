@@ -28,7 +28,7 @@ const ALL_STATES: EventState[] = [
   "RegistrationClosed",
   "SubmissionOpen",
   "SubmissionClosed",
-  "Judging",
+  "JudgingRound1",
   "Completed",
   "Cancelled",
   "Archived",
@@ -94,8 +94,8 @@ describe("Event state machine property tests", () => {
       ["Completed", "Draft"],
       ["Archived", "Draft"],
       ["Archived", "Published"],
-      ["Judging", "Draft"],
-      ["Judging", "RegistrationOpen"],
+      ["JudgingRound1", "Draft"],
+      ["JudgingRound1", "RegistrationOpen"],
     ];
 
     fc.assert(

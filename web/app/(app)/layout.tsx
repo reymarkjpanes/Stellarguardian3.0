@@ -3,6 +3,9 @@ import { getCurrentUser } from "@/lib/data/user";
 import { CommandPaletteLoader } from "@/components/ui/command-palette-loader";
 import { QueryProvider } from "@/components/providers/query-provider";
 import { WalletProvider } from "@/components/providers/wallet-provider";
+import { createServerClient } from "@/lib/supabase/server";
+import { cookies } from "next/headers";
+import { WorkspaceItem } from "@/components/layout/workspace-switcher";
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const user = await getCurrentUser();
@@ -10,12 +13,52 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   const displayName = user?.user_metadata?.display_name ?? user?.email ?? "";
   const email = user?.email ?? "";
 
+  let workspaces: WorkspaceItem[] = [];
+  if (user) {
+    const supabase = await createServerClient();
+    const { data } = await supabase
+      .from("workspace_members")
+      .select(
+        `
+        role,
+        workspaces!inner (
+          id,
+          name,
+          slug,
+          logo_url
+        )
+      `,
+      )
+      .eq("user_id", user.id);
+
+    if (data) {
+      // @ts-expect-error - complex join typing
+      workspaces = data.map(
+        (item: {
+          workspaces: { id: string; name: string; slug: string; logo_url: string | null };
+          role: string;
+        }) => ({
+          id: item.workspaces.id,
+          name: item.workspaces.name,
+          slug: item.workspaces.slug,
+          logo_url: item.workspaces.logo_url,
+          role: item.role,
+        }),
+      );
+    }
+  }
+
+  const cookieStore = await cookies();
+  const currentWorkspaceId = cookieStore.get("active_workspace_id")?.value;
+
   return (
     <div className="min-h-screen flex flex-col">
       <QueryProvider>
         <WalletProvider>
           <AppNav
             user={user ? { id: user.id, name: displayName, email } : null}
+            workspaces={workspaces}
+            currentWorkspaceId={currentWorkspaceId}
           />
           <main
             id="main-content"

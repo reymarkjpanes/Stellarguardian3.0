@@ -9,17 +9,25 @@
  */
 import { z } from "zod";
 
-/** Canonical event lifecycle states (Req 23.1) — 16 states. */
+/** Canonical event lifecycle states (Req 23.1) — 18 states. */
 export const EventStateSchema = z.enum([
   "Draft",
+  "Review",
   "Published",
   "RegistrationOpen",
   "RegistrationClosed",
+  "TeamFormationLocked",
   "SubmissionOpen",
   "SubmissionClosed",
-  "Judging",
+  "JudgingRound1",
+  "JudgingRound2",
+  "WinnerVerification",
+  "DisputeWindow",
+  "PrizeApproved",
+  "EscrowRelease",
   "Completed",
   "Cancelled",
+  "Suspended",
   "Archived",
 ]);
 export type EventState = z.infer<typeof EventStateSchema>;

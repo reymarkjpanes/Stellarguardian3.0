@@ -36,9 +36,17 @@ export default function LoginPage() {
         return;
       }
 
-      // Redirect to dashboard on success — full page navigation to let
-      // middleware pick up the session cookie.
-      window.location.href = "/dashboard";
+      // Check if user has a workspace
+      const { data: workspaces } = await supabase
+        .from("workspace_members")
+        .select("workspace_id")
+        .limit(1);
+
+      if (workspaces && workspaces.length > 0) {
+        window.location.href = "/dashboard";
+      } else {
+        window.location.href = "/onboarding";
+      }
     } catch {
       setError("An unexpected error occurred. Please try again.");
     } finally {

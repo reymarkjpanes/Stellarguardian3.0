@@ -23,6 +23,8 @@ interface DataTableProps<T> {
   error?: string | null;
   emptyMessage?: string;
   keyExtractor: (item: T) => string;
+  selectedKeys?: Set<string>;
+  onSelectionChange?: (keys: Set<string>) => void;
 }
 
 export function DataTable<T>({
@@ -32,7 +34,28 @@ export function DataTable<T>({
   error = null,
   emptyMessage = "No data to display.",
   keyExtractor,
+  selectedKeys = new Set(),
+  onSelectionChange,
 }: DataTableProps<T>) {
+  const isSelectable = !!onSelectionChange;
+
+  function handleSelectAll(e: React.ChangeEvent<HTMLInputElement>) {
+    if (!onSelectionChange) return;
+    if (e.target.checked) {
+      onSelectionChange(new Set(data.map(keyExtractor)));
+    } else {
+      onSelectionChange(new Set());
+    }
+  }
+
+  function handleSelectRow(key: string, checked: boolean) {
+    if (!onSelectionChange) return;
+    const next = new Set(selectedKeys);
+    if (checked) next.add(key);
+    else next.delete(key);
+    onSelectionChange(next);
+  }
+
   if (loading) {
     return (
       <div aria-live="polite" aria-busy="true" className="py-12 text-center">
@@ -69,6 +92,17 @@ export function DataTable<T>({
         <table className="w-full text-sm" role="grid">
           <thead>
             <tr className="border-b border-neutral-200">
+              {isSelectable && (
+                <th scope="col" className="px-4 py-3 text-left w-12">
+                  <input
+                    type="checkbox"
+                    className="rounded border-neutral-300 text-[var(--accent)] focus:ring-[var(--accent)] cursor-pointer"
+                    checked={data.length > 0 && selectedKeys.size === data.length}
+                    onChange={handleSelectAll}
+                    aria-label="Select all rows"
+                  />
+                </th>
+              )}
               {columns.map((col) => (
                 <th
                   key={col.key}
@@ -81,38 +115,72 @@ export function DataTable<T>({
             </tr>
           </thead>
           <tbody>
-            {data.map((item) => (
-              <tr
-                key={keyExtractor(item)}
-                className="border-b border-neutral-100 hover:bg-neutral-50"
-              >
-                {columns.map((col) => (
-                  <td key={col.key} className="px-4 py-3">
-                    {col.render(item)}
-                  </td>
-                ))}
-              </tr>
-            ))}
+            {data.map((item) => {
+              const key = keyExtractor(item);
+              const isSelected = selectedKeys.has(key);
+              return (
+                <tr
+                  key={key}
+                  className={`border-b border-neutral-100 hover:bg-neutral-50 ${isSelected ? "bg-neutral-50" : ""}`}
+                >
+                  {isSelectable && (
+                    <td className="px-4 py-3 w-12">
+                      <input
+                        type="checkbox"
+                        className="rounded border-neutral-300 text-[var(--accent)] focus:ring-[var(--accent)] cursor-pointer"
+                        checked={isSelected}
+                        onChange={(e) => handleSelectRow(key, e.target.checked)}
+                        aria-label={`Select row`}
+                      />
+                    </td>
+                  )}
+                  {columns.map((col) => (
+                    <td key={col.key} className="px-4 py-3">
+                      {col.render(item)}
+                    </td>
+                  ))}
+                </tr>
+              );
+            })}
           </tbody>
         </table>
       </div>
 
       {/* Mobile card view */}
       <div className="sm:hidden space-y-3" role="list">
-        {data.map((item) => (
-          <div
-            key={keyExtractor(item)}
-            role="listitem"
-            className="rounded-lg border border-neutral-200 p-4 space-y-2"
-          >
-            {columns.map((col) => (
-              <div key={col.key} className="flex items-baseline justify-between gap-2">
-                <span className="text-xs font-medium text-neutral-500">{col.header}</span>
-                <span className="text-sm text-right">{col.render(item)}</span>
-              </div>
-            ))}
-          </div>
-        ))}
+        {data.map((item) => {
+          const key = keyExtractor(item);
+          const isSelected = selectedKeys.has(key);
+          return (
+            <div
+              key={key}
+              className={`card p-4 space-y-3 ${isSelected ? "ring-2 ring-[var(--accent)]" : ""}`}
+            >
+              {isSelectable && (
+                <div className="flex items-center gap-2 mb-2 pb-2 border-b border-[var(--border)]">
+                  <input
+                    type="checkbox"
+                    className="rounded border-neutral-300 text-[var(--accent)] focus:ring-[var(--accent)] cursor-pointer"
+                    checked={isSelected}
+                    onChange={(e) => handleSelectRow(key, e.target.checked)}
+                    id={`select-${key}`}
+                  />
+                  <label htmlFor={`select-${key}`} className="text-sm font-medium cursor-pointer">
+                    Select Item
+                  </label>
+                </div>
+              )}
+              {columns
+                .filter((col) => !col.hideOnMobile)
+                .map((col) => (
+                  <div key={col.key} className="flex flex-col">
+                    <span className="text-xs font-medium text-neutral-500 mb-1">{col.header}</span>
+                    <div className="text-sm text-neutral-900">{col.render(item)}</div>
+                  </div>
+                ))}
+            </div>
+          );
+        })}
       </div>
     </>
   );

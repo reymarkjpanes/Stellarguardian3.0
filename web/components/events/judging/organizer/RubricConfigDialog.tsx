@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { Settings, Plus, Trash2, Edit2, Save, X } from "lucide-react";
 import {
@@ -26,19 +26,19 @@ export function RubricConfigDialog({ eventId, isCompleted }: RubricConfigDialogP
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editForm, setEditForm] = useState<Partial<EvaluationCriterion>>({});
 
-  useEffect(() => {
-    async function loadRubrics() {
-      setLoading(true);
-      const data = await fetchRubricsAction(eventId);
-      setRubrics(data);
-      setLoading(false);
-    }
+  const loadRubrics = useCallback(async () => {
+    setLoading(true);
+    const data = await fetchRubricsAction(eventId);
+    setRubrics(data);
+    setLoading(false);
+  }, [eventId]);
 
+  useEffect(() => {
     if (isOpen) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       loadRubrics();
     }
-     
-  }, [isOpen, eventId]);
+  }, [isOpen, eventId, loadRubrics]);
 
   const handleEdit = (r: EvaluationCriterion) => {
     setEditingId(r.id);
