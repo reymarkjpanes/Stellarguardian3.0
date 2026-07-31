@@ -381,8 +381,8 @@ export default async function DashboardPage() {
                     state: e.event_state,
                     prizePoolTarget:
                       Number(eventsMap.get(e.event_id)?.prize_pool_target ?? 0) || null,
-                    escrowState: escrowInfo.state ?? null,
-                    expectedBalance: escrowInfo.expected_balance ?? null,
+                    escrowState: (escrowInfo.state as string) ?? null,
+                    expectedBalance: (escrowInfo.expected_balance as string) ?? null,
                   };
                 })}
             />

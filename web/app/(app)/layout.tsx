@@ -32,19 +32,17 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       .eq("user_id", user.id);
 
     if (data) {
-      // @ts-expect-error - complex join typing
-      workspaces = data.map(
-        (item: {
-          workspaces: { id: string; name: string; slug: string; logo_url: string | null };
-          role: string;
-        }) => ({
-          id: item.workspaces.id,
-          name: item.workspaces.name,
-          slug: item.workspaces.slug,
-          logo_url: item.workspaces.logo_url,
+      workspaces = data.map((item) => {
+        // Fallback to array indexing in case supabase returns it as an array despite typing it as a single object (or vice versa)
+        const ws = Array.isArray(item.workspaces) ? item.workspaces[0] : item.workspaces;
+        return {
+          id: ws?.id,
+          name: ws?.name,
+          slug: ws?.slug,
+          logo_url: ws?.logo_url,
           role: item.role,
-        }),
-      );
+        };
+      });
     }
   }
 
