@@ -26,12 +26,16 @@ export function AppNav({ user, workspaces = [], currentWorkspaceId }: AppNavProp
   const [profileOpen, setProfileOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
-  // Redirect to onboarding if profile is incomplete
+  // Redirect to onboarding if profile is incomplete or user has no workspaces
   useEffect(() => {
-    if (user && user.name === user.email && window.location.pathname !== "/onboarding") {
+    if (
+      user &&
+      window.location.pathname !== "/onboarding" &&
+      (!user.name || user.name === user.email || workspaces.length === 0)
+    ) {
       window.location.href = "/onboarding";
     }
-  }, [user]);
+  }, [user, workspaces]);
 
   // Close profile dropdown on Escape
   useEffect(() => {
@@ -122,7 +126,7 @@ export function AppNav({ user, workspaces = [], currentWorkspaceId }: AppNavProp
                     aria-expanded={profileOpen}
                     aria-haspopup="true"
                   >
-                    {user.name.charAt(0).toUpperCase()}
+                    {(user?.name || user?.email || "U").charAt(0).toUpperCase()}
                   </button>
 
                   {profileOpen && (

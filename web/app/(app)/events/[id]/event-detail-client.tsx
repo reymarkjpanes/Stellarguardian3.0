@@ -14,6 +14,13 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { EventActionCenter } from "@/components/events/overview/event-action-center";
+import { ConfirmTransitionModal } from "@/components/events/confirm-transition-modal";
+import {
+  validEventOutboundStates,
+  canEventTransition,
+  type EventTransitionContext,
+} from "@/lib/state-machine/event";
+import type { EventState, PlatformRole } from "@/types";
 
 interface EventDetailClientProps {
   event: Record<string, unknown>;
@@ -34,6 +41,128 @@ interface EventDetailClientProps {
   reviewWindowHours: number;
 }
 
+interface TransitionConfig {
+  label: string;
+  hint?: string;
+  isHighRisk?: boolean;
+  riskWarning?: string;
+  variant?: "primary" | "secondary" | "danger";
+}
+
+function getTransitionConfig(from: EventState, to: EventState): TransitionConfig {
+  if (to === "Cancelled") {
+    return {
+      label: "Cancel Event",
+      isHighRisk: true,
+      riskWarning: "Cancel this event? This action cannot be undone.",
+      variant: "danger",
+    };
+  }
+
+  switch (from) {
+    case "Draft":
+      if (to === "Review") return { label: "Submit for Review" };
+      if (to === "Published")
+        return { label: "Publish Event", hint: "Requires a prize pool and registration deadline" };
+      break;
+    case "Review":
+      if (to === "Published") return { label: "Publish Event", hint: "Approve and make public" };
+      if (to === "Draft") return { label: "Revert to Draft" };
+      break;
+    case "Published":
+      if (to === "RegistrationOpen") return { label: "Open Registration" };
+      break;
+    case "RegistrationOpen":
+      if (to === "RegistrationClosed") return { label: "Close Registration" };
+      break;
+    case "RegistrationClosed":
+      if (to === "TeamFormationLocked")
+        return {
+          label: "Lock Team Formation",
+          hint: "Prevent participants from leaving/joining teams",
+          isHighRisk: true,
+          riskWarning:
+            "Lock team formation? Participants will no longer be able to join or leave teams.",
+        };
+      if (to === "SubmissionOpen")
+        return { label: "Open Submissions", hint: "Allow teams to submit their projects" };
+      break;
+    case "TeamFormationLocked":
+      if (to === "SubmissionOpen")
+        return { label: "Open Submissions", hint: "Allow teams to submit their projects" };
+      break;
+    case "SubmissionOpen":
+      if (to === "SubmissionClosed")
+        return {
+          label: "Close Submissions",
+          hint: "Lock submission edits for judging",
+          isHighRisk: true,
+          riskWarning:
+            "Close submissions? Participants will no longer be able to edit or submit projects.",
+        };
+      break;
+    case "SubmissionClosed":
+      if (to === "JudgingRound1")
+        return {
+          label: "Begin Judging (Round 1)",
+          hint: "Requires at least one submission",
+          isHighRisk: true,
+          riskWarning: "Begin judging? Submissions will be locked and judges can start scoring.",
+        };
+      break;
+    case "JudgingRound1":
+      if (to === "JudgingRound2")
+        return { label: "Promote to Round 2", hint: "Move top teams to a second judging round" };
+      if (to === "WinnerVerification")
+        return {
+          label: "Skip Round 2 (Verify Winners)",
+          hint: "Directly verify winners without a second round",
+        };
+      break;
+    case "JudgingRound2":
+      if (to === "WinnerVerification")
+        return { label: "Verify Winners", hint: "All Round 2 submissions must be scored" };
+      break;
+    case "WinnerVerification":
+      if (to === "DisputeWindow")
+        return { label: "Open Dispute Window", hint: "Allow participants to flag issues" };
+      break;
+    case "DisputeWindow":
+      if (to === "PrizeApproved")
+        return { label: "Approve Prizes", hint: "Requires zero unresolved disputes" };
+      break;
+    case "PrizeApproved":
+      if (to === "EscrowRelease")
+        return {
+          label: "Release Escrow",
+          hint: "Trigger on-chain payout to winners",
+          isHighRisk: true,
+          riskWarning: "Release escrow? Payouts will be submitted on-chain for processing.",
+        };
+      break;
+    case "EscrowRelease":
+      if (to === "Completed")
+        return {
+          label: "Mark Completed",
+          hint: "Event is fully concluded",
+          isHighRisk: true,
+          riskWarning:
+            "Mark event as completed? This will reveal judge feedback to participants and conclude the event.",
+        };
+      break;
+    case "Completed":
+      if (to === "Archived") return { label: "Archive Event" };
+      break;
+    case "Cancelled":
+      if (to === "Archived") return { label: "Archive Event" };
+      break;
+  }
+
+  return {
+    label: `Transition to ${to}`,
+  };
+}
+
 export function EventDetailClient({
   event,
   members,
@@ -49,9 +178,25 @@ export function EventDetailClient({
   const [actionLoading, setActionLoading] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
 
+  const [pendingModalState, setPendingModalState] = useState<{
+    isOpen: boolean;
+    targetState: EventState | null;
+    title: string;
+    targetStateName: string;
+    riskWarning?: string;
+    actionLabel: string;
+  }>({
+    isOpen: false,
+    targetState: null,
+    title: "",
+    targetStateName: "",
+    riskWarning: undefined,
+    actionLabel: "Confirm",
+  });
+
   const loading = actionLoading || isPending;
 
-  async function handleStateChange(newState: string) {
+  async function handleStateChange(newState: EventState) {
     setActionLoading(true);
     setActionError(null);
     try {
@@ -167,6 +312,54 @@ export function EventDetailClient({
 
   const judgeCount = members.filter((m) => m.role === "Judge").length;
 
+  const currentState = (event.state as EventState) || "Draft";
+
+  const transitionCtx: EventTransitionContext = {
+    actorRole: (isOrganizer ? "Organizer" : myMembership?.role) as PlatformRole,
+    judgeCount: judgeCount,
+    hasRegistrationDeadline: !!event.registration_deadline,
+    allParticipantsAssigned: true,
+    teamSizeMet: true,
+    hasSubmissions: hasSubmission || teams.length > 0,
+    allSubmissionsScored: true,
+    reviewWindowElapsed: true,
+    unresolvedDisputes: 0,
+    winnersConfirmed: true,
+    escrowFullyFunded: true,
+    escrowLocked: true,
+    allDisbursementsComplete: true,
+    hasFunding: ((event.prize_pool_target as number) ?? 0) > 0,
+  };
+
+  // Dynamic outbound transitions derived from state-machine event.ts
+  const availableOutboundStates = isOrganizer
+    ? validEventOutboundStates(currentState, {
+        ...transitionCtx,
+        actorRole: "Organizer",
+        judgeCount: Math.max(judgeCount, 1),
+        hasRegistrationDeadline: true,
+      })
+    : [];
+
+  function onTransitionClick(targetState: EventState) {
+    // Validate transition via state-machine engine
+    canEventTransition(currentState, targetState, transitionCtx);
+    const config = getTransitionConfig(currentState, targetState);
+
+    if (config.isHighRisk) {
+      setPendingModalState({
+        isOpen: true,
+        targetState,
+        title: `Confirm ${config.label}`,
+        targetStateName: config.label,
+        riskWarning: config.riskWarning,
+        actionLabel: config.label,
+      });
+    } else {
+      handleStateChange(targetState);
+    }
+  }
+
   return (
     <div className="space-y-6">
       {/* Error display */}
@@ -225,214 +418,62 @@ export function EventDetailClient({
       />
 
       {/* Organizer lifecycle controls */}
-      {isOrganizer && (
+      {isOrganizer && availableOutboundStates.length > 0 && (
         <div className="space-y-4 pt-2 border-t border-[var(--border)]">
           <h2 className="text-sm font-semibold text-[var(--text)]">Lifecycle Controls</h2>
 
           <div className="flex flex-wrap gap-2">
-            {event.state === "Draft" && (
-              <>
+            {availableOutboundStates.map((targetState) => {
+              const config = getTransitionConfig(currentState, targetState);
+              return (
                 <ActionButton
-                  label="Submit for Review"
-                  onClick={() => handleStateChange("Review")}
+                  key={targetState}
+                  label={config.label}
+                  hint={config.hint}
+                  onClick={() => onTransitionClick(targetState)}
                   disabled={loading}
+                  variant={config.variant === "danger" ? "danger" : "primary"}
                 />
-                <ActionButton
-                  label="Publish Event"
-                  hint="Requires a prize pool and registration deadline"
-                  onClick={() => handleStateChange("Published")}
-                  disabled={loading}
-                />
-                <a
-                  href={`/events/${event.id as string}/edit`}
-                  className="inline-flex flex-col gap-0.5"
-                >
-                  <span className="rounded-md border border-[var(--border)] px-4 py-2 text-sm font-medium text-[var(--text)] hover:bg-[var(--bg-muted)] transition-colors">
-                    Edit Event
-                  </span>
-                  <span className="text-[10px] text-[var(--text-muted)] px-1">
-                    Update title, prize pool, deadline
-                  </span>
-                </a>
-              </>
+              );
+            })}
+
+            {(currentState === "Draft" || currentState === "Published") && (
+              <a
+                href={`/events/${event.id as string}/edit`}
+                className="inline-flex flex-col gap-0.5"
+              >
+                <span className="rounded-md border border-[var(--border)] px-4 py-2 text-sm font-medium text-[var(--text)] hover:bg-[var(--bg-muted)] transition-colors">
+                  Edit Event
+                </span>
+                <span className="text-[10px] text-[var(--text-muted)] px-1">
+                  {currentState === "Draft"
+                    ? "Update title, prize pool, deadline"
+                    : "Still editable before registration opens"}
+                </span>
+              </a>
             )}
-            {event.state === "Review" && (
-              <>
-                <ActionButton
-                  label="Publish Event"
-                  hint="Approve and make public"
-                  onClick={() => handleStateChange("Published")}
-                  disabled={loading}
-                />
-                <ActionButton
-                  label="Revert to Draft"
-                  onClick={() => handleStateChange("Draft")}
-                  disabled={loading}
-                />
-              </>
-            )}
-            {event.state === "Published" && (
-              <>
-                <ActionButton
-                  label="Open Registration"
-                  onClick={() => handleStateChange("RegistrationOpen")}
-                  disabled={loading}
-                />
-                <a
-                  href={`/events/${event.id as string}/edit`}
-                  className="inline-flex flex-col gap-0.5"
-                >
-                  <span className="rounded-md border border-[var(--border)] px-4 py-2 text-sm font-medium text-[var(--text)] hover:bg-[var(--bg-muted)] transition-colors">
-                    Edit Event
-                  </span>
-                  <span className="text-[10px] text-[var(--text-muted)] px-1">
-                    Still editable before registration opens
-                  </span>
-                </a>
-              </>
-            )}
-            {event.state === "RegistrationOpen" && (
-              <ActionButton
-                label="Close Registration"
-                onClick={() => handleStateChange("RegistrationClosed")}
-                disabled={loading}
-              />
-            )}
-            {event.state === "RegistrationClosed" && (
-              <ActionButton
-                label="Lock Team Formation"
-                hint="Prevent participants from leaving/joining teams"
-                onClick={() => {
-                  if (
-                    confirm(
-                      "Lock team formation? Participants will no longer be able to join or leave teams.",
-                    )
-                  ) {
-                    handleStateChange("TeamFormationLocked");
-                  }
-                }}
-                disabled={loading}
-              />
-            )}
-            {event.state === "TeamFormationLocked" && (
-              <ActionButton
-                label="Open Submissions"
-                hint="Allow teams to submit their projects"
-                onClick={() => handleStateChange("SubmissionOpen")}
-                disabled={loading}
-              />
-            )}
-            {event.state === "SubmissionOpen" && (
-              <ActionButton
-                label="Close Submissions"
-                onClick={() => handleStateChange("SubmissionClosed")}
-                disabled={loading}
-              />
-            )}
-            {event.state === "SubmissionClosed" && (
-              <ActionButton
-                label="Begin Judging (Round 1)"
-                hint="Requires at least one submission"
-                onClick={() => {
-                  if (
-                    confirm(
-                      "Begin judging? Submissions will be locked and judges can start scoring.",
-                    )
-                  ) {
-                    handleStateChange("JudgingRound1");
-                  }
-                }}
-                disabled={loading}
-              />
-            )}
-            {event.state === "JudgingRound1" && (
-              <>
-                <ActionButton
-                  label="Promote to Round 2"
-                  hint="Move top teams to a second judging round"
-                  onClick={() => handleStateChange("JudgingRound2")}
-                  disabled={loading}
-                />
-                <ActionButton
-                  label="Skip Round 2 (Verify Winners)"
-                  hint="Directly verify winners without a second round"
-                  onClick={() => handleStateChange("WinnerVerification")}
-                  disabled={loading}
-                />
-              </>
-            )}
-            {event.state === "JudgingRound2" && (
-              <ActionButton
-                label="Verify Winners"
-                hint="All Round 2 submissions must be scored"
-                onClick={() => handleStateChange("WinnerVerification")}
-                disabled={loading}
-              />
-            )}
-            {event.state === "WinnerVerification" && (
-              <ActionButton
-                label="Open Dispute Window"
-                hint="Allow participants to flag issues"
-                onClick={() => handleStateChange("DisputeWindow")}
-                disabled={loading}
-              />
-            )}
-            {event.state === "DisputeWindow" && (
-              <ActionButton
-                label="Approve Prizes"
-                hint="Requires zero unresolved disputes"
-                onClick={() => handleStateChange("PrizeApproved")}
-                disabled={loading}
-              />
-            )}
-            {event.state === "PrizeApproved" && (
-              <ActionButton
-                label="Release Escrow"
-                hint="Trigger on-chain payout to winners"
-                onClick={() => handleStateChange("EscrowRelease")}
-                disabled={loading}
-              />
-            )}
-            {event.state === "EscrowRelease" && (
-              <ActionButton
-                label="Mark Completed"
-                hint="Event is fully concluded"
-                onClick={() => {
-                  if (
-                    confirm(
-                      "Mark event as completed? This will reveal judge feedback to participants and conclude the event.",
-                    )
-                  ) {
-                    handleStateChange("Completed");
-                  }
-                }}
-                disabled={loading}
-              />
-            )}
-            {event.state === "Completed" && (
-              <ActionButton
-                label="Archive Event"
-                onClick={() => handleStateChange("Archived")}
-                disabled={actionLoading}
-              />
-            )}
-            {event.state !== "Completed" &&
-              event.state !== "Cancelled" &&
-              event.state !== "Archived" && (
-                <button
-                  onClick={() => {
-                    if (confirm("Cancel this event? This cannot be undone."))
-                      handleStateChange("Cancelled");
-                  }}
-                  className="rounded-md border border-[var(--error)] px-3 py-1.5 text-xs font-medium text-[var(--error)] hover:bg-[var(--error-bg)] transition-colors disabled:opacity-50"
-                  disabled={loading}
-                >
-                  Cancel Event
-                </button>
-              )}
           </div>
         </div>
       )}
+
+      {/* Confirmation modal for high-risk state transitions */}
+      <ConfirmTransitionModal
+        isOpen={pendingModalState.isOpen}
+        onClose={() => setPendingModalState((prev) => ({ ...prev, isOpen: false }))}
+        onConfirm={async () => {
+          const target = pendingModalState.targetState;
+          setPendingModalState((prev) => ({ ...prev, isOpen: false }));
+          if (target) {
+            await handleStateChange(target);
+          }
+        }}
+        title={pendingModalState.title}
+        targetState={pendingModalState.targetState ?? undefined}
+        targetStateName={pendingModalState.targetStateName}
+        riskWarning={pendingModalState.riskWarning}
+        actionLabel={pendingModalState.actionLabel}
+        loading={loading}
+      />
     </div>
   );
 }
@@ -606,7 +647,7 @@ function ActionButton({
   hint?: string;
   onClick: () => void;
   disabled: boolean;
-  variant?: "primary" | "secondary";
+  variant?: "primary" | "secondary" | "danger";
 }) {
   return (
     <div className="flex flex-col gap-0.5">
@@ -615,9 +656,11 @@ function ActionButton({
         disabled={disabled}
         title={hint}
         className={`rounded-md border px-4 py-2 text-sm font-medium transition-colors disabled:opacity-50 ${
-          variant === "secondary"
-            ? "border-[var(--border)] text-[var(--text-muted)] hover:bg-[var(--bg-muted)] hover:text-[var(--text)]"
-            : "border-[var(--border)] text-[var(--text)] hover:bg-[var(--bg-muted)]"
+          variant === "danger"
+            ? "border-[var(--error)] text-[var(--error)] hover:bg-[var(--error-bg)]"
+            : variant === "secondary"
+              ? "border-[var(--border)] text-[var(--text-muted)] hover:bg-[var(--bg-muted)] hover:text-[var(--text)]"
+              : "border-[var(--border)] text-[var(--text)] hover:bg-[var(--bg-muted)]"
         }`}
       >
         {label}

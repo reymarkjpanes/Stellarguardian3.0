@@ -88,7 +88,7 @@ const WORKFLOW_GRAPH: Partial<Record<EventState, TransitionEdge[]>> = {
     { to: "Cancelled", validators: [] },
   ],
   PrizeApproved: [
-    { to: "EscrowRelease", validators: [] },
+    { to: "EscrowRelease", validators: [EventBusinessRules.escrowFullyFunded] },
     { to: "Cancelled", validators: [] },
   ],
   EscrowRelease: [
@@ -109,6 +109,10 @@ export const EventWorkflowEngine = {
       .map((edge) => edge.to);
   },
 
+  getValidTransitions(from: EventState, ctx: EventRuleContext): EventState[] {
+    return EventWorkflowEngine.getValidOutboundTransitions(from, ctx);
+  },
+
   canTransition(
     from: EventState,
     to: EventState,
@@ -127,7 +131,7 @@ export const EventWorkflowEngine = {
           if (err) errors.push(err);
         });
       } else {
-        errors.push(`No transition path from ${from} to ${to}`);
+        errors.push(`Invalid transition: No path from ${from} to ${to}`);
       }
       return { ok: false, errors, validOutbound: validStates };
     }

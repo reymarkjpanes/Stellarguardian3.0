@@ -10,26 +10,33 @@ import { WorkspaceItem } from "@/components/layout/workspace-switcher";
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const user = await getCurrentUser();
 
-  const displayName = user?.user_metadata?.display_name ?? user?.email ?? "";
+  let displayName = user?.user_metadata?.display_name ?? user?.email ?? "";
   const email = user?.email ?? "";
 
   let workspaces: WorkspaceItem[] = [];
   if (user) {
     const supabase = await createServerClient();
-    const { data } = await supabase
-      .from("workspace_members")
-      .select(
-        `
-        role,
-        workspaces!inner (
-          id,
-          name,
-          slug,
-          logo_url
+    const [{ data: profile }, { data }] = await Promise.all([
+      supabase.from("users").select("display_name").eq("id", user.id).maybeSingle(),
+      supabase
+        .from("workspace_members")
+        .select(
+          `
+          role,
+          workspaces!inner (
+            id,
+            name,
+            slug,
+            logo_url
+          )
+        `,
         )
-      `,
-      )
-      .eq("user_id", user.id);
+        .eq("user_id", user.id),
+    ]);
+
+    if (profile?.display_name) {
+      displayName = profile.display_name;
+    }
 
     if (data) {
       workspaces = data.map((item) => {

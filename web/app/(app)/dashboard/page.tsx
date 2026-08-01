@@ -47,6 +47,14 @@ export default async function DashboardPage() {
       supabase.from("workspace_members").select("workspace_id, role").eq("user_id", user.id),
     ]);
 
+  if (
+    !profile?.display_name ||
+    profile.display_name === user.email ||
+    (rawWorkspaceMemberships ?? []).length === 0
+  ) {
+    redirect("/onboarding");
+  }
+
   const displayName = profile?.display_name ?? user.email ?? "User";
 
   // Fetch event details for memberships
