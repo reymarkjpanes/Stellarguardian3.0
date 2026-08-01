@@ -4,10 +4,13 @@
  */
 import { NextResponse, type NextRequest } from "next/server";
 import { createServerClient } from "@/lib/supabase/server";
+import { withErrorHandling } from "@/lib/errors/with-error-handling";
 
-export async function GET(request: NextRequest) {
+export const GET = withErrorHandling(async function GET(request: NextRequest) {
   const supabase = await createServerClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
 
   if (!user) {
     return NextResponse.json(
@@ -45,18 +48,31 @@ export async function GET(request: NextRequest) {
   if (format === "csv") {
     const rows = records ?? [];
     if (rows.length === 0) {
-      return new Response("No records found", { status: 200, headers: { "Content-Type": "text/plain" } });
+      return new Response("No records found", {
+        status: 200,
+        headers: { "Content-Type": "text/plain" },
+      });
     }
 
-    const headers = ["id", "actor_id", "action", "resource_type", "resource_id", "created_at", "metadata"];
+    const headers = [
+      "id",
+      "actor_id",
+      "action",
+      "resource_type",
+      "resource_id",
+      "created_at",
+      "metadata",
+    ];
     const csvLines = [
       headers.join(","),
       ...rows.map((r) =>
-        headers.map((h) => {
-          const val = r[h as keyof typeof r];
-          if (h === "metadata") return JSON.stringify(val ?? {}).replace(/"/g, '""');
-          return String(val ?? "");
-        }).join(","),
+        headers
+          .map((h) => {
+            const val = r[h as keyof typeof r];
+            if (h === "metadata") return JSON.stringify(val ?? {}).replace(/"/g, '""');
+            return String(val ?? "");
+          })
+          .join(","),
       ),
     ];
 
@@ -73,4 +89,4 @@ export async function GET(request: NextRequest) {
     data: records ?? [],
     meta: { total: count ?? 0, limit, offset },
   });
-}
+});

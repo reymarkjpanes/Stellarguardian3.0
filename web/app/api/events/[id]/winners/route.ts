@@ -9,6 +9,7 @@ import { NextRequest } from "next/server";
 import { createServerClient } from "@/lib/supabase/server";
 import { handleApiError } from "@/lib/errors";
 import { okResponse, paginatedResponse } from "@/lib/errors/responses";
+import { withErrorHandling } from "@/lib/errors/with-error-handling";
 
 const AssignWinnerSchema = z.object({
   recipient_id: z.string().uuid("Invalid recipient ID"),
@@ -19,8 +20,7 @@ const AssignWinnerSchema = z.object({
 const AssignWinnersSchema = z.object({
   winners: z.array(AssignWinnerSchema).min(1, "At least one winner required"),
 });
-
-export async function GET(
+export const GET = withErrorHandling(async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> },
 ) {
@@ -57,20 +57,17 @@ export async function GET(
   } catch (error) {
     return handleApiError(error);
   }
-}
-
-/**
- * POST /api/events/[id]/winners — Assign winners.
- * Only organizers can assign winners when the event is in a judging or verification state.
- */
-export async function POST(
+});
+export const POST = withErrorHandling(async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> },
 ) {
   try {
     const { id: eventId } = await params;
     const supabase = await createServerClient();
-    const { data: { user } } = await supabase.auth.getUser();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
 
     if (!user) {
       return Response.json(
@@ -105,7 +102,12 @@ export async function POST(
     const allowedStates = ["Judging"];
     if (!event || !allowedStates.includes(event.state)) {
       return Response.json(
-        { error: { code: "CONFLICT", message: `Cannot assign winners in state: ${event?.state ?? "unknown"}.` } },
+        {
+          error: {
+            code: "CONFLICT",
+            message: `Cannot assign winners in state: ${event?.state ?? "unknown"}.`,
+          },
+        },
         { status: 409 },
       );
     }
@@ -151,4 +153,4 @@ export async function POST(
   } catch (error) {
     return handleApiError(error);
   }
-}
+});

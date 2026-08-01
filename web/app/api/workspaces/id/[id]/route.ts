@@ -8,6 +8,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createServerClient } from "@/lib/supabase/server";
 import { z } from "zod";
+import { withErrorHandling } from "@/lib/errors/with-error-handling";
 
 const UpdateByIdSchema = z.object({
   name: z.string().min(1).max(200).optional(),
@@ -19,21 +20,18 @@ const UpdateByIdSchema = z.object({
     .regex(/^[a-z0-9]+(-[a-z0-9]+)*$/, "Slug must be lowercase letters, numbers, and hyphens only")
     .optional(),
 });
-
-export async function GET(
+export const GET = withErrorHandling(async function GET(
   _request: NextRequest,
   { params }: { params: Promise<{ id: string }> },
 ) {
   const { id } = await params;
   const supabase = await createServerClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: "Unauthenticated" }, { status: 401 });
 
-  const { data: workspace } = await supabase
-    .from("workspaces")
-    .select("*")
-    .eq("id", id)
-    .single();
+  const { data: workspace } = await supabase.from("workspaces").select("*").eq("id", id).single();
 
   if (!workspace) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
@@ -47,15 +45,16 @@ export async function GET(
   if (!membership) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
   return NextResponse.json({ data: { ...workspace, currentUserRole: membership.role } });
-}
-
-export async function PATCH(
+});
+export const PATCH = withErrorHandling(async function PATCH(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> },
 ) {
   const { id } = await params;
   const supabase = await createServerClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: "Unauthenticated" }, { status: 401 });
 
   const { data: workspace } = await supabase
@@ -108,4 +107,4 @@ export async function PATCH(
   }
 
   return NextResponse.json({ data: updated });
-}
+});

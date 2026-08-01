@@ -12,8 +12,9 @@
  */
 import { NextResponse, type NextRequest } from "next/server";
 import { createServerClient } from "@/lib/supabase/server";
+import { withErrorHandling } from "@/lib/errors/with-error-handling";
 
-export async function GET(
+export const GET = withErrorHandling(async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ eventId: string }> },
 ) {
@@ -80,4 +81,4 @@ export async function GET(
       { status: 500 },
     );
   }
-}
+});

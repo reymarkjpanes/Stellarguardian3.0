@@ -2,11 +2,12 @@ import { NextRequest } from "next/server";
 import { createServerClient } from "@/lib/supabase/server";
 import { handleApiError } from "@/lib/errors";
 import { paginatedResponse } from "@/lib/errors/responses";
+import { withErrorHandling } from "@/lib/errors/with-error-handling";
 
-/**
- * GET /api/events/[id]/members — cursor-paginated list of Event Members
- */
-export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+export const GET = withErrorHandling(async function GET(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> },
+) {
   try {
     const { id: eventId } = await params;
     const supabase = await createServerClient();
@@ -81,4 +82,4 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
   } catch (error) {
     return handleApiError(error);
   }
-}
+});

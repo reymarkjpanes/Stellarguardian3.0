@@ -11,6 +11,7 @@
  */
 import { NextResponse } from "next/server";
 import { createServiceClient } from "@/lib/supabase/service";
+import { withErrorHandling } from "@/lib/errors/with-error-handling";
 
 interface DepCheck {
   name: string;
@@ -19,7 +20,7 @@ interface DepCheck {
   error?: string;
 }
 
-export async function GET() {
+export const GET = withErrorHandling(async function GET() {
   const checks: DepCheck[] = [];
   const startAll = Date.now();
 
@@ -114,4 +115,4 @@ export async function GET() {
     },
     { status: hasCriticalFailure ? 503 : 200 },
   );
-}
+});

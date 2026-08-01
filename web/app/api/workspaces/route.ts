@@ -18,8 +18,45 @@ const CreateWorkspaceSchema = z.object({
 
 import { createWorkspace } from "@/lib/services/workspace";
 import { ConflictError, BadRequestError } from "@/lib/errors";
+import { withErrorHandling } from "@/lib/errors/with-error-handling";
 
-export async function POST(request: NextRequest) {
+export const GET = withErrorHandling(async function GET() {
+  const supabase = await createServerClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) {
+    return NextResponse.json(
+      { error: { code: "UNAUTHENTICATED", message: "Authentication required." } },
+      { status: 401 },
+    );
+  }
+
+  const { data: memberships } = await supabase
+    .from("workspace_members")
+    .select("workspace_id, role")
+    .eq("user_id", user.id);
+
+  if (!memberships || memberships.length === 0) {
+    return NextResponse.json({ data: [], meta: { total: 0 } });
+  }
+
+  const ids = memberships.map((m) => m.workspace_id);
+  const { data: workspaces } = await supabase
+    .from("workspaces")
+    .select("*")
+    .in("id", ids)
+    .order("created_at", { ascending: false });
+
+  const enriched = (workspaces ?? []).map((ws) => ({
+    ...ws,
+    role: memberships.find((m) => m.workspace_id === ws.id)?.role ?? "Member",
+  }));
+
+  return NextResponse.json({ data: enriched, meta: { total: enriched.length } });
+});
+export const POST = withErrorHandling(async function POST(request: NextRequest) {
   const supabase = await createServerClient();
   const {
     data: { user },
@@ -81,41 +118,4 @@ export async function POST(request: NextRequest) {
       { status: 500 },
     );
   }
-}
-
-export async function GET() {
-  const supabase = await createServerClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  if (!user) {
-    return NextResponse.json(
-      { error: { code: "UNAUTHENTICATED", message: "Authentication required." } },
-      { status: 401 },
-    );
-  }
-
-  const { data: memberships } = await supabase
-    .from("workspace_members")
-    .select("workspace_id, role")
-    .eq("user_id", user.id);
-
-  if (!memberships || memberships.length === 0) {
-    return NextResponse.json({ data: [], meta: { total: 0 } });
-  }
-
-  const ids = memberships.map((m) => m.workspace_id);
-  const { data: workspaces } = await supabase
-    .from("workspaces")
-    .select("*")
-    .in("id", ids)
-    .order("created_at", { ascending: false });
-
-  const enriched = (workspaces ?? []).map((ws) => ({
-    ...ws,
-    role: memberships.find((m) => m.workspace_id === ws.id)?.role ?? "Member",
-  }));
-
-  return NextResponse.json({ data: enriched, meta: { total: enriched.length } });
-}
+});

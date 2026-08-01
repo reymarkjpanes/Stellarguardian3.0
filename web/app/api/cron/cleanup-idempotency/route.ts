@@ -9,10 +9,14 @@ import { NextResponse, type NextRequest } from "next/server";
 import { createServiceClient } from "@/lib/supabase/service";
 import { verifyCronAuth } from "@/lib/cron-auth";
 import { logger } from "@/lib/logger";
+import { withErrorHandling } from "@/lib/errors/with-error-handling";
 
 export const dynamic = "force-dynamic";
-
-export async function POST(request: NextRequest) {
+// Keep GET handler for backward compatibility with existing Vercel cron config
+export const GET = withErrorHandling(async function GET(request: NextRequest) {
+  return POST(request);
+});
+export const POST = withErrorHandling(async function POST(request: NextRequest) {
   const authError = verifyCronAuth(request);
   if (authError) return authError;
 
@@ -42,9 +46,4 @@ export async function POST(request: NextRequest) {
     deletedCount: count ?? 0,
     timestamp: new Date().toISOString(),
   });
-}
-
-// Keep GET handler for backward compatibility with existing Vercel cron config
-export async function GET(request: NextRequest) {
-  return POST(request);
-}
+});

@@ -9,19 +9,23 @@ import { createServerClient } from "@/lib/supabase/server";
 import { handleApiError } from "@/lib/errors";
 import { okResponse } from "@/lib/errors/responses";
 import { acceptInvitation } from "@/lib/services/invitation";
+import { withErrorHandling } from "@/lib/errors/with-error-handling";
 
 const AcceptSchema = z.object({
   token: z.string().uuid("Invalid invitation token"),
 });
-
-export async function POST(request: NextRequest) {
+export const POST = withErrorHandling(async function POST(request: NextRequest) {
   try {
     const supabase = await createServerClient();
-    const { data: { user } } = await supabase.auth.getUser();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
 
     if (!user) {
       return Response.json(
-        { error: { code: "UNAUTHENTICATED", message: "Please sign in to accept this invitation." } },
+        {
+          error: { code: "UNAUTHENTICATED", message: "Please sign in to accept this invitation." },
+        },
         { status: 401 },
       );
     }
@@ -60,4 +64,4 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     return handleApiError(error);
   }
-}
+});

@@ -9,6 +9,7 @@ import { NextRequest } from "next/server";
 import { createServerClient } from "@/lib/supabase/server";
 import { handleApiError } from "@/lib/errors";
 import { okResponse } from "@/lib/errors/responses";
+import { withErrorHandling } from "@/lib/errors/with-error-handling";
 
 const CreateCriterionSchema = z.object({
   name: z.string().min(1).max(100),
@@ -17,8 +18,7 @@ const CreateCriterionSchema = z.object({
   weight: z.number().positive().default(1.0),
   sort_order: z.number().int().default(0),
 });
-
-export async function GET(
+export const GET = withErrorHandling(async function GET(
   _request: NextRequest,
   { params }: { params: Promise<{ id: string }> },
 ) {
@@ -43,16 +43,17 @@ export async function GET(
   } catch (error) {
     return handleApiError(error);
   }
-}
-
-export async function POST(
+});
+export const POST = withErrorHandling(async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> },
 ) {
   try {
     const { id: eventId } = await params;
     const supabase = await createServerClient();
-    const { data: { user } } = await supabase.auth.getUser();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
 
     if (!user) {
       return Response.json(
@@ -82,7 +83,13 @@ export async function POST(
 
     if (!parsed.success) {
       return Response.json(
-        { error: { code: "VALIDATION_FAILED", message: "Invalid input.", details: { fieldErrors: z.flattenError(parsed.error).fieldErrors } } },
+        {
+          error: {
+            code: "VALIDATION_FAILED",
+            message: "Invalid input.",
+            details: { fieldErrors: z.flattenError(parsed.error).fieldErrors },
+          },
+        },
         { status: 422 },
       );
     }
@@ -104,4 +111,4 @@ export async function POST(
   } catch (error) {
     return handleApiError(error);
   }
-}
+});

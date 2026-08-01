@@ -14,8 +14,9 @@ import { NextRequest, NextResponse } from "next/server";
 import { createServiceClient } from "@/lib/supabase/service";
 import { getContractEvents } from "@/lib/stellar/soroban-escrow";
 import { handleApiError } from "@/lib/errors";
+import { withErrorHandling } from "@/lib/errors/with-error-handling";
 
-export async function GET(
+export const GET = withErrorHandling(async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> },
 ) {
@@ -48,4 +49,4 @@ export async function GET(
   } catch (error) {
     return handleApiError(error);
   }
-}
+});

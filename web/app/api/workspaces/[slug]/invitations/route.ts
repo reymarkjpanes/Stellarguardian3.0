@@ -5,19 +5,59 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createServerClient } from "@/lib/supabase/server";
 import { z } from "zod";
+import { withErrorHandling } from "@/lib/errors/with-error-handling";
 
 const CreateInvitationSchema = z.object({
   email: z.string().email(),
   role: z.enum(["Admin", "Member"]).default("Member"),
 });
+export const GET = withErrorHandling(async function GET(
+  _request: NextRequest,
+  { params }: { params: Promise<{ slug: string }> },
+) {
+  const { slug } = await params;
+  const supabase = await createServerClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
 
-export async function POST(
+  if (!user) {
+    return NextResponse.json(
+      { error: { code: "UNAUTHENTICATED", message: "Authentication required." } },
+      { status: 401 },
+    );
+  }
+
+  const { data: workspace } = await supabase
+    .from("workspaces")
+    .select("id")
+    .eq("slug", slug)
+    .single();
+
+  if (!workspace) {
+    return NextResponse.json(
+      { error: { code: "NOT_FOUND", message: "Workspace not found." } },
+      { status: 404 },
+    );
+  }
+
+  const { data: invitations } = await supabase
+    .from("invitations")
+    .select("*")
+    .eq("workspace_id", workspace.id)
+    .order("created_at", { ascending: false });
+
+  return NextResponse.json({ data: invitations ?? [] });
+});
+export const POST = withErrorHandling(async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ slug: string }> },
 ) {
   const { slug } = await params;
   const supabase = await createServerClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
 
   if (!user) {
     return NextResponse.json(
@@ -59,7 +99,13 @@ export async function POST(
 
   if (!parsed.success) {
     return NextResponse.json(
-      { error: { code: "VALIDATION_ERROR", message: "Invalid input.", details: parsed.error.flatten() } },
+      {
+        error: {
+          code: "VALIDATION_ERROR",
+          message: "Invalid input.",
+          details: parsed.error.flatten(),
+        },
+      },
       { status: 422 },
     );
   }
@@ -93,41 +139,4 @@ export async function POST(
   }
 
   return NextResponse.json({ data: invitation }, { status: 201 });
-}
-
-export async function GET(
-  _request: NextRequest,
-  { params }: { params: Promise<{ slug: string }> },
-) {
-  const { slug } = await params;
-  const supabase = await createServerClient();
-  const { data: { user } } = await supabase.auth.getUser();
-
-  if (!user) {
-    return NextResponse.json(
-      { error: { code: "UNAUTHENTICATED", message: "Authentication required." } },
-      { status: 401 },
-    );
-  }
-
-  const { data: workspace } = await supabase
-    .from("workspaces")
-    .select("id")
-    .eq("slug", slug)
-    .single();
-
-  if (!workspace) {
-    return NextResponse.json(
-      { error: { code: "NOT_FOUND", message: "Workspace not found." } },
-      { status: 404 },
-    );
-  }
-
-  const { data: invitations } = await supabase
-    .from("invitations")
-    .select("*")
-    .eq("workspace_id", workspace.id)
-    .order("created_at", { ascending: false });
-
-  return NextResponse.json({ data: invitations ?? [] });
-}
+});

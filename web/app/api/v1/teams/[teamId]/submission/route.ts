@@ -1,8 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { GetSubmissionHubQueryHandler } from "@/src/domains/submissions/application/queries/GetSubmissionHubQueryHandler";
 import { createServerClient } from "@/lib/supabase/server";
+import { UpdateDraftUseCase } from "@/src/domains/submissions/application/commands/UpdateDraftUseCase";
+import { withErrorHandling } from "@/lib/errors/with-error-handling";
 
-export async function GET(request: NextRequest, context: { params: Promise<{ teamId: string }> }) {
+export const GET = withErrorHandling(async function GET(
+  request: NextRequest,
+  context: { params: Promise<{ teamId: string }> },
+) {
   try {
     const { teamId } = await context.params;
     const supabase = await createServerClient();
@@ -32,11 +37,8 @@ export async function GET(request: NextRequest, context: { params: Promise<{ tea
     const msg = error instanceof Error ? error.message : "Internal error";
     return NextResponse.json({ success: false, error: msg }, { status: 500 });
   }
-}
-
-import { UpdateDraftUseCase } from "@/src/domains/submissions/application/commands/UpdateDraftUseCase";
-
-export async function PATCH(
+});
+export const PATCH = withErrorHandling(async function PATCH(
   request: NextRequest,
   context: { params: Promise<{ teamId: string }> },
 ) {
@@ -61,9 +63,8 @@ export async function PATCH(
     const msg = error instanceof Error ? error.message : "Internal error";
     return NextResponse.json({ success: false, error: msg }, { status: 400 });
   }
-}
-
-export async function DELETE(
+});
+export const DELETE = withErrorHandling(async function DELETE(
   request: NextRequest,
   context: { params: Promise<{ teamId: string }> },
 ) {
@@ -111,4 +112,4 @@ export async function DELETE(
     const msg = error instanceof Error ? error.message : "Internal error";
     return NextResponse.json({ success: false, error: msg }, { status: 400 });
   }
-}
+});

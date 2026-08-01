@@ -9,19 +9,21 @@ import { NextRequest } from "next/server";
 import { createServerClient } from "@/lib/supabase/server";
 import { handleApiError } from "@/lib/errors";
 import { okResponse } from "@/lib/errors/responses";
+import { withErrorHandling } from "@/lib/errors/with-error-handling";
 
 const ResolveSchema = z.object({
   state: z.enum(["UnderReview", "Upheld", "Dismissed", "Escalated"]),
 });
-
-export async function PATCH(
+export const PATCH = withErrorHandling(async function PATCH(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> },
 ) {
   try {
     const { id: disputeId } = await params;
     const supabase = await createServerClient();
-    const { data: { user } } = await supabase.auth.getUser();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
 
     if (!user) {
       return Response.json(
@@ -64,7 +66,12 @@ export async function PATCH(
     const validFromStates = ["Open", "UnderReview"];
     if (!validFromStates.includes(dispute.state)) {
       return Response.json(
-        { error: { code: "CONFLICT", message: `Cannot resolve dispute in state: ${dispute.state}.` } },
+        {
+          error: {
+            code: "CONFLICT",
+            message: `Cannot resolve dispute in state: ${dispute.state}.`,
+          },
+        },
         { status: 409 },
       );
     }
@@ -101,4 +108,4 @@ export async function PATCH(
   } catch (error) {
     return handleApiError(error);
   }
-}
+});

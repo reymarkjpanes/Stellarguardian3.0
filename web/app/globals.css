@@ -5,89 +5,89 @@
  * Every component uses these tokens so the entire UI flips with one class toggle.
  */
 :root {
-  --bg: #ffffff;
-  --bg-elevated: #f9fafb;
-  --bg-muted: #f3f4f6;
-  --bg-inverse: #111827;
+  --bg: #fafafa;
+  --bg-elevated: #ffffff;
+  --bg-muted: #f4f4f5;
+  --bg-inverse: #09090b;
 
-  --text: #111827;
-  --text-secondary: #4b5563;
-  --text-muted: #9ca3af;
-  --text-inverse: #ffffff;
+  --text: #09090b;
+  --text-secondary: #52525b;
+  --text-muted: #a1a1aa;
+  --text-inverse: #fafafa;
 
-  --border: #e5e7eb;
-  --border-muted: #f3f4f6;
+  --border: #e4e4e7;
+  --border-muted: #f4f4f5;
 
-  --accent: #4f46e5;
-  --accent-hover: #4338ca;
-  --accent-muted: #eef2ff;
+  --accent: #18181b;
+  --accent-hover: #27272a;
+  --accent-muted: #f4f4f5;
 
-  --success: #059669;
-  --success-bg: #ecfdf5;
-  --error: #dc2626;
-  --error-bg: #fef2f2;
-  --warning: #d97706;
-  --warning-bg: #fffbeb;
+  --success: #10b981;
+  --success-bg: #d1fae5;
+  --error: #ef4444;
+  --error-bg: #fee2e2;
+  --warning: #f59e0b;
+  --warning-bg: #fef3c7;
 
   --input-bg: #ffffff;
-  --input-border: #d1d5db;
-  --input-focus: #4f46e5;
+  --input-border: #e4e4e7;
+  --input-focus: #18181b;
 
   --card-bg: #ffffff;
-  --card-border: #e5e7eb;
+  --card-border: #e4e4e7;
 
-  --nav-bg: rgba(255, 255, 255, 0.85);
-  --nav-border: #e5e7eb;
+  --nav-bg: rgba(255, 255, 255, 0.7);
+  --nav-border: #e4e4e7;
 
-  --btn-primary-bg: #111827;
-  --btn-primary-text: #ffffff;
-  --btn-primary-hover: #1f2937;
+  --btn-primary-bg: #09090b;
+  --btn-primary-text: #fafafa;
+  --btn-primary-hover: #27272a;
 
-  --badge-bg: #f3f4f6;
-  --badge-text: #374151;
+  --badge-bg: #f4f4f5;
+  --badge-text: #27272a;
 }
 
 .dark {
-  --bg: #0f1117;
-  --bg-elevated: #1a1d27;
-  --bg-muted: #252833;
+  --bg: #000000;
+  --bg-elevated: #0a0a0a;
+  --bg-muted: #171717;
   --bg-inverse: #ffffff;
 
-  --text: #f1f5f9;
-  --text-secondary: #94a3b8;
-  --text-muted: #64748b;
-  --text-inverse: #0f1117;
+  --text: #ffffff;
+  --text-secondary: #a3a3a3;
+  --text-muted: #525252;
+  --text-inverse: #000000;
 
-  --border: #2e3341;
-  --border-muted: #1e2230;
+  --border: #262626;
+  --border-muted: #171717;
 
-  --accent: #818cf8;
-  --accent-hover: #6366f1;
-  --accent-muted: #1e1b4b;
+  --accent: #ffffff;
+  --accent-hover: #d4d4d4;
+  --accent-muted: #171717;
 
-  --success: #34d399;
-  --success-bg: #064e3b;
-  --error: #f87171;
+  --success: #10b981;
+  --success-bg: #022c22;
+  --error: #ef4444;
   --error-bg: #450a0a;
-  --warning: #fbbf24;
+  --warning: #f59e0b;
   --warning-bg: #451a03;
 
-  --input-bg: #1a1d27;
-  --input-border: #2e3341;
-  --input-focus: #818cf8;
+  --input-bg: #000000;
+  --input-border: #262626;
+  --input-focus: #ffffff;
 
-  --card-bg: #1a1d27;
-  --card-border: #2e3341;
+  --card-bg: #0a0a0a;
+  --card-border: #262626;
 
-  --nav-bg: rgba(15, 17, 23, 0.85);
-  --nav-border: #2e3341;
+  --nav-bg: rgba(0, 0, 0, 0.7);
+  --nav-border: #262626;
 
-  --btn-primary-bg: #f1f5f9;
-  --btn-primary-text: #0f1117;
-  --btn-primary-hover: #e2e8f0;
+  --btn-primary-bg: #ffffff;
+  --btn-primary-text: #000000;
+  --btn-primary-hover: #e5e5e5;
 
-  --badge-bg: #252833;
-  --badge-text: #cbd5e1;
+  --badge-bg: #171717;
+  --badge-text: #d4d4d4;
 }
 
 *,
@@ -105,36 +105,68 @@ html {
 body {
   min-height: 100%;
   margin: 0;
-  font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", sans-serif;
+  font-family:
+    system-ui,
+    -apple-system,
+    BlinkMacSystemFont,
+    "Segoe UI",
+    Roboto,
+    "Helvetica Neue",
+    sans-serif;
   background-color: var(--bg);
   color: var(--text);
   line-height: 1.5;
-  transition: background-color 0.2s ease, color 0.2s ease;
+  transition:
+    background-color 0.2s ease,
+    color 0.2s ease;
 }
 
 /* Utility classes using tokens */
-.bg-page { background-color: var(--bg); }
-.bg-elevated { background-color: var(--bg-elevated); }
-.bg-muted { background-color: var(--bg-muted); }
-.bg-card { background-color: var(--card-bg); }
-.border-default { border-color: var(--border); }
-.border-card { border-color: var(--card-border); }
-.text-primary { color: var(--text); }
-.text-secondary { color: var(--text-secondary); }
-.text-muted-custom { color: var(--text-muted); }
+.bg-page {
+  background-color: var(--bg);
+}
+.bg-elevated {
+  background-color: var(--bg-elevated);
+}
+.bg-muted {
+  background-color: var(--bg-muted);
+}
+.bg-card {
+  background-color: var(--card-bg);
+}
+.border-default {
+  border-color: var(--border);
+}
+.border-card {
+  border-color: var(--card-border);
+}
+.text-primary {
+  color: var(--text);
+}
+.text-secondary {
+  color: var(--text-secondary);
+}
+.text-muted-custom {
+  color: var(--text-muted);
+}
 
 /* Form inputs */
-input, textarea, select {
+input,
+textarea,
+select {
   background-color: var(--input-bg);
   border-color: var(--input-border);
   color: var(--text);
 }
-input:focus, textarea:focus, select:focus {
+input:focus,
+textarea:focus,
+select:focus {
   border-color: var(--input-focus);
   outline: none;
   box-shadow: 0 0 0 1px var(--input-focus);
 }
-input::placeholder, textarea::placeholder {
+input::placeholder,
+textarea::placeholder {
   color: var(--text-muted);
 }
 
@@ -167,41 +199,106 @@ input::placeholder, textarea::placeholder {
   color: var(--badge-text);
 }
 
-
 /* 
  * Override Tailwind neutral utility classes for dark mode compatibility.
  * Any component still using hardcoded neutral-* classes gets proper contrast.
  */
-.dark .bg-neutral-50 { background-color: var(--bg-elevated); }
-.dark .bg-neutral-100 { background-color: var(--bg-muted); }
-.dark .bg-neutral-900 { background-color: var(--btn-primary-bg); }
-.dark .text-neutral-900 { color: var(--text); }
-.dark .text-neutral-800 { color: var(--text); }
-.dark .text-neutral-700 { color: var(--text-secondary); }
-.dark .text-neutral-600 { color: var(--text-secondary); }
-.dark .text-neutral-500 { color: var(--text-muted); }
-.dark .text-neutral-400 { color: var(--text-muted); }
-.dark .border-neutral-200 { border-color: var(--border); }
-.dark .border-neutral-300 { border-color: var(--border); }
-.dark .border-neutral-100 { border-color: var(--border-muted); }
-.dark .hover\:bg-neutral-50:hover { background-color: var(--bg-elevated); }
-.dark .hover\:bg-neutral-800:hover { background-color: var(--btn-primary-hover); }
-.dark .hover\:border-neutral-400:hover { border-color: var(--accent); }
-.dark .bg-red-50 { background-color: var(--error-bg); }
-.dark .text-red-700 { color: var(--error); }
-.dark .text-red-600 { color: var(--error); }
-.dark .border-red-200 { border-color: color-mix(in srgb, var(--error) 30%, transparent); }
-.dark .bg-green-50 { background-color: var(--success-bg); }
-.dark .text-green-700 { color: var(--success); }
-.dark .text-green-800 { color: var(--success); }
-.dark .border-green-200 { border-color: color-mix(in srgb, var(--success) 30%, transparent); }
-.dark .bg-amber-50 { background-color: var(--warning-bg); }
-.dark .text-amber-700 { color: var(--warning); }
-.dark .text-amber-800 { color: var(--warning); }
-.dark .border-amber-200 { border-color: color-mix(in srgb, var(--warning) 30%, transparent); }
-.dark .ring-neutral-900 { --tw-ring-color: var(--accent); }
-.dark .focus\:ring-neutral-900:focus { --tw-ring-color: var(--accent); }
-.dark .focus\:border-neutral-900:focus { border-color: var(--input-focus); }
-.dark .focus\:ring-1:focus { box-shadow: 0 0 0 1px var(--input-focus); }
-.dark .text-white { color: var(--btn-primary-text); }
-.dark .placeholder\:text-neutral-400::placeholder { color: var(--text-muted); }
+.dark .bg-neutral-50 {
+  background-color: var(--bg-elevated);
+}
+.dark .bg-neutral-100 {
+  background-color: var(--bg-muted);
+}
+.dark .bg-neutral-900 {
+  background-color: var(--btn-primary-bg);
+}
+.dark .text-neutral-900 {
+  color: var(--text);
+}
+.dark .text-neutral-800 {
+  color: var(--text);
+}
+.dark .text-neutral-700 {
+  color: var(--text-secondary);
+}
+.dark .text-neutral-600 {
+  color: var(--text-secondary);
+}
+.dark .text-neutral-500 {
+  color: var(--text-muted);
+}
+.dark .text-neutral-400 {
+  color: var(--text-muted);
+}
+.dark .border-neutral-200 {
+  border-color: var(--border);
+}
+.dark .border-neutral-300 {
+  border-color: var(--border);
+}
+.dark .border-neutral-100 {
+  border-color: var(--border-muted);
+}
+.dark .hover\:bg-neutral-50:hover {
+  background-color: var(--bg-elevated);
+}
+.dark .hover\:bg-neutral-800:hover {
+  background-color: var(--btn-primary-hover);
+}
+.dark .hover\:border-neutral-400:hover {
+  border-color: var(--accent);
+}
+.dark .bg-red-50 {
+  background-color: var(--error-bg);
+}
+.dark .text-red-700 {
+  color: var(--error);
+}
+.dark .text-red-600 {
+  color: var(--error);
+}
+.dark .border-red-200 {
+  border-color: color-mix(in srgb, var(--error) 30%, transparent);
+}
+.dark .bg-green-50 {
+  background-color: var(--success-bg);
+}
+.dark .text-green-700 {
+  color: var(--success);
+}
+.dark .text-green-800 {
+  color: var(--success);
+}
+.dark .border-green-200 {
+  border-color: color-mix(in srgb, var(--success) 30%, transparent);
+}
+.dark .bg-amber-50 {
+  background-color: var(--warning-bg);
+}
+.dark .text-amber-700 {
+  color: var(--warning);
+}
+.dark .text-amber-800 {
+  color: var(--warning);
+}
+.dark .border-amber-200 {
+  border-color: color-mix(in srgb, var(--warning) 30%, transparent);
+}
+.dark .ring-neutral-900 {
+  --tw-ring-color: var(--accent);
+}
+.dark .focus\:ring-neutral-900:focus {
+  --tw-ring-color: var(--accent);
+}
+.dark .focus\:border-neutral-900:focus {
+  border-color: var(--input-focus);
+}
+.dark .focus\:ring-1:focus {
+  box-shadow: 0 0 0 1px var(--input-focus);
+}
+.dark .text-white {
+  color: var(--btn-primary-text);
+}
+.dark .placeholder\:text-neutral-400::placeholder {
+  color: var(--text-muted);
+}

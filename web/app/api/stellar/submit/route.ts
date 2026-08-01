@@ -10,8 +10,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServerClient } from "@/lib/supabase/server";
 import { getStellarClient } from "@/lib/stellar/client";
+import { withErrorHandling } from "@/lib/errors/with-error-handling";
 
-export async function POST(request: NextRequest) {
+export const POST = withErrorHandling(async function POST(request: NextRequest) {
   // Auth check — only authenticated users can submit transactions
   const supabase = await createServerClient();
   const {
@@ -19,10 +20,7 @@ export async function POST(request: NextRequest) {
   } = await supabase.auth.getUser();
 
   if (!user) {
-    return NextResponse.json(
-      { error: "Authentication required." },
-      { status: 401 },
-    );
+    return NextResponse.json({ error: "Authentication required." }, { status: 401 });
   }
 
   let signed_xdr: string;
@@ -30,10 +28,7 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     signed_xdr = body.signed_xdr ?? body.signedXdr;
     if (!signed_xdr || typeof signed_xdr !== "string") {
-      return NextResponse.json(
-        { error: "Missing or invalid signed_xdr field." },
-        { status: 400 },
-      );
+      return NextResponse.json({ error: "Missing or invalid signed_xdr field." }, { status: 400 });
     }
   } catch {
     return NextResponse.json({ error: "Invalid JSON body." }, { status: 400 });
@@ -49,9 +44,6 @@ export async function POST(request: NextRequest) {
     });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Transaction submission failed.";
-    return NextResponse.json(
-      { error: message, successful: false },
-      { status: 422 },
-    );
+    return NextResponse.json({ error: message, successful: false }, { status: 422 });
   }
-}
+});

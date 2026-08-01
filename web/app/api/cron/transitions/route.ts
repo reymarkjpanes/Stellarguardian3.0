@@ -10,8 +10,9 @@ import { NextRequest, NextResponse } from "next/server";
 import { createServiceClient } from "@/lib/supabase/service";
 import { verifyCronAuth } from "@/lib/cron-auth";
 import { writeAuditRecord } from "@/lib/services/audit";
+import { withErrorHandling } from "@/lib/errors/with-error-handling";
 
-export async function POST(request: NextRequest) {
+export const POST = withErrorHandling(async function POST(request: NextRequest) {
   const authError = verifyCronAuth(request);
   if (authError) return authError;
 
@@ -92,4 +93,4 @@ export async function POST(request: NextRequest) {
     details: results,
     timestamp: new Date().toISOString(),
   });
-}
+});

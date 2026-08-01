@@ -5,14 +5,16 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createServerClient } from "@/lib/supabase/server";
 import { z } from "zod";
+import { withErrorHandling } from "@/lib/errors/with-error-handling";
 
 const MarkReadSchema = z.object({
   notification_ids: z.array(z.string().uuid()),
 });
-
-export async function GET(request: NextRequest) {
+export const GET = withErrorHandling(async function GET(request: NextRequest) {
   const supabase = await createServerClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
 
   if (!user) {
     return NextResponse.json(
@@ -57,11 +59,12 @@ export async function GET(request: NextRequest) {
     data: notifications ?? [],
     meta: { total: count ?? 0, unreadCount: unreadCount ?? 0, limit, offset },
   });
-}
-
-export async function PATCH(request: NextRequest) {
+});
+export const PATCH = withErrorHandling(async function PATCH(request: NextRequest) {
   const supabase = await createServerClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
 
   if (!user) {
     return NextResponse.json(
@@ -95,4 +98,4 @@ export async function PATCH(request: NextRequest) {
   }
 
   return NextResponse.json({ data: { marked: parsed.data.notification_ids.length } });
-}
+});

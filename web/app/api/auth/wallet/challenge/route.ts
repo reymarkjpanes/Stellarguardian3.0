@@ -10,12 +10,12 @@ import { createServerClient } from "@/lib/supabase/server";
 import { handleApiError } from "@/lib/errors";
 import { okResponse } from "@/lib/errors/responses";
 import { issueChallenge } from "@/lib/services/wallet-verifier";
+import { withErrorHandling } from "@/lib/errors/with-error-handling";
 
 const ChallengeRequestSchema = z.object({
   publicKey: z.string().regex(/^G[A-Z2-7]{55}$/, "Invalid Stellar public key format"),
 });
-
-export async function POST(request: Request) {
+export const POST = withErrorHandling(async function POST(request: Request) {
   try {
     const supabase = await createServerClient();
     const {
@@ -51,4 +51,4 @@ export async function POST(request: Request) {
   } catch (error) {
     return handleApiError(error);
   }
-}
+});

@@ -10,58 +10,19 @@ import { createServerClient } from "@/lib/supabase/server";
 import { handleApiError } from "@/lib/errors";
 import { createdResponse, paginatedResponse } from "@/lib/errors/responses";
 import { createDispute } from "@/lib/services/dispute";
+import { withErrorHandling } from "@/lib/errors/with-error-handling";
 
 const CreateDisputeSchema = z.object({
   eventId: z.string().uuid(),
   title: z.string().min(1).max(200),
   description: z.string().min(1).max(5000),
 });
-
-export async function POST(request: NextRequest) {
+export const GET = withErrorHandling(async function GET(request: NextRequest) {
   try {
     const supabase = await createServerClient();
-    const { data: { user } } = await supabase.auth.getUser();
-
-    if (!user) {
-      return Response.json(
-        { error: { code: "UNAUTHENTICATED", message: "Authentication required." } },
-        { status: 401 },
-      );
-    }
-
-    const body = await request.json();
-    const parsed = CreateDisputeSchema.safeParse(body);
-
-    if (!parsed.success) {
-      return Response.json(
-        {
-          error: {
-            code: "VALIDATION_FAILED",
-            message: "Invalid request body.",
-            details: { fieldErrors: z.flattenError(parsed.error).fieldErrors },
-          },
-        },
-        { status: 422 },
-      );
-    }
-
-    const dispute = await createDispute({
-      eventId: parsed.data.eventId,
-      filerId: user.id,
-      title: parsed.data.title,
-      description: parsed.data.description,
-    });
-
-    return createdResponse(dispute);
-  } catch (error) {
-    return handleApiError(error);
-  }
-}
-
-export async function GET(request: NextRequest) {
-  try {
-    const supabase = await createServerClient();
-    const { data: { user } } = await supabase.auth.getUser();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
 
     if (!user) {
       return Response.json(
@@ -101,4 +62,46 @@ export async function GET(request: NextRequest) {
   } catch (error) {
     return handleApiError(error);
   }
-}
+});
+export const POST = withErrorHandling(async function POST(request: NextRequest) {
+  try {
+    const supabase = await createServerClient();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
+    if (!user) {
+      return Response.json(
+        { error: { code: "UNAUTHENTICATED", message: "Authentication required." } },
+        { status: 401 },
+      );
+    }
+
+    const body = await request.json();
+    const parsed = CreateDisputeSchema.safeParse(body);
+
+    if (!parsed.success) {
+      return Response.json(
+        {
+          error: {
+            code: "VALIDATION_FAILED",
+            message: "Invalid request body.",
+            details: { fieldErrors: z.flattenError(parsed.error).fieldErrors },
+          },
+        },
+        { status: 422 },
+      );
+    }
+
+    const dispute = await createDispute({
+      eventId: parsed.data.eventId,
+      filerId: user.id,
+      title: parsed.data.title,
+      description: parsed.data.description,
+    });
+
+    return createdResponse(dispute);
+  } catch (error) {
+    return handleApiError(error);
+  }
+});

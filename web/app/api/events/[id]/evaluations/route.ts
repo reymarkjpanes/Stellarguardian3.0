@@ -5,6 +5,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createServerClient } from "@/lib/supabase/server";
 import { z } from "zod";
+import { withErrorHandling } from "@/lib/errors/with-error-handling";
 
 const CreateEvaluationSchema = z.object({
   submission_id: z.string().uuid(),
@@ -12,14 +13,15 @@ const CreateEvaluationSchema = z.object({
   feedback: z.string().max(5000).optional(),
   conflict_of_interest: z.boolean().default(false),
 });
-
-export async function GET(
+export const GET = withErrorHandling(async function GET(
   _request: NextRequest,
   { params }: { params: Promise<{ id: string }> },
 ) {
   const { id } = await params;
   const supabase = await createServerClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
 
   if (!user) {
     return NextResponse.json(
@@ -50,15 +52,16 @@ export async function GET(
     .order("created_at", { ascending: false });
 
   return NextResponse.json({ data: evaluations ?? [] });
-}
-
-export async function POST(
+});
+export const POST = withErrorHandling(async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> },
 ) {
   const { id } = await params;
   const supabase = await createServerClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
 
   if (!user) {
     return NextResponse.json(
@@ -84,11 +87,7 @@ export async function POST(
   }
 
   // Event must be in Judging state
-  const { data: event } = await supabase
-    .from("events")
-    .select("state")
-    .eq("id", id)
-    .single();
+  const { data: event } = await supabase.from("events").select("state").eq("id", id).single();
 
   if (!event || event.state !== "Judging") {
     return NextResponse.json(
@@ -102,7 +101,13 @@ export async function POST(
 
   if (!parsed.success) {
     return NextResponse.json(
-      { error: { code: "VALIDATION_ERROR", message: "Invalid input.", details: parsed.error.flatten() } },
+      {
+        error: {
+          code: "VALIDATION_ERROR",
+          message: "Invalid input.",
+          details: parsed.error.flatten(),
+        },
+      },
       { status: 422 },
     );
   }
@@ -143,4 +148,4 @@ export async function POST(
   }
 
   return NextResponse.json({ data: evaluation }, { status: 201 });
-}
+});

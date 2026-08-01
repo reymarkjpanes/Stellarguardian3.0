@@ -13,74 +13,9 @@ import { verifyCronAuth } from "@/lib/cron-auth";
 import { createNotification } from "@/lib/services/notification";
 import { sendNotificationEmail } from "@/lib/services/email";
 import { logger } from "@/lib/logger";
+import { withErrorHandling } from "@/lib/errors/with-error-handling";
 
 const BATCH_SIZE = 50;
-
-export async function POST(request: NextRequest) {
-  const authError = verifyCronAuth(request);
-  if (authError) return authError;
-
-  const supabase = createServiceClient();
-  let processed = 0;
-  let failed = 0;
-
-  // Fetch pending events ready for processing
-  const { data: events } = await supabase
-    .from("domain_events")
-    .select("*")
-    .eq("status", "pending")
-    .lte("next_retry_at", new Date().toISOString())
-    .order("created_at", { ascending: true })
-    .limit(BATCH_SIZE);
-
-  for (const event of events ?? []) {
-    try {
-      await processEvent(event, supabase);
-
-      await supabase
-        .from("domain_events")
-        .update({ status: "processed", processed_at: new Date().toISOString() })
-        .eq("id", event.id);
-
-      processed++;
-    } catch (err) {
-      const newAttempts = event.attempts + 1;
-      const isDead = newAttempts >= event.max_attempts;
-
-      // Exponential backoff: 1min, 2min, 4min, 8min, 16min
-      const backoffMs = Math.min(60000 * Math.pow(2, newAttempts - 1), 3600000);
-      const nextRetry = new Date(Date.now() + backoffMs).toISOString();
-
-      await supabase
-        .from("domain_events")
-        .update({
-          status: isDead ? "dead" : "pending",
-          attempts: newAttempts,
-          last_error: err instanceof Error ? err.message : String(err),
-          next_retry_at: isDead ? event.next_retry_at : nextRetry,
-        })
-        .eq("id", event.id);
-
-      failed++;
-
-      if (isDead) {
-        logger.error("[outbox] Event permanently failed after max attempts", {
-          eventId: event.id,
-          type: event.type,
-          error: String(err),
-        });
-      }
-    }
-  }
-
-  return NextResponse.json({
-    success: true,
-    processed,
-    failed,
-    total: (events ?? []).length,
-    timestamp: new Date().toISOString(),
-  });
-}
 
 /**
  * Route domain events to their handlers.
@@ -165,3 +100,69 @@ async function processEvent(
       logger.warn("[outbox] Unknown event type", { type: event.type, id: event.id });
   }
 }
+
+export const POST = withErrorHandling(async function POST(request: NextRequest) {
+  const authError = verifyCronAuth(request);
+  if (authError) return authError;
+
+  const supabase = createServiceClient();
+  let processed = 0;
+  let failed = 0;
+
+  // Fetch pending events ready for processing
+  const { data: events } = await supabase
+    .from("domain_events")
+    .select("*")
+    .eq("status", "pending")
+    .lte("next_retry_at", new Date().toISOString())
+    .order("created_at", { ascending: true })
+    .limit(BATCH_SIZE);
+
+  for (const event of events ?? []) {
+    try {
+      await processEvent(event, supabase);
+
+      await supabase
+        .from("domain_events")
+        .update({ status: "processed", processed_at: new Date().toISOString() })
+        .eq("id", event.id);
+
+      processed++;
+    } catch (err) {
+      const newAttempts = event.attempts + 1;
+      const isDead = newAttempts >= event.max_attempts;
+
+      // Exponential backoff: 1min, 2min, 4min, 8min, 16min
+      const backoffMs = Math.min(60000 * Math.pow(2, newAttempts - 1), 3600000);
+      const nextRetry = new Date(Date.now() + backoffMs).toISOString();
+
+      await supabase
+        .from("domain_events")
+        .update({
+          status: isDead ? "dead" : "pending",
+          attempts: newAttempts,
+          last_error: err instanceof Error ? err.message : String(err),
+          next_retry_at: isDead ? event.next_retry_at : nextRetry,
+        })
+        .eq("id", event.id);
+
+      failed++;
+
+      if (isDead) {
+        logger.error("[outbox] Event permanently failed after max attempts", {
+          eventId: event.id,
+          type: event.type,
+          error: String(err),
+        });
+      }
+    }
+  }
+
+  return NextResponse.json({
+    success: true,
+    processed,
+    failed,
+    total: (events ?? []).length,
+    timestamp: new Date().toISOString(),
+  });
+});

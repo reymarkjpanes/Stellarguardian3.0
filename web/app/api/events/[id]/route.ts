@@ -10,8 +10,9 @@ import { handleApiError } from "@/lib/errors";
 import { okResponse } from "@/lib/errors/responses";
 import { optimisticUpdate } from "@/lib/services/concurrency";
 import { writeAuditRecord } from "@/lib/services/audit";
+import { withErrorHandling } from "@/lib/errors/with-error-handling";
 
-export async function GET(
+export const GET = withErrorHandling(async function GET(
   _request: NextRequest,
   { params }: { params: Promise<{ id: string }> },
 ) {
@@ -19,11 +20,7 @@ export async function GET(
     const { id: eventId } = await params;
     const supabase = await createServerClient();
 
-    const { data, error } = await supabase
-      .from("events")
-      .select("*")
-      .eq("id", eventId)
-      .single();
+    const { data, error } = await supabase.from("events").select("*").eq("id", eventId).single();
 
     if (error || !data) {
       return Response.json(
@@ -36,16 +33,17 @@ export async function GET(
   } catch (error) {
     return handleApiError(error);
   }
-}
-
-export async function PATCH(
+});
+export const PATCH = withErrorHandling(async function PATCH(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> },
 ) {
   try {
     const { id: eventId } = await params;
     const supabase = await createServerClient();
-    const { data: { user } } = await supabase.auth.getUser();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
 
     if (!user) {
       return Response.json(
@@ -59,7 +57,12 @@ export async function PATCH(
 
     if (version === undefined) {
       return Response.json(
-        { error: { code: "BAD_REQUEST", message: "Version field is required for updates (Req 19.2)." } },
+        {
+          error: {
+            code: "BAD_REQUEST",
+            message: "Version field is required for updates (Req 19.2).",
+          },
+        },
         { status: 400 },
       );
     }
@@ -92,4 +95,4 @@ export async function PATCH(
   } catch (error) {
     return handleApiError(error);
   }
-}
+});

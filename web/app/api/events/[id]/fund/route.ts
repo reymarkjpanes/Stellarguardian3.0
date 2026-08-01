@@ -13,20 +13,22 @@ import { okResponse } from "@/lib/errors/responses";
 import { withIdempotency } from "@/lib/services/idempotency";
 import { verifyFunding } from "@/lib/services/escrow";
 import { requireLegalAcceptance } from "@/lib/services/legal";
+import { withErrorHandling } from "@/lib/errors/with-error-handling";
 
 const FundRequestSchema = z.object({
   txHash: z.string().min(1, "Transaction hash is required"),
   fundingWallet: z.string().regex(/^G[A-Z2-7]{55}$/, "Invalid Stellar public key"),
 });
-
-export async function POST(
+export const POST = withErrorHandling(async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> },
 ) {
   try {
     const { id: eventId } = await params;
     const supabase = await createServerClient();
-    const { data: { user } } = await supabase.auth.getUser();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
 
     if (!user) {
       return Response.json(
@@ -63,7 +65,12 @@ export async function POST(
     }
 
     const result = await withIdempotency(idempotencyKey, user.id, body, async () => {
-      const data = await verifyFunding(eventId, parsed.data.txHash, user.id, parsed.data.fundingWallet);
+      const data = await verifyFunding(
+        eventId,
+        parsed.data.txHash,
+        user.id,
+        parsed.data.fundingWallet,
+      );
       return { data, status: 200 };
     });
 
@@ -71,4 +78,4 @@ export async function POST(
   } catch (error) {
     return handleApiError(error);
   }
-}
+});

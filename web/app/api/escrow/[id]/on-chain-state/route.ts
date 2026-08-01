@@ -15,6 +15,7 @@ import { createServerClient } from "@/lib/supabase/server";
 import { createServiceClient } from "@/lib/supabase/service";
 import { getStellarClient } from "@/lib/stellar/client";
 import { handleApiError } from "@/lib/errors";
+import { withErrorHandling } from "@/lib/errors/with-error-handling";
 
 const EXPLORER_CONTRACT_URLS: Record<string, string> = {
   testnet: "https://stellar.expert/explorer/testnet/contract",
@@ -24,8 +25,7 @@ const EXPLORER_ACCOUNT_URLS: Record<string, string> = {
   testnet: "https://stellar.expert/explorer/testnet/account",
   mainnet: "https://stellar.expert/explorer/public/account",
 };
-
-export async function GET(
+export const GET = withErrorHandling(async function GET(
   _request: NextRequest,
   { params }: { params: Promise<{ id: string }> },
 ) {
@@ -46,9 +46,7 @@ export async function GET(
     // Fetch escrow from DB
     const { data: escrow } = await serviceClient
       .from("escrow_accounts")
-      .select(
-        "id, status, network, contract_address, expected_balance, event_id",
-      )
+      .select("id, status, network, contract_address, expected_balance, event_id")
       .eq("id", escrowId)
       .single();
 
@@ -110,9 +108,7 @@ export async function GET(
         : "https://stellar.expert/explorer/testnet/tx";
 
     const explorerLinks = {
-      contract: escrow.contract_address
-        ? `${contractBase}/${escrow.contract_address}`
-        : null,
+      contract: escrow.contract_address ? `${contractBase}/${escrow.contract_address}` : null,
       transaction: onChainTx?.hash ? `${txBase}/${onChainTx.hash}` : null,
       wallet: latestFundTx?.funding_source_id
         ? `${EXPLORER_ACCOUNT_URLS[network] ?? EXPLORER_ACCOUNT_URLS.testnet}/${latestFundTx.funding_source_id}`
@@ -153,4 +149,4 @@ export async function GET(
   } catch (err) {
     return handleApiError(err);
   }
-}
+});

@@ -11,6 +11,7 @@ import { createServerClient } from "@/lib/supabase/server";
 import { verifyChallenge } from "@/lib/services/wallet-verifier";
 import { handleApiError } from "@/lib/errors";
 import { z } from "zod";
+import { withErrorHandling } from "@/lib/errors/with-error-handling";
 
 const BodySchema = z.object({
   challengeId: z.string().uuid("Invalid challenge ID format."),
@@ -18,8 +19,7 @@ const BodySchema = z.object({
   provider: z.string().optional(),
   networkMode: z.enum(["testnet", "mainnet"]).optional(),
 });
-
-export async function POST(request: NextRequest) {
+export const POST = withErrorHandling(async function POST(request: NextRequest) {
   try {
     const supabase = await createServerClient();
     const {
@@ -49,18 +49,13 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const result = await verifyChallenge(
-      user.id,
-      parsed.data.challengeId,
-      parsed.data.signature,
-      {
-        provider: parsed.data.provider,
-        networkMode: parsed.data.networkMode,
-      },
-    );
+    const result = await verifyChallenge(user.id, parsed.data.challengeId, parsed.data.signature, {
+      provider: parsed.data.provider,
+      networkMode: parsed.data.networkMode,
+    });
 
     return NextResponse.json({ publicKey: result.publicKey, verified: result.verified });
   } catch (error) {
     return handleApiError(error);
   }
-}
+});

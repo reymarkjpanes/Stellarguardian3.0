@@ -4,6 +4,7 @@ import { createServerClient } from "@/lib/supabase/server";
 import { handleApiError } from "@/lib/errors";
 import { okResponse } from "@/lib/errors/responses";
 import { EventMemberRoleSchema } from "@/types/event";
+import { withErrorHandling } from "@/lib/errors/with-error-handling";
 
 const UpdateMemberSchema = z.object({
   role: EventMemberRoleSchema.optional(),
@@ -12,11 +13,7 @@ const UpdateMemberSchema = z.object({
   skills: z.array(z.string()).optional(),
   timezone: z.string().nullable().optional(),
 });
-
-/**
- * PATCH /api/events/[id]/members/[memberId] — Update a member's role or status.
- */
-export async function PATCH(
+export const PATCH = withErrorHandling(async function PATCH(
   request: NextRequest,
   { params }: { params: Promise<{ id: string; memberId: string }> },
 ) {
@@ -127,12 +124,8 @@ export async function PATCH(
   } catch (error) {
     return handleApiError(error);
   }
-}
-
-/**
- * DELETE /api/events/[id]/members/[memberId] — Remove a member from the event.
- */
-export async function DELETE(
+});
+export const DELETE = withErrorHandling(async function DELETE(
   request: NextRequest,
   { params }: { params: Promise<{ id: string; memberId: string }> },
 ) {
@@ -197,4 +190,4 @@ export async function DELETE(
   } catch (error) {
     return handleApiError(error);
   }
-}
+});

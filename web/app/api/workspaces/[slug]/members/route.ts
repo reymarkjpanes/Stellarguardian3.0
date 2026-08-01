@@ -6,6 +6,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createServerClient } from "@/lib/supabase/server";
 import { z } from "zod";
+import { withErrorHandling } from "@/lib/errors/with-error-handling";
 
 const AddMemberSchema = z.object({
   user_id: z.string().uuid(),
@@ -15,14 +16,15 @@ const AddMemberSchema = z.object({
 const RemoveMemberSchema = z.object({
   user_id: z.string().uuid(),
 });
-
-export async function GET(
+export const GET = withErrorHandling(async function GET(
   _request: NextRequest,
   { params }: { params: Promise<{ slug: string }> },
 ) {
   const { slug } = await params;
   const supabase = await createServerClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
 
   if (!user) {
     return NextResponse.json(
@@ -51,9 +53,10 @@ export async function GET(
 
   // Enrich with user display names
   const userIds = (members ?? []).map((m) => m.user_id);
-  const { data: users } = userIds.length > 0
-    ? await supabase.from("users").select("id, display_name, email").in("id", userIds)
-    : { data: [] };
+  const { data: users } =
+    userIds.length > 0
+      ? await supabase.from("users").select("id, display_name, email").in("id", userIds)
+      : { data: [] };
 
   const usersMap = new Map((users ?? []).map((u) => [u.id, u]));
 
@@ -64,15 +67,16 @@ export async function GET(
   }));
 
   return NextResponse.json({ data: enriched });
-}
-
-export async function POST(
+});
+export const POST = withErrorHandling(async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ slug: string }> },
 ) {
   const { slug } = await params;
   const supabase = await createServerClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
 
   if (!user) {
     return NextResponse.json(
@@ -114,7 +118,13 @@ export async function POST(
 
   if (!parsed.success) {
     return NextResponse.json(
-      { error: { code: "VALIDATION_ERROR", message: "Invalid input.", details: parsed.error.flatten() } },
+      {
+        error: {
+          code: "VALIDATION_ERROR",
+          message: "Invalid input.",
+          details: parsed.error.flatten(),
+        },
+      },
       { status: 422 },
     );
   }
@@ -139,15 +149,16 @@ export async function POST(
   }
 
   return NextResponse.json({ data: { user_id, role } }, { status: 201 });
-}
-
-export async function DELETE(
+});
+export const DELETE = withErrorHandling(async function DELETE(
   request: NextRequest,
   { params }: { params: Promise<{ slug: string }> },
 ) {
   const { slug } = await params;
   const supabase = await createServerClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
 
   if (!user) {
     return NextResponse.json(
@@ -215,4 +226,4 @@ export async function DELETE(
     .eq("user_id", parsed.data.user_id);
 
   return NextResponse.json({ data: { removed: parsed.data.user_id } });
-}
+});

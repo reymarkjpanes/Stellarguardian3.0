@@ -15,6 +15,7 @@ import { createServiceClient } from "@/lib/supabase/service";
 import { verifyCronAuth } from "@/lib/cron-auth";
 import { VerificationService } from "@/lib/services/escrow/verification.service";
 import { logger } from "@/lib/logger";
+import { withErrorHandling } from "@/lib/errors/with-error-handling";
 
 const ACTIVE_ESCROW_STATES = [
   "PendingFunding",
@@ -23,8 +24,7 @@ const ACTIVE_ESCROW_STATES = [
   "Locked",
   "PendingRelease",
 ];
-
-export async function POST(request: NextRequest) {
+export const POST = withErrorHandling(async function POST(request: NextRequest) {
   const authError = verifyCronAuth(request);
   if (authError) return authError;
 
@@ -61,4 +61,4 @@ export async function POST(request: NextRequest) {
     errors,
     timestamp: new Date().toISOString(),
   });
-}
+});

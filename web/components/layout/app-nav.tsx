@@ -60,17 +60,16 @@ export function AppNav({ user, workspaces = [], currentWorkspaceId }: AppNavProp
         <div className="flex justify-between h-14">
           {/* Logo */}
           <div className="flex items-center">
-            <Link href="/" className="flex items-center gap-2 group">
-              <div className="w-7 h-7 bg-[var(--accent)] rounded-lg flex items-center justify-center">
+            <Link href="/" className="flex items-center gap-3 group">
+              <div className="w-8 h-8 bg-[var(--text)] rounded-sm flex items-center justify-center transform group-hover:rotate-12 transition-transform duration-300">
                 <div
-                  className="w-3.5 h-3.5 border-2 border-white rounded-full border-t-transparent animate-spin"
-                  style={{ animationDuration: "2s" }}
+                  className="w-3.5 h-3.5 border-[1.5px] border-[var(--bg)] rounded-full border-t-transparent animate-spin"
+                  style={{ animationDuration: "3s" }}
                   aria-hidden="true"
                 />
               </div>
-              <span className="text-lg font-bold tracking-tight text-[var(--text)] hidden sm:inline-block">
-                {"Stellar "}
-                <span className="text-[var(--text-secondary)]">Guardian</span>
+              <span className="text-xl font-bold tracking-tighter text-[var(--text)] hidden sm:inline-block">
+                STELLAR<span className="font-light opacity-60 ml-0.5">GUARDIAN</span>
               </span>
             </Link>
 

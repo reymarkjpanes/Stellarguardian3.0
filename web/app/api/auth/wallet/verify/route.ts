@@ -10,13 +10,13 @@ import { createServerClient } from "@/lib/supabase/server";
 import { handleApiError } from "@/lib/errors";
 import { okResponse } from "@/lib/errors/responses";
 import { verifyChallenge } from "@/lib/services/wallet-verifier";
+import { withErrorHandling } from "@/lib/errors/with-error-handling";
 
 const VerifyRequestSchema = z.object({
   challengeId: z.string().uuid("Invalid challenge ID format"),
   signature: z.string().min(1, "Signature is required"),
 });
-
-export async function POST(request: Request) {
+export const POST = withErrorHandling(async function POST(request: Request) {
   try {
     const supabase = await createServerClient();
     const {
@@ -52,4 +52,4 @@ export async function POST(request: Request) {
   } catch (error) {
     return handleApiError(error);
   }
-}
+});

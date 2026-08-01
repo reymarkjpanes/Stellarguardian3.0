@@ -5,6 +5,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createServerClient } from "@/lib/supabase/server";
 import { z } from "zod";
+import { withErrorHandling } from "@/lib/errors/with-error-handling";
 
 const UpdateProfileSchema = z.object({
   display_name: z.string().min(1).max(120).optional(),
@@ -13,8 +14,7 @@ const UpdateProfileSchema = z.object({
   skills: z.array(z.string()).optional(),
   terms_accepted_version: z.string().optional(),
 });
-
-export async function GET() {
+export const GET = withErrorHandling(async function GET() {
   const supabase = await createServerClient();
   const {
     data: { user },
@@ -50,9 +50,8 @@ export async function GET() {
       skills,
     },
   });
-}
-
-export async function PATCH(request: NextRequest) {
+});
+export const PATCH = withErrorHandling(async function PATCH(request: NextRequest) {
   const supabase = await createServerClient();
   const {
     data: { user },
@@ -156,4 +155,4 @@ export async function PATCH(request: NextRequest) {
   const skills = (userSkills ?? []).map((s: { skill_id: string }) => s.skill_id);
 
   return NextResponse.json({ data: { ...updated, skills } });
-}
+});

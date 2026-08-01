@@ -12,15 +12,18 @@ import { withIdempotency } from "@/lib/services/idempotency";
 import { executeDisbursement } from "@/lib/services/escrow";
 import { isDisbursementBlocked } from "@/lib/services/dispute";
 import { requireLegalAcceptance } from "@/lib/services/legal";
+import { withErrorHandling } from "@/lib/errors/with-error-handling";
 
-export async function POST(
+export const POST = withErrorHandling(async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> },
 ) {
   try {
     const { id: eventId } = await params;
     const supabase = await createServerClient();
-    const { data: { user } } = await supabase.auth.getUser();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
 
     if (!user) {
       return Response.json(
@@ -63,4 +66,4 @@ export async function POST(
   } catch (error) {
     return handleApiError(error);
   }
-}
+});

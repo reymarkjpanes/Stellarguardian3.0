@@ -9,24 +9,30 @@ import { NextRequest } from "next/server";
 import { createServerClient } from "@/lib/supabase/server";
 import { handleApiError } from "@/lib/errors";
 import { okResponse } from "@/lib/errors/responses";
+import { withErrorHandling } from "@/lib/errors/with-error-handling";
 
-const CreateCommentSchema = z.object({
-  event_id: z.string().uuid().optional(),
-  submission_id: z.string().uuid().optional(),
-  dispute_id: z.string().uuid().optional(),
-  parent_id: z.string().uuid().optional(),
-  body: z.string().min(1).max(5000),
-}).refine(
-  (d) => [d.event_id, d.submission_id, d.dispute_id].filter(Boolean).length === 1,
-  { message: "Exactly one of event_id, submission_id, or dispute_id must be provided." },
-);
-
-export async function GET(request: NextRequest) {
+const CreateCommentSchema = z
+  .object({
+    event_id: z.string().uuid().optional(),
+    submission_id: z.string().uuid().optional(),
+    dispute_id: z.string().uuid().optional(),
+    parent_id: z.string().uuid().optional(),
+    body: z.string().min(1).max(5000),
+  })
+  .refine((d) => [d.event_id, d.submission_id, d.dispute_id].filter(Boolean).length === 1, {
+    message: "Exactly one of event_id, submission_id, or dispute_id must be provided.",
+  });
+export const GET = withErrorHandling(async function GET(request: NextRequest) {
   try {
     const supabase = await createServerClient();
-    const { data: { user } } = await supabase.auth.getUser();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
     if (!user) {
-      return Response.json({ error: { code: "UNAUTHENTICATED", message: "Auth required." } }, { status: 401 });
+      return Response.json(
+        { error: { code: "UNAUTHENTICATED", message: "Auth required." } },
+        { status: 401 },
+      );
     }
 
     const url = new URL(request.url);
@@ -45,28 +51,40 @@ export async function GET(request: NextRequest) {
     else if (disputeId) query = query.eq("dispute_id", disputeId);
     else {
       return Response.json(
-        { error: { code: "BAD_REQUEST", message: "Provide event_id, submission_id, or dispute_id." } },
+        {
+          error: {
+            code: "BAD_REQUEST",
+            message: "Provide event_id, submission_id, or dispute_id.",
+          },
+        },
         { status: 400 },
       );
     }
 
     const { data, error } = await query;
     if (error) {
-      return Response.json({ error: { code: "INTERNAL_SERVER_ERROR", message: error.message } }, { status: 500 });
+      return Response.json(
+        { error: { code: "INTERNAL_SERVER_ERROR", message: error.message } },
+        { status: 500 },
+      );
     }
 
     return okResponse(data ?? []);
   } catch (error) {
     return handleApiError(error);
   }
-}
-
-export async function POST(request: NextRequest) {
+});
+export const POST = withErrorHandling(async function POST(request: NextRequest) {
   try {
     const supabase = await createServerClient();
-    const { data: { user } } = await supabase.auth.getUser();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
     if (!user) {
-      return Response.json({ error: { code: "UNAUTHENTICATED", message: "Auth required." } }, { status: 401 });
+      return Response.json(
+        { error: { code: "UNAUTHENTICATED", message: "Auth required." } },
+        { status: 401 },
+      );
     }
 
     const body = await request.json();
@@ -74,7 +92,12 @@ export async function POST(request: NextRequest) {
 
     if (!parsed.success) {
       return Response.json(
-        { error: { code: "VALIDATION_FAILED", message: parsed.error.issues[0]?.message ?? "Invalid input." } },
+        {
+          error: {
+            code: "VALIDATION_FAILED",
+            message: parsed.error.issues[0]?.message ?? "Invalid input.",
+          },
+        },
         { status: 422 },
       );
     }
@@ -89,11 +112,14 @@ export async function POST(request: NextRequest) {
       .single();
 
     if (insertError) {
-      return Response.json({ error: { code: "INTERNAL_SERVER_ERROR", message: insertError.message } }, { status: 500 });
+      return Response.json(
+        { error: { code: "INTERNAL_SERVER_ERROR", message: insertError.message } },
+        { status: 500 },
+      );
     }
 
     return okResponse(comment);
   } catch (error) {
     return handleApiError(error);
   }
-}
+});

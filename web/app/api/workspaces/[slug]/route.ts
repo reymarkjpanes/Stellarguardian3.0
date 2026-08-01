@@ -5,6 +5,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createServerClient } from "@/lib/supabase/server";
 import { z } from "zod";
+import { withErrorHandling } from "@/lib/errors/with-error-handling";
 
 const UpdateWorkspaceSchema = z.object({
   name: z.string().min(1).max(200).optional(),
@@ -14,14 +15,15 @@ const UpdateWorkspaceSchema = z.object({
   white_label: z.record(z.string(), z.unknown()).optional(),
   feature_flags: z.record(z.string(), z.unknown()).optional(),
 });
-
-export async function GET(
+export const GET = withErrorHandling(async function GET(
   _request: NextRequest,
   { params }: { params: Promise<{ slug: string }> },
 ) {
   const { slug } = await params;
   const supabase = await createServerClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
 
   if (!user) {
     return NextResponse.json(
@@ -67,15 +69,16 @@ export async function GET(
   return NextResponse.json({
     data: { ...workspace, currentUserRole: membership.role, members: members ?? [] },
   });
-}
-
-export async function PATCH(
+});
+export const PATCH = withErrorHandling(async function PATCH(
   request: NextRequest,
   { params }: { params: Promise<{ slug: string }> },
 ) {
   const { slug } = await params;
   const supabase = await createServerClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
 
   if (!user) {
     return NextResponse.json(
@@ -107,7 +110,9 @@ export async function PATCH(
 
   if (!membership || membership.role === "Member") {
     return NextResponse.json(
-      { error: { code: "FORBIDDEN", message: "Only workspace Owner or Admin can update settings." } },
+      {
+        error: { code: "FORBIDDEN", message: "Only workspace Owner or Admin can update settings." },
+      },
       { status: 403 },
     );
   }
@@ -117,7 +122,13 @@ export async function PATCH(
 
   if (!parsed.success) {
     return NextResponse.json(
-      { error: { code: "VALIDATION_ERROR", message: "Invalid input.", details: parsed.error.flatten() } },
+      {
+        error: {
+          code: "VALIDATION_ERROR",
+          message: "Invalid input.",
+          details: parsed.error.flatten(),
+        },
+      },
       { status: 422 },
     );
   }
@@ -140,10 +151,15 @@ export async function PATCH(
 
   if (error || !updated) {
     return NextResponse.json(
-      { error: { code: "CONFLICT", message: "Workspace was modified concurrently. Refresh and retry." } },
+      {
+        error: {
+          code: "CONFLICT",
+          message: "Workspace was modified concurrently. Refresh and retry.",
+        },
+      },
       { status: 409 },
     );
   }
 
   return NextResponse.json({ data: updated });
-}
+});

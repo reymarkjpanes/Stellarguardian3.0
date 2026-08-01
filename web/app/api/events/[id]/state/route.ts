@@ -8,12 +8,15 @@ import { EventWorkflowEngine } from "@/lib/engines/workflow/event-workflow";
 import type { EventRuleContext } from "@/lib/engines/business-rules/event-rules";
 import type { EventState } from "@/types";
 import { z } from "zod";
+import { withErrorHandling } from "@/lib/errors/with-error-handling";
 
 const TransitionSchema = z.object({
   target_state: z.string(),
 });
-
-export async function PATCH(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+export const PATCH = withErrorHandling(async function PATCH(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> },
+) {
   const { id } = await params;
   const supabase = await createServerClient();
   const {
@@ -236,4 +239,4 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
   }
 
   return NextResponse.json({ data: updated });
-}
+});

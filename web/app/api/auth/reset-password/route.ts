@@ -1,12 +1,12 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createServerClient } from "@/lib/supabase/server";
 import { z } from "zod";
+import { withErrorHandling } from "@/lib/errors/with-error-handling";
 
 const ResetPasswordSchema = z.object({
   password: z.string().min(8),
 });
-
-export async function POST(request: NextRequest) {
+export const POST = withErrorHandling(async function POST(request: NextRequest) {
   const supabase = await createServerClient();
   const {
     data: { user },
@@ -48,4 +48,4 @@ export async function POST(request: NextRequest) {
       { status: 400 },
     );
   }
-}
+});

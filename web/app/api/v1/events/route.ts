@@ -8,8 +8,21 @@ import { handleApiError } from "@/lib/errors";
 import { paginatedResponse } from "@/lib/errors/responses";
 import { discoverEvents } from "@/lib/services/discovery";
 import { createServiceClient } from "@/lib/supabase/service";
+import { withErrorHandling } from "@/lib/errors/with-error-handling";
 
-export async function GET(request: NextRequest) {
+/**
+ * Hash an API key using SHA-256 for secure storage comparison.
+ * Keys are stored hashed — never in plaintext.
+ */
+async function hashApiKey(key: string): Promise<string> {
+  const encoder = new TextEncoder();
+  const data = encoder.encode(key);
+  const hashBuffer = await crypto.subtle.digest("SHA-256", data);
+  const hashArray = Array.from(new Uint8Array(hashBuffer));
+  return hashArray.map((b) => b.toString(16).padStart(2, "0")).join("");
+}
+
+export const GET = withErrorHandling(async function GET(request: NextRequest) {
   try {
     // API key validation (Req 32.2)
     const apiKey = request.headers.get("x-api-key");
@@ -48,7 +61,8 @@ export async function GET(request: NextRequest) {
       category: url.searchParams.get("category") ?? undefined,
       format: url.searchParams.get("format") ?? undefined,
       tag: url.searchParams.get("tag") ?? undefined,
-      sortBy: (url.searchParams.get("sortBy") as "created_at" | "registration_deadline") ?? undefined,
+      sortBy:
+        (url.searchParams.get("sortBy") as "created_at" | "registration_deadline") ?? undefined,
       sortOrder: (url.searchParams.get("sortOrder") as "asc" | "desc") ?? undefined,
       cursor: url.searchParams.get("cursor") ?? undefined,
       limit: url.searchParams.get("limit") ? Number(url.searchParams.get("limit")) : undefined,
@@ -58,16 +72,4 @@ export async function GET(request: NextRequest) {
   } catch (error) {
     return handleApiError(error);
   }
-}
-
-/**
- * Hash an API key using SHA-256 for secure storage comparison.
- * Keys are stored hashed — never in plaintext.
- */
-async function hashApiKey(key: string): Promise<string> {
-  const encoder = new TextEncoder();
-  const data = encoder.encode(key);
-  const hashBuffer = await crypto.subtle.digest("SHA-256", data);
-  const hashArray = Array.from(new Uint8Array(hashBuffer));
-  return hashArray.map((b) => b.toString(16).padStart(2, "0")).join("");
-}
+});

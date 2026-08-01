@@ -7,15 +7,18 @@
 import { NextRequest } from "next/server";
 import { createServerClient } from "@/lib/supabase/server";
 import { handleApiError } from "@/lib/errors";
+import { withErrorHandling } from "@/lib/errors/with-error-handling";
 
-export async function GET(
+export const GET = withErrorHandling(async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> },
 ) {
   try {
     const { id: eventId } = await params;
     const supabase = await createServerClient();
-    const { data: { user } } = await supabase.auth.getUser();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
 
     if (!user) {
       return Response.json(
@@ -80,7 +83,9 @@ export async function GET(
       case "winners": {
         const { data: winners } = await supabase
           .from("winners")
-          .select("id, recipient_id, team_id, prize_amount, disbursement_status, disbursement_tx_hash")
+          .select(
+            "id, recipient_id, team_id, prize_amount, disbursement_status, disbursement_tx_hash",
+          )
           .eq("event_id", eventId)
           .order("prize_amount", { ascending: false });
 
@@ -94,7 +99,12 @@ export async function GET(
 
       default:
         return Response.json(
-          { error: { code: "BAD_REQUEST", message: "Invalid export type. Use: participants, submissions, or winners." } },
+          {
+            error: {
+              code: "BAD_REQUEST",
+              message: "Invalid export type. Use: participants, submissions, or winners.",
+            },
+          },
           { status: 400 },
         );
     }
@@ -109,4 +119,4 @@ export async function GET(
   } catch (error) {
     return handleApiError(error);
   }
-}
+});

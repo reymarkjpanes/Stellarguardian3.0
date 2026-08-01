@@ -10,8 +10,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServerClient } from "@/lib/supabase/server";
 import { createServiceClient } from "@/lib/supabase/service";
+import { withErrorHandling } from "@/lib/errors/with-error-handling";
 
-export async function DELETE(
+export const DELETE = withErrorHandling(async function DELETE(
   _request: NextRequest,
   { params }: { params: Promise<{ public_key: string }> },
 ) {
@@ -112,4 +113,4 @@ export async function DELETE(
   }
 
   return NextResponse.json({ success: true, message: "Wallet removed successfully." });
-}
+});

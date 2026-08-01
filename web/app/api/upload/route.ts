@@ -4,19 +4,27 @@
  */
 import { NextResponse, type NextRequest } from "next/server";
 import { createServerClient } from "@/lib/supabase/server";
+import { withErrorHandling } from "@/lib/errors/with-error-handling";
 
 const MAX_FILE_SIZE = 50 * 1024 * 1024; // 50MB
 const ALLOWED_TYPES = new Set([
-  "image/png", "image/jpeg", "image/gif", "image/webp",
+  "image/png",
+  "image/jpeg",
+  "image/gif",
+  "image/webp",
   "application/pdf",
-  "application/zip", "application/x-zip-compressed",
-  "text/plain", "text/markdown",
-  "video/mp4", "video/webm",
+  "application/zip",
+  "application/x-zip-compressed",
+  "text/plain",
+  "text/markdown",
+  "video/mp4",
+  "video/webm",
 ]);
-
-export async function POST(request: NextRequest) {
+export const POST = withErrorHandling(async function POST(request: NextRequest) {
   const supabase = await createServerClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
 
   if (!user) {
     return NextResponse.json(
@@ -39,7 +47,12 @@ export async function POST(request: NextRequest) {
 
   if (file.size > MAX_FILE_SIZE) {
     return NextResponse.json(
-      { error: { code: "FILE_TOO_LARGE", message: `File exceeds ${MAX_FILE_SIZE / 1024 / 1024}MB limit.` } },
+      {
+        error: {
+          code: "FILE_TOO_LARGE",
+          message: `File exceeds ${MAX_FILE_SIZE / 1024 / 1024}MB limit.`,
+        },
+      },
       { status: 422 },
     );
   }
@@ -59,12 +72,10 @@ export async function POST(request: NextRequest) {
   const arrayBuffer = await file.arrayBuffer();
   const buffer = Buffer.from(arrayBuffer);
 
-  const { data, error } = await supabase.storage
-    .from(bucket)
-    .upload(storagePath, buffer, {
-      contentType: file.type,
-      upsert: false,
-    });
+  const { data, error } = await supabase.storage.from(bucket).upload(storagePath, buffer, {
+    contentType: file.type,
+    upsert: false,
+  });
 
   if (error) {
     return NextResponse.json(
@@ -73,13 +84,16 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  return NextResponse.json({
-    data: {
-      path: data.path,
-      fullPath: data.fullPath,
-      size: file.size,
-      mimeType: file.type,
-      originalName: file.name,
+  return NextResponse.json(
+    {
+      data: {
+        path: data.path,
+        fullPath: data.fullPath,
+        size: file.size,
+        mimeType: file.type,
+        originalName: file.name,
+      },
     },
-  }, { status: 201 });
-}
+    { status: 201 },
+  );
+});

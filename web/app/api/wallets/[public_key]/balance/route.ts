@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getStellarClient } from "@/lib/stellar/client";
+import { withErrorHandling } from "@/lib/errors/with-error-handling";
 
-export async function GET(
+export const GET = withErrorHandling(async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ public_key: string }> },
 ) {
@@ -22,4 +23,4 @@ export async function GET(
       { status: 500 },
     );
   }
-}
+});

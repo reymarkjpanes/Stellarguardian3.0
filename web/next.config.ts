@@ -19,16 +19,15 @@ const nextConfig: NextConfig = {
     // This flag forces per-directory PostCSS config resolution so
     // web/postcss.config.mjs is found and @tailwindcss/postcss runs correctly.
     turbopackLocalPostcssConfig: true,
+    ppr: true, // Enable Partial Prerendering as proposed in the plan
   },
 
   // Image optimization configuration
   images: {
     remotePatterns: [
       { protocol: "https", hostname: "*.supabase.co" },
-      // User-supplied content (sponsor logos, project covers, member avatars)
-      // can come from any domain. Allow all HTTPS sources; optimization is
-      // handled per-image via the sizes prop.
-      { protocol: "https", hostname: "**" },
+      { protocol: "https", hostname: "avatars.githubusercontent.com" },
+      { protocol: "https", hostname: "lh3.googleusercontent.com" },
     ],
   },
 };

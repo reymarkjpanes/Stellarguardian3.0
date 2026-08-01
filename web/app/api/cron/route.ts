@@ -12,10 +12,10 @@ import {
   enforceReviewWindowExpiry,
 } from "@/lib/services/scheduled-jobs";
 import { logger } from "@/lib/logger";
+import { withErrorHandling } from "@/lib/errors/with-error-handling";
 
 export const dynamic = "force-dynamic";
-
-export async function GET(request: NextRequest) {
+export const GET = withErrorHandling(async function GET(request: NextRequest) {
   // Verify cron secret to prevent unauthorized invocations
   const authHeader = request.headers.get("authorization");
   const cronSecret = process.env.CRON_SECRET;
@@ -49,4 +49,4 @@ export async function GET(request: NextRequest) {
   logger.info("Cron job completed", summary);
 
   return NextResponse.json({ data: summary });
-}
+});

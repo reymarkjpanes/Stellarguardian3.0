@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { NextResponse } from "next/server";
 import { createServerClient } from "@/lib/supabase/server";
+import { withErrorHandling } from "@/lib/errors/with-error-handling";
 
 const Schema = z.object({
   teamId: z.string(),
@@ -28,10 +29,9 @@ const Schema = z.object({
   screenshots: z.array(z.string()).optional().nullable(),
   categories_entered: z.array(z.string()).optional().nullable(),
 });
-
-export async function POST(
+export const POST = withErrorHandling(async function POST(
   request: Request,
-  { params }: { params: Promise<{ eventId: string }> }
+  { params }: { params: Promise<{ eventId: string }> },
 ) {
   try {
     const { eventId } = await params;
@@ -68,7 +68,7 @@ export async function POST(
       if (!fields.title?.trim() || !fields.github_url?.trim()) {
         return NextResponse.json(
           { error: "Title and GitHub URL are required for final submission" },
-          { status: 400 }
+          { status: 400 },
         );
       }
     }
@@ -96,16 +96,14 @@ export async function POST(
         return NextResponse.json({ error: "Failed to save submission" }, { status: 500 });
       }
     } else {
-      const { error: insertError } = await supabase
-        .from("submissions")
-        .insert({
-          team_id: teamId,
-          event_id: eventId,
-          submitter_id: userRes.user.id,
-          status: dbStatus,
-          ...fields,
-          updated_at: new Date().toISOString(),
-        });
+      const { error: insertError } = await supabase.from("submissions").insert({
+        team_id: teamId,
+        event_id: eventId,
+        submitter_id: userRes.user.id,
+        status: dbStatus,
+        ...fields,
+        updated_at: new Date().toISOString(),
+      });
 
       if (insertError) {
         console.error("Insert error:", insertError);
@@ -118,4 +116,4 @@ export async function POST(
     console.error("Submission API error:", err);
     return NextResponse.json({ error: "Bad request" }, { status: 400 });
   }
-}
+});

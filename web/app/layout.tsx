@@ -4,6 +4,10 @@ import { ThemeProvider } from "@/components/theme/theme-provider";
 import { ToastProvider } from "@/components/ui/use-toast";
 import "./globals.css";
 
+import { Inter } from "next/font/google";
+
+const inter = Inter({ subsets: ["latin"], display: "swap" });
+
 export const metadata: Metadata = {
   title: "Stellar Guardian",
   description: "Host and join decentralized events backed by Stellar escrow security.",
@@ -35,7 +39,7 @@ export default async function RootLayout({
   // when x-nonce is set in the middleware.
 
   return (
-    <html lang="en" className="dark" suppressHydrationWarning>
+    <html lang="en" className={`dark ${inter.className}`} suppressHydrationWarning>
       <head>
         <Script
           id="theme-script"

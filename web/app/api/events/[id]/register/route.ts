@@ -4,14 +4,17 @@
  */
 import { NextResponse, type NextRequest } from "next/server";
 import { createServerClient } from "@/lib/supabase/server";
+import { withErrorHandling } from "@/lib/errors/with-error-handling";
 
-export async function POST(
+export const POST = withErrorHandling(async function POST(
   _request: NextRequest,
   { params }: { params: Promise<{ id: string }> },
 ) {
   const { id } = await params;
   const supabase = await createServerClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
 
   if (!user) {
     return NextResponse.json(
@@ -37,7 +40,12 @@ export async function POST(
   // Can only register during RegistrationOpen state
   if (event.state !== "RegistrationOpen") {
     return NextResponse.json(
-      { error: { code: "INVALID_STATE", message: "Registration is not currently open for this event." } },
+      {
+        error: {
+          code: "INVALID_STATE",
+          message: "Registration is not currently open for this event.",
+        },
+      },
       { status: 422 },
     );
   }
@@ -77,16 +85,20 @@ export async function POST(
     );
   }
 
-  return NextResponse.json({ data: { event_id: id, role: "Participant", status: "accepted" } }, { status: 201 });
-}
-
-export async function DELETE(
+  return NextResponse.json(
+    { data: { event_id: id, role: "Participant", status: "accepted" } },
+    { status: 201 },
+  );
+});
+export const DELETE = withErrorHandling(async function DELETE(
   _request: NextRequest,
   { params }: { params: Promise<{ id: string }> },
 ) {
   const { id } = await params;
   const supabase = await createServerClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
 
   if (!user) {
     return NextResponse.json(
@@ -96,11 +108,7 @@ export async function DELETE(
   }
 
   // Can only withdraw before SubmissionOpen
-  const { data: event } = await supabase
-    .from("events")
-    .select("state")
-    .eq("id", id)
-    .single();
+  const { data: event } = await supabase.from("events").select("state").eq("id", id).single();
 
   const withdrawAllowedStates = new Set(["RegistrationOpen", "RegistrationClosed"]);
   if (!event || !withdrawAllowedStates.has(event.state)) {
@@ -125,4 +133,4 @@ export async function DELETE(
   }
 
   return NextResponse.json({ data: { withdrawn: true } });
-}
+});

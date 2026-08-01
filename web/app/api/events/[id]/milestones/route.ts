@@ -6,6 +6,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createServerClient } from "@/lib/supabase/server";
 import { z } from "zod";
+import { withErrorHandling } from "@/lib/errors/with-error-handling";
 
 const CreateMilestoneSchema = z.object({
   title: z.string().min(1).max(200),
@@ -18,8 +19,7 @@ const UpdateMilestoneSchema = z.object({
   id: z.string().uuid(),
   status: z.enum(["pending", "in_progress", "completed"]),
 });
-
-export async function GET(
+export const GET = withErrorHandling(async function GET(
   _request: NextRequest,
   { params }: { params: Promise<{ id: string }> },
 ) {
@@ -33,15 +33,16 @@ export async function GET(
     .order("due_date", { ascending: true });
 
   return NextResponse.json({ data: milestones ?? [] });
-}
-
-export async function POST(
+});
+export const POST = withErrorHandling(async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> },
 ) {
   const { id } = await params;
   const supabase = await createServerClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
 
   if (!user) {
     return NextResponse.json(
@@ -69,7 +70,13 @@ export async function POST(
 
   if (!parsed.success) {
     return NextResponse.json(
-      { error: { code: "VALIDATION_ERROR", message: "Invalid input.", details: parsed.error.flatten() } },
+      {
+        error: {
+          code: "VALIDATION_ERROR",
+          message: "Invalid input.",
+          details: parsed.error.flatten(),
+        },
+      },
       { status: 422 },
     );
   }
@@ -94,15 +101,16 @@ export async function POST(
   }
 
   return NextResponse.json({ data: milestone }, { status: 201 });
-}
-
-export async function PATCH(
+});
+export const PATCH = withErrorHandling(async function PATCH(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> },
 ) {
   const { id } = await params;
   const supabase = await createServerClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
 
   if (!user) {
     return NextResponse.json(
@@ -137,4 +145,4 @@ export async function PATCH(
   }
 
   return NextResponse.json({ data: updated });
-}
+});

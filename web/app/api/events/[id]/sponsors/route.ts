@@ -5,6 +5,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createServerClient } from "@/lib/supabase/server";
 import { z } from "zod";
+import { withErrorHandling } from "@/lib/errors/with-error-handling";
 
 const AddSponsorSchema = z.object({
   user_id: z.string().uuid().optional(),
@@ -13,14 +14,30 @@ const AddSponsorSchema = z.object({
   contribution_amount: z.number().min(0).optional(),
   tier: z.enum(["platinum", "gold", "silver", "bronze"]).default("bronze"),
 });
+export const GET = withErrorHandling(async function GET(
+  _request: NextRequest,
+  { params }: { params: Promise<{ id: string }> },
+) {
+  const { id } = await params;
+  const supabase = await createServerClient();
 
-export async function POST(
+  const { data: sponsors } = await supabase
+    .from("sponsors")
+    .select("*")
+    .eq("event_id", id)
+    .order("tier", { ascending: true });
+
+  return NextResponse.json({ data: sponsors ?? [] });
+});
+export const POST = withErrorHandling(async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> },
 ) {
   const { id } = await params;
   const supabase = await createServerClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
 
   if (!user) {
     return NextResponse.json(
@@ -49,7 +66,13 @@ export async function POST(
 
   if (!parsed.success) {
     return NextResponse.json(
-      { error: { code: "VALIDATION_ERROR", message: "Invalid input.", details: parsed.error.flatten() } },
+      {
+        error: {
+          code: "VALIDATION_ERROR",
+          message: "Invalid input.",
+          details: parsed.error.flatten(),
+        },
+      },
       { status: 422 },
     );
   }
@@ -76,27 +99,13 @@ export async function POST(
 
   // Also add as event member with Sponsor role if user_id provided
   if (parsed.data.user_id) {
-    await supabase.from("event_members").upsert(
-      { event_id: id, user_id: parsed.data.user_id, role: "Sponsor", status: "accepted" },
-      { onConflict: "event_id,user_id,role" },
-    );
+    await supabase
+      .from("event_members")
+      .upsert(
+        { event_id: id, user_id: parsed.data.user_id, role: "Sponsor", status: "accepted" },
+        { onConflict: "event_id,user_id,role" },
+      );
   }
 
   return NextResponse.json({ data: sponsor }, { status: 201 });
-}
-
-export async function GET(
-  _request: NextRequest,
-  { params }: { params: Promise<{ id: string }> },
-) {
-  const { id } = await params;
-  const supabase = await createServerClient();
-
-  const { data: sponsors } = await supabase
-    .from("sponsors")
-    .select("*")
-    .eq("event_id", id)
-    .order("tier", { ascending: true });
-
-  return NextResponse.json({ data: sponsors ?? [] });
-}
+});

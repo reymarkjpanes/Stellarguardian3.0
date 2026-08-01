@@ -14,13 +14,13 @@ import { createServiceClient } from "@/lib/supabase/service";
 import { buildDepositTransaction } from "@/lib/stellar/soroban-escrow";
 import { handleApiError } from "@/lib/errors";
 import { z } from "zod";
+import { withErrorHandling } from "@/lib/errors/with-error-handling";
 
 const BodySchema = z.object({
   organizerPublicKey: z.string().min(56).max(56),
   amountStroops: z.string().regex(/^\d+$/),
 });
-
-export async function POST(
+export const POST = withErrorHandling(async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> },
 ) {
@@ -45,7 +45,13 @@ export async function POST(
     const parsed = BodySchema.safeParse(body);
     if (!parsed.success) {
       return NextResponse.json(
-        { error: { code: "VALIDATION_ERROR", message: "Invalid request body.", details: parsed.error.issues } },
+        {
+          error: {
+            code: "VALIDATION_ERROR",
+            message: "Invalid request body.",
+            details: parsed.error.issues,
+          },
+        },
         { status: 422 },
       );
     }
@@ -71,7 +77,12 @@ export async function POST(
     const fundableStates = ["Draft", "Funding", "Funded"];
     if (!fundableStates.includes(escrow.status ?? "")) {
       return NextResponse.json(
-        { error: { code: "INVALID_STATE", message: `Escrow is in status "${escrow.status}" and cannot accept deposits.` } },
+        {
+          error: {
+            code: "INVALID_STATE",
+            message: `Escrow is in status "${escrow.status}" and cannot accept deposits.`,
+          },
+        },
         { status: 422 },
       );
     }
@@ -94,4 +105,4 @@ export async function POST(
   } catch (error) {
     return handleApiError(error);
   }
-}
+});

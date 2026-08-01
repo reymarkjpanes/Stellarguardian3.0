@@ -9,8 +9,9 @@ import { NextRequest } from "next/server";
 import { handleApiError } from "@/lib/errors";
 import { okResponse } from "@/lib/errors/responses";
 import { getEscrowVerification } from "@/lib/services/escrow";
+import { withErrorHandling } from "@/lib/errors/with-error-handling";
 
-export async function GET(
+export const GET = withErrorHandling(async function GET(
   _request: NextRequest,
   { params }: { params: Promise<{ id: string }> },
 ) {
@@ -29,4 +30,4 @@ export async function GET(
   } catch (error) {
     return handleApiError(error);
   }
-}
+});

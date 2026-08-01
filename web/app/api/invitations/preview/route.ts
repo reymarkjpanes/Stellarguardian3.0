@@ -9,8 +9,9 @@ import { NextRequest } from "next/server";
 import { createServiceClient } from "@/lib/supabase/service";
 import { handleApiError } from "@/lib/errors";
 import { okResponse } from "@/lib/errors/responses";
+import { withErrorHandling } from "@/lib/errors/with-error-handling";
 
-export async function GET(request: NextRequest) {
+export const GET = withErrorHandling(async function GET(request: NextRequest) {
   try {
     const token = new URL(request.url).searchParams.get("token");
     if (!token) {
@@ -40,12 +41,9 @@ export async function GET(request: NextRequest) {
         invitation.status === "accepted"
           ? "This invitation has already been accepted."
           : invitation.status === "expired"
-          ? "This invitation has expired."
-          : "This invitation has been revoked.";
-      return Response.json(
-        { error: { code: "CONFLICT", message: msg } },
-        { status: 409 },
-      );
+            ? "This invitation has expired."
+            : "This invitation has been revoked.";
+      return Response.json({ error: { code: "CONFLICT", message: msg } }, { status: 409 });
     }
 
     if (new Date(invitation.expires_at) < new Date()) {
@@ -81,4 +79,4 @@ export async function GET(request: NextRequest) {
   } catch (error) {
     return handleApiError(error);
   }
-}
+});
