@@ -679,23 +679,48 @@ Coverage includes:
 
 ---
 
-## Deployment
+## Deployment & Backend Architecture
 
-The app is designed for **Vercel**.
+Stellar Guardian 3.0 uses a modern **Full-Stack Next.js (App Router) + BaaS** architecture. There is **no separate backend application** (like Express or Python) to deploy.
 
-1. Push to GitHub and connect the repo to Vercel
-2. Set **Root Directory** to `web/`
-3. Add all environment variables from [Environment Setup](#environment-setup)
-4. Vercel auto-detects Next.js and configures the build
+- **The Node.js Backend:** The backend logic lives directly inside the `web/app/api/` and `web/lib/services/` directories. Vercel automatically deploys these as Serverless Functions.
+- **The Database Backend:** Supabase acts as the primary data backend, handling authentication and database (with Row Level Security).
+- **The Financial Backend:** The Soroban smart contract on the Stellar blockchain acts as the decentralized backend for all escrow and payout logic.
 
-**Production-specific variables:**
+### Step-by-Step Production Deployment Guide
 
+**1. Database Deployment (Supabase)**
+1. Create a new project in the [Supabase Dashboard](https://supabase.com/dashboard).
+2. Go to the **SQL Editor** in your Supabase project.
+3. Copy the contents of `web/supabase/combined_migration.sql` and run it to set up all tables and policies.
+
+**2. Smart Contract Deployment (Stellar Soroban)**
+*(Optional: Only if deploying a new escrow instance instead of using the default one.)*
+```bash
+cd contracts/escrow
+rustup target add wasm32v1-none
+cargo build --locked --target wasm32v1-none --release
+stellar contract deploy \
+  --wasm target/wasm32v1-none/release/stellar_guardian_escrow.wasm \
+  --source <YOUR_SECRET_KEY> \
+  --network testnet
+```
+*Save the outputted Contract ID for your environment variables.*
+
+**3. Frontend & API Deployment (Vercel)**
+The app is designed to be seamlessly hosted on **Vercel**.
+
+1. Push your code to a GitHub repository and connect it to [Vercel](https://vercel.com/).
+2. **CRITICAL:** Set the **Root Directory** to `web/` during the Vercel project setup.
+3. Add all environment variables (from your `.env.local` or the [Environment Setup](#environment-setup) section).
+4. Add the following production-specific variables:
 ```env
 NODE_ENV=production
 STELLAR_MAINNET_ENABLED=true   # only if targeting mainnet
 KMS_KEY_ARN=arn:aws:kms:...
 AWS_REGION=us-east-1
 ```
+5. Click **Deploy**. Vercel will automatically configure Next.js and your serverless API routes.
 
 **Cron jobs** (configured in `web/vercel.json`):
 
@@ -703,26 +728,6 @@ AWS_REGION=us-east-1
 |---|---|---|
 | `/api/cron/cleanup` | Every hour | Idempotency key cleanup |
 | `/api/cron/escrow-reconcile` | Every 15 min | Escrow state sync |
-
-**Redeploying the smart contract:**
-
-```bash
-cd contracts/escrow
-
-# Install target (first time only)
-rustup target add wasm32v1-none
-
-# Build
-cargo build --locked --target wasm32v1-none --release
-
-# Deploy via Stellar CLI
-stellar contract deploy \
-  --wasm target/wasm32v1-none/release/stellar_guardian_escrow.wasm \
-  --source <YOUR_SECRET_KEY> \
-  --network testnet
-```
-
-Update `ESCROW_CONTRACT_ID` in your environment with the new address.
 
 ---
 
