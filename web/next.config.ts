@@ -12,7 +12,6 @@ const nextConfig: NextConfig = {
     root: path.join(__dirname, ".."),
   },
 
-  cacheComponents: true, // Replaces experimental.ppr in latest Next.js versions
   experimental: {
     // When turbopack.root is set to a parent directory, Turbopack resolves
     // PostCSS config relative to that root — missing web/postcss.config.mjs
