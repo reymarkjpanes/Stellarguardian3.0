@@ -12,6 +12,8 @@ const nextConfig: NextConfig = {
     root: path.join(__dirname, ".."),
   },
 
+  cacheComponents: false, // Explicitly disable Partial Prerendering to avoid Suspense errors
+
   experimental: {
     // When turbopack.root is set to a parent directory, Turbopack resolves
     // PostCSS config relative to that root — missing web/postcss.config.mjs
