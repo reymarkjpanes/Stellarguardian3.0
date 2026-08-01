@@ -6,7 +6,7 @@ import { notFound } from "next/navigation";
 import { createServerClient } from "@/lib/supabase/server";
 import { getCurrentUser } from "@/lib/data/user";
 import { getEventById } from "@/lib/data/event";
-import { SubmissionsClient } from "./submissions-client";
+import { SubmissionsClient, JudgeFeedback } from "./submissions-client";
 
 export default async function EventSubmissionsPage({
   params,
@@ -91,7 +91,7 @@ export default async function EventSubmissionsPage({
 
   const mySubmission = submissions.find((s) => s.team_id === myTeamId);
 
-  let feedback: Record<string, unknown>[] = [];
+  let feedback: JudgeFeedback[] = [];
   if (event.state === "Completed" && mySubmission) {
     const { data: evals } = await supabase
       .from("evaluations")

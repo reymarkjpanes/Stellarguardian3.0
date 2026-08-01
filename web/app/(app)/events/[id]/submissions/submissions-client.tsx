@@ -40,7 +40,14 @@ interface Props {
   userId: string | null;
   teamId: string | null;
   teamName: string | null;
-  feedback?: Record<string, unknown>[];
+  feedback?: JudgeFeedback[];
+}
+
+export interface JudgeFeedback {
+  id: string;
+  total_score: number | null;
+  participant_feedback: string | null;
+  scores: Record<string, number> | null;
 }
 
 function PhaseGate({ state }: { state: string }) {
@@ -103,14 +110,14 @@ function ViewFeedbackModal({
 }: {
   isOpen: boolean;
   onClose: () => void;
-  feedback: Record<string, unknown>[];
+  feedback: JudgeFeedback[];
 }) {
   if (!isOpen) return null;
 
   const validScores = feedback.filter((f) => typeof f.total_score === "number");
   const averageScore =
     validScores.length > 0
-      ? validScores.reduce((acc, f) => acc + f.total_score, 0) / validScores.length
+      ? validScores.reduce((acc, f) => acc + f.total_score!, 0) / validScores.length
       : null;
 
   return (
@@ -141,26 +148,24 @@ function ViewFeedbackModal({
                 </div>
                 {f.participant_feedback ? (
                   <div className="text-sm text-[var(--text)] bg-[var(--bg-muted)] p-3 rounded italic">
-                    &quot;{f.participant_feedback as string}&quot;
+                    &quot;{f.participant_feedback}&quot;
                   </div>
                 ) : (
                   <p className="text-xs text-[var(--text-muted)] italic">No comments provided.</p>
                 )}
 
-                {f.scores && Object.keys(f.scores as Record<string, unknown>).length > 0 && (
+                {f.scores && Object.keys(f.scores).length > 0 && (
                   <div className="pt-2">
                     <p className="text-xs font-semibold text-[var(--text-muted)] mb-1">
                       Rubric Scores:
                     </p>
                     <div className="grid grid-cols-2 gap-2">
-                      {Object.entries(f.scores as Record<string, unknown>).map(
-                        ([category, score]) => (
-                          <div key={category} className="text-xs flex justify-between">
-                            <span className="text-[var(--text-secondary)]">{category}:</span>
-                            <span className="font-medium">{score as number}</span>
-                          </div>
-                        ),
-                      )}
+                      {Object.entries(f.scores).map(([category, score]) => (
+                        <div key={category} className="text-xs flex justify-between">
+                          <span className="text-[var(--text-secondary)]">{category}:</span>
+                          <span className="font-medium">{score}</span>
+                        </div>
+                      ))}
                     </div>
                   </div>
                 )}
