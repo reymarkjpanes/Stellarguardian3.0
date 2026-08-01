@@ -1,20 +1,3 @@
 {
-  "crons": [
-    {
-      "path": "/api/cron/transitions",
-      "schedule": "*/5 * * * *"
-    },
-    {
-      "path": "/api/cron/process-events",
-      "schedule": "* * * * *"
-    },
-    {
-      "path": "/api/cron/reconcile",
-      "schedule": "*/30 * * * *"
-    },
-    {
-      "path": "/api/cron/cleanup-idempotency",
-      "schedule": "0 * * * *"
-    }
-  ]
+  "crons": []
 }
