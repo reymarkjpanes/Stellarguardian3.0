@@ -19,7 +19,7 @@ const nextConfig: NextConfig = {
     // This flag forces per-directory PostCSS config resolution so
     // web/postcss.config.mjs is found and @tailwindcss/postcss runs correctly.
     turbopackLocalPostcssConfig: true,
-    ppr: true, // Enable Partial Prerendering as proposed in the plan
+    cacheComponents: true, // Replaces ppr: true in latest Next.js versions
   },
 
   // Image optimization configuration
