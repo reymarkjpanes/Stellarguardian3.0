@@ -65,7 +65,8 @@ export function AppNav({ user, workspaces = [], currentWorkspaceId }: AppNavProp
                 />
               </div>
               <span className="text-lg font-bold tracking-tight text-[var(--text)] hidden sm:inline-block">
-                Stellar <span className="text-[var(--text-secondary)]">Guardian</span>
+                {"Stellar "}
+                <span className="text-[var(--text-secondary)]">Guardian</span>
               </span>
             </Link>
 
