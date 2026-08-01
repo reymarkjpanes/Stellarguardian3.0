@@ -10,7 +10,10 @@
  *  Organizer / Judge / any other role   → Read-only submissions list
  */
 
+import { useState } from "react";
 import { EmptyState } from "@/components/ui/empty-state";
+import { Modal } from "@/components/ui/modal";
+import { StatusBadge } from "@/components/ui/status-badge";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -37,22 +40,8 @@ interface Props {
   userId: string | null;
   teamId: string | null;
   teamName: string | null;
+  feedback?: Record<string, unknown>[];
 }
-
-// ─── Status badge ─────────────────────────────────────────────────────────────
-
-function StatusBadge({ status }: { status: string }) {
-  const s = status.toLowerCase();
-  const cls =
-    s === "submitted"
-      ? "bg-[var(--success-bg)] text-[var(--success)]"
-      : s === "draft"
-        ? "bg-[var(--warning-bg)] text-[var(--warning)]"
-        : "bg-[var(--badge-bg)] text-[var(--badge-text)]";
-  return <span className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${cls}`}>{status}</span>;
-}
-
-// ─── Phase gate ───────────────────────────────────────────────────────────────
 
 function PhaseGate({ state }: { state: string }) {
   const messages: Record<string, string> = {
@@ -105,6 +94,85 @@ function SubmissionsList({ submissions }: { submissions: Submission[] }) {
   );
 }
 
+// ─── Feedback Modal ───────────────────────────────────────────────────────────
+
+function ViewFeedbackModal({
+  isOpen,
+  onClose,
+  feedback,
+}: {
+  isOpen: boolean;
+  onClose: () => void;
+  feedback: Record<string, unknown>[];
+}) {
+  if (!isOpen) return null;
+
+  const validScores = feedback.filter((f) => typeof f.total_score === "number");
+  const averageScore =
+    validScores.length > 0
+      ? validScores.reduce((acc, f) => acc + f.total_score, 0) / validScores.length
+      : null;
+
+  return (
+    <Modal isOpen={isOpen} onClose={onClose} title="Judge Feedback">
+      <div className="space-y-6 min-w-[400px] max-w-[600px]">
+        <div className="flex flex-col items-center justify-center p-6 bg-[var(--bg-muted)] rounded-lg">
+          <p className="text-sm font-semibold text-[var(--text-muted)] uppercase tracking-wider mb-2">
+            Overall Average Score
+          </p>
+          <p className="text-4xl font-bold text-[var(--text)]">
+            {averageScore !== null ? averageScore.toFixed(1) : "N/A"}
+          </p>
+          <p className="text-xs text-[var(--text-muted)] mt-1">
+            Based on {validScores.length} judge evaluation(s)
+          </p>
+        </div>
+
+        <div className="space-y-4">
+          <h3 className="text-sm font-semibold text-[var(--text)]">Anonymous Judge Breakdown</h3>
+          {feedback.length === 0 ? (
+            <p className="text-sm text-[var(--text-muted)]">No feedback available.</p>
+          ) : (
+            feedback.map((f, i) => (
+              <div key={f.id} className="card p-4 space-y-3">
+                <div className="flex items-center justify-between border-b border-[var(--border)] pb-2">
+                  <span className="font-medium text-[var(--text)]">Judge {i + 1}</span>
+                  <span className="font-bold text-[var(--accent)]">{f.total_score} / 100</span>
+                </div>
+                {f.participant_feedback ? (
+                  <div className="text-sm text-[var(--text)] bg-[var(--bg-muted)] p-3 rounded italic">
+                    &quot;{f.participant_feedback as string}&quot;
+                  </div>
+                ) : (
+                  <p className="text-xs text-[var(--text-muted)] italic">No comments provided.</p>
+                )}
+
+                {f.scores && Object.keys(f.scores as Record<string, unknown>).length > 0 && (
+                  <div className="pt-2">
+                    <p className="text-xs font-semibold text-[var(--text-muted)] mb-1">
+                      Rubric Scores:
+                    </p>
+                    <div className="grid grid-cols-2 gap-2">
+                      {Object.entries(f.scores as Record<string, unknown>).map(
+                        ([category, score]) => (
+                          <div key={category} className="text-xs flex justify-between">
+                            <span className="text-[var(--text-secondary)]">{category}:</span>
+                            <span className="font-medium">{score as number}</span>
+                          </div>
+                        ),
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
+            ))
+          )}
+        </div>
+      </div>
+    </Modal>
+  );
+}
+
 // ─── Main component ───────────────────────────────────────────────────────────
 
 export function SubmissionsClient({
@@ -118,9 +186,12 @@ export function SubmissionsClient({
   userId,
   teamId,
   teamName,
+  feedback = [],
 }: Props) {
   const isParticipant = userRole === "Participant";
   const submissionOpen = eventState === "SubmissionOpen";
+  const isCompleted = eventState === "Completed";
+  const [isFeedbackModalOpen, setIsFeedbackModalOpen] = useState(false);
 
   // ── Organizer / Judge — read-only list ────────────────────────────────────
   if (!isParticipant) {
@@ -137,8 +208,11 @@ export function SubmissionsClient({
     );
   }
 
-  // ── Participant: wrong phase ───────────────────────────────────────────────
-  if (!submissionOpen) {
+  // ── Participant: no team ───────────────────────────────────────────────────
+  const mySubmission = submissions.find((s) => s.team_id === teamId);
+
+  // ── Participant: wrong phase (and no submission to show) ───────────────────
+  if (!submissionOpen && !mySubmission) {
     return (
       <div className="space-y-4">
         <h2 className="text-lg font-semibold text-[var(--text)]">Submissions</h2>
@@ -162,7 +236,7 @@ export function SubmissionsClient({
   }
 
   // ── Participant: no team ───────────────────────────────────────────────────
-  if (!teamId) {
+  if (!teamId && submissionOpen) {
     return (
       <div className="space-y-4">
         <h2 className="text-lg font-semibold text-[var(--text)]">Submissions</h2>
@@ -184,7 +258,6 @@ export function SubmissionsClient({
   }
 
   // ── Participant + team + SubmissionOpen → Full submission hub ──────────────
-  const mySubmission = submissions.find((s) => s.team_id === teamId);
 
   return (
     <div className="space-y-6">
@@ -217,12 +290,22 @@ export function SubmissionsClient({
                   View GitHub
                 </a>
               )}
-              <a
-                href={`/events/${eventId}/submissions/new`}
-                className="inline-flex items-center justify-center rounded-md bg-[var(--accent)] px-4 py-2 text-sm font-medium text-white hover:bg-[var(--accent-hover)] transition-colors"
-              >
-                Edit Submission
-              </a>
+              {isCompleted && (
+                <button
+                  onClick={() => setIsFeedbackModalOpen(true)}
+                  className="inline-flex items-center justify-center rounded-md bg-[var(--text)] px-4 py-2 text-sm font-medium text-[var(--bg)] hover:bg-[var(--text-secondary)] transition-colors"
+                >
+                  View Feedback
+                </button>
+              )}
+              {submissionOpen && (
+                <a
+                  href={`/events/${eventId}/submissions/new`}
+                  className="inline-flex items-center justify-center rounded-md bg-[var(--accent)] px-4 py-2 text-sm font-medium text-white hover:bg-[var(--accent-hover)] transition-colors"
+                >
+                  Edit Submission
+                </a>
+              )}
             </div>
           </div>
           <div className="mt-6 border-t border-[var(--border)] pt-4">
@@ -246,6 +329,11 @@ export function SubmissionsClient({
           </a>
         </div>
       )}
+      <ViewFeedbackModal
+        isOpen={isFeedbackModalOpen}
+        onClose={() => setIsFeedbackModalOpen(false)}
+        feedback={feedback}
+      />
     </div>
   );
 }

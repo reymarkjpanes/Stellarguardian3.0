@@ -250,7 +250,6 @@ export default function EventEscrowPage() {
     }
   }, []);
 
-   
   useEffect(() => {
     void loadData();
   }, [loadData]);
@@ -573,6 +572,21 @@ export default function EventEscrowPage() {
             <span className="font-mono">{onChain.expectedBalance} XLM</span>. Automated transitions
             are paused. Contact platform support if this persists.
           </p>
+        </div>
+      )}
+
+      {/* Automated Trigger Banner */}
+      {(eventState === "WinnerVerification" || eventState === "PrizeApproved") && (
+        <div className="rounded-lg border border-blue-500/30 bg-blue-500/8 px-4 py-3 flex items-start gap-3">
+          <div className="text-blue-400 mt-0.5">ℹ</div>
+          <div>
+            <p className="text-sm font-medium text-blue-400">Automated Trigger Standby</p>
+            <p className="text-xs text-[var(--text-muted)] mt-1">
+              {eventState === "WinnerVerification"
+                ? "The event is in Winner Verification. Once disputes are cleared and the state transitions to Prize Approved, the smart contract will automatically trigger payouts."
+                : "The prize allocation has been approved. Automated escrow payout will execute momentarily, or you can track progress below."}
+            </p>
+          </div>
         </div>
       )}
 

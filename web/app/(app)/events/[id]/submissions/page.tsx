@@ -89,6 +89,21 @@ export default async function EventSubmissionsPage({
     (myTeamMembership as { team_id: string; teams: { name: string } | null } | null)?.teams?.name ??
     null;
 
+  const mySubmission = submissions.find((s) => s.team_id === myTeamId);
+
+  let feedback: Record<string, unknown>[] = [];
+  if (event.state === "Completed" && mySubmission) {
+    const { data: evals } = await supabase
+      .from("evaluations")
+      .select("id, total_score, participant_feedback, scores, conflict_of_interest")
+      .eq("submission_id", mySubmission.id)
+      .eq("status", "Submitted");
+
+    if (evals) {
+      feedback = evals.filter((e) => !e.conflict_of_interest);
+    }
+  }
+
   return (
     <SubmissionsClient
       eventId={id}
@@ -102,6 +117,7 @@ export default async function EventSubmissionsPage({
       userId={user?.id ?? null}
       teamId={myTeamId}
       teamName={myTeamName}
+      feedback={feedback}
     />
   );
 }

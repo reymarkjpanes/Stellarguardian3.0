@@ -8,6 +8,7 @@ import { redirect } from "next/navigation";
 import { createServerClient } from "@/lib/supabase/server";
 import { OrganizerActionCenter } from "@/components/dashboard/organizer-action-center";
 import { EventListFilter } from "@/components/dashboard/event-list-filter";
+import { ParticipantSubmissionsList } from "@/components/dashboard/participant-submissions-list";
 import { SponsorEventList } from "@/components/dashboard/sponsor-event-list";
 import { EmptyState } from "@/components/ui/empty-state";
 
@@ -87,8 +88,8 @@ export default async function DashboardPage() {
     .map((m) => m.event_id);
 
   // Combined for escrow query
-  const organizerAndSponsorEventIds = Array.from(
-    new Set([...organizerEventIds, ...sponsorEventIds]),
+  const organizerSponsorParticipantEventIds = Array.from(
+    new Set([...organizerEventIds, ...sponsorEventIds, ...participantEventIds]),
   );
 
   // --- Organizer enrichment: parallel fetch ---
@@ -121,11 +122,11 @@ export default async function DashboardPage() {
       .eq("verification_status", "Verified")
       .limit(1)
       .maybeSingle(),
-    organizerAndSponsorEventIds.length > 0
+    organizerSponsorParticipantEventIds.length > 0
       ? supabase
           .from("escrow_accounts")
           .select("event_id, state, expected_balance")
-          .in("event_id", organizerAndSponsorEventIds)
+          .in("event_id", organizerSponsorParticipantEventIds)
       : Promise.resolve({ data: [] }),
     organizerEventIds.length > 0
       ? supabase.from("submissions").select("id, event_id").in("event_id", organizerEventIds)
@@ -218,13 +219,13 @@ export default async function DashboardPage() {
     participantTeamIds.length > 0
       ? await supabase
           .from("submissions")
-          .select("event_id, status")
+          .select("id, event_id, status, title, github_url, demo_url")
           .in("team_id", participantTeamIds)
       : { data: [] };
 
   const participantSubMap = new Map();
   for (const s of participantSubmissionsData ?? []) {
-    participantSubMap.set(s.event_id, s.status);
+    participantSubMap.set(s.event_id, s);
   }
 
   // Fetch workspace details
@@ -313,8 +314,8 @@ export default async function DashboardPage() {
         {/* Role-aware Event Lists */}
         {events.filter((e) => e.role === "Participant").length > 0 && (
           <section>
-            <h2 className="text-lg font-medium mb-3">Your Hackathons (Participating)</h2>
-            <EventListFilter
+            <h2 className="text-lg font-medium mb-3">My Submissions</h2>
+            <ParticipantSubmissionsList
               events={events
                 .filter((e) => e.role === "Participant")
                 .map((e) => ({
@@ -324,7 +325,10 @@ export default async function DashboardPage() {
                   event_title: e.event_title,
                   event_state: e.event_state,
                   team_name: participantTeamMap.get(e.event_id)?.team_name,
-                  submission_status: participantSubMap.get(e.event_id),
+                  submission_status: participantSubMap.get(e.event_id)?.status,
+                  submission_title: participantSubMap.get(e.event_id)?.title,
+                  submission_id: participantSubMap.get(e.event_id)?.id,
+                  escrow_state: escrowByEvent.get(e.event_id)?.state,
                 }))}
             />
           </section>

@@ -302,7 +302,15 @@ export function EventDetailClient({
               <ActionButton
                 label="Lock Team Formation"
                 hint="Prevent participants from leaving/joining teams"
-                onClick={() => handleStateChange("TeamFormationLocked")}
+                onClick={() => {
+                  if (
+                    confirm(
+                      "Lock team formation? Participants will no longer be able to join or leave teams.",
+                    )
+                  ) {
+                    handleStateChange("TeamFormationLocked");
+                  }
+                }}
                 disabled={loading}
               />
             )}
@@ -325,7 +333,15 @@ export function EventDetailClient({
               <ActionButton
                 label="Begin Judging (Round 1)"
                 hint="Requires at least one submission"
-                onClick={() => handleStateChange("JudgingRound1")}
+                onClick={() => {
+                  if (
+                    confirm(
+                      "Begin judging? Submissions will be locked and judges can start scoring.",
+                    )
+                  ) {
+                    handleStateChange("JudgingRound1");
+                  }
+                }}
                 disabled={loading}
               />
             )}
@@ -381,7 +397,15 @@ export function EventDetailClient({
               <ActionButton
                 label="Mark Completed"
                 hint="Event is fully concluded"
-                onClick={() => handleStateChange("Completed")}
+                onClick={() => {
+                  if (
+                    confirm(
+                      "Mark event as completed? This will reveal judge feedback to participants and conclude the event.",
+                    )
+                  ) {
+                    handleStateChange("Completed");
+                  }
+                }}
                 disabled={loading}
               />
             )}
