@@ -11,7 +11,6 @@ import { verifyCronAuth } from "@/lib/cron-auth";
 import { logger } from "@/lib/logger";
 import { withErrorHandling } from "@/lib/errors/with-error-handling";
 
-export const dynamic = "force-dynamic";
 // Keep GET handler for backward compatibility with existing Vercel cron config
 export const GET = withErrorHandling(async function GET(request: NextRequest) {
   return POST(request);

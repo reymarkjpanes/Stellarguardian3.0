@@ -14,7 +14,6 @@ import {
 import { logger } from "@/lib/logger";
 import { withErrorHandling } from "@/lib/errors/with-error-handling";
 
-export const dynamic = "force-dynamic";
 export const GET = withErrorHandling(async function GET(request: NextRequest) {
   // Verify cron secret to prevent unauthorized invocations
   const authHeader = request.headers.get("authorization");
