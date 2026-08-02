@@ -60,7 +60,7 @@ function generateRequestId(): string {
  * Based on Next.js official CSP nonce pattern.
  */
 function generateNonce(): string {
-  return Buffer.from(crypto.randomUUID()).toString("base64");
+  return btoa(crypto.randomUUID());
 }
 
 /**
