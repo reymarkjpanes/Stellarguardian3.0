@@ -121,7 +121,39 @@ export async function proxy(request: NextRequest) {
   }
 
   // --- Authentication via Supabase session refresh ---
-  const { response, claims } = await updateSession(request);
+  let sessionResult;
+  try {
+    sessionResult = await updateSession(request);
+  } catch (error: unknown) {
+    // If environment variables are missing, updateSession will throw an Error from env.ts
+    if (
+      error instanceof Error &&
+      error.message?.includes("Missing required environment variable")
+    ) {
+      return new NextResponse(
+        `
+        <html>
+          <body style="font-family: system-ui; padding: 2rem; max-width: 600px; margin: 0 auto; line-height: 1.5;">
+            <h1 style="color: #ef4444;">Configuration Error</h1>
+            <p><strong>Stellar Guardian is almost ready, but it's missing its environment variables!</strong></p>
+            <p>The server is throwing this error:</p>
+            <pre style="background: #f1f5f9; padding: 1rem; border-radius: 4px; overflow-x: auto; font-size: 14px;">${error.message}</pre>
+            <p><strong>To fix this:</strong></p>
+            <ol>
+              <li>Go to your Vercel Dashboard -> Settings -> Environment Variables.</li>
+              <li>Make sure you pasted ALL the variables provided previously.</li>
+              <li>Make sure the "Production" environment checkbox was checked.</li>
+              <li>After saving, go to the <strong>Deployments</strong> tab and trigger a <strong>Redeploy</strong>.</li>
+            </ol>
+          </body>
+        </html>
+        `,
+        { status: 500, headers: { "Content-Type": "text/html" } },
+      );
+    }
+    throw error;
+  }
+  const { response, claims } = sessionResult;
 
   // --- Rate Limiting (Req 14.2) ---
   const tier = resolveRateLimitTier(pathname, request.method, !!claims);
