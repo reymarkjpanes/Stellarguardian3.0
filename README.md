@@ -12,6 +12,7 @@
 [![Stellar](https://img.shields.io/badge/Stellar-SDK%2016%20·%20Soroban-141414?logo=stellar&logoColor=white)](https://stellar.org/)
 [![Tailwind CSS](https://img.shields.io/badge/Tailwind%20CSS-4.x-06B6D4?logo=tailwindcss&logoColor=white)](https://tailwindcss.com/)
 [![License](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+[![Live](https://img.shields.io/badge/Live-Vercel-000000?logo=vercel&logoColor=white)](https://stellarguardian3-0-delta1.vercel.app)
 
 ---
 
@@ -313,7 +314,7 @@ NEXT_PUBLIC_SUPABASE_URL=https://your-project.supabase.co
 NEXT_PUBLIC_SUPABASE_ANON_KEY=your-anon-key
 SUPABASE_SERVICE_ROLE_KEY=your-service-role-key
 
-# Encryption — min 32 chars: openssl rand -hex 32
+# Encryption — min 32 chars: node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
 LOCAL_ENCRYPTION_KEY=your-32-char-secret
 
 # Stellar
@@ -324,14 +325,12 @@ ESCROW_CONTRACT_ID=CAF2TCCKNRTUNANF6YFMRU764GQKGCSLRN3RKQEO4XJJGMCQF5ED6ZAT
 
 # App
 NEXT_PUBLIC_SITE_URL=http://localhost:3000
-CRON_SECRET=your-cron-secret
+CRON_SECRET=your-cron-secret   # generate: node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
 
 # Optional
 RESEND_API_KEY=
 UPSTASH_REDIS_REST_URL=
 UPSTASH_REDIS_REST_TOKEN=
-NEXT_PUBLIC_TURNSTILE_SITE_KEY=
-TURNSTILE_SECRET_KEY=
 ```
 
 **Full variable reference:**
@@ -351,7 +350,7 @@ TURNSTILE_SECRET_KEY=
 | `RESEND_API_KEY` | Optional | Transactional email |
 | `UPSTASH_REDIS_REST_URL` + `TOKEN` | Optional | Distributed rate limiting |
 | `KMS_KEY_ARN` + `AWS_REGION` | Production | AWS KMS (replaces `LOCAL_ENCRYPTION_KEY`) |
-| `NEXT_PUBLIC_TURNSTILE_SITE_KEY` + `TURNSTILE_SECRET_KEY` | Optional | Cloudflare Turnstile CAPTCHA |
+| `NEXT_PUBLIC_TURNSTILE_SITE_KEY` + `TURNSTILE_SECRET_KEY` | Removed | Cloudflare Turnstile CAPTCHA (removed — no longer used) |
 
 > **Never** commit `web/.env.local`. It is covered by `.gitignore`.
 
@@ -671,6 +670,7 @@ Coverage includes:
 
 ### Verified Links
 
+- 🚀 **Live Deployment:** [stellarguardian3-0-delta1.vercel.app](https://stellarguardian3-0-delta1.vercel.app)
 - 🔗 **Contract on Stellar Expert:** [View Contract](https://stellar.expert/explorer/testnet/contract/CAF2TCCKNRTUNANF6YFMRU764GQKGCSLRN3RKQEO4XJJGMCQF5ED6ZAT)
 - 🔗 **Contract on Stellar Lab:** [View in Lab](https://lab.stellar.org/smart-contracts/contract-explorer?network=testnet&contractId=CAF2TCCKNRTUNANF6YFMRU764GQKGCSLRN3RKQEO4XJJGMCQF5ED6ZAT)
 - 🔗 **TX Proof (initialize):** [View Transaction](https://stellar.expert/explorer/testnet/tx/a9f5de73ef0b8453f1635e53b6c6e019f09bb27153cdcadf1532129ffa095a00)
@@ -680,6 +680,8 @@ Coverage includes:
 ---
 
 ## Deployment & Backend Architecture
+
+**🌐 Live Production URL: [https://stellarguardian3-0-delta1.vercel.app](https://stellarguardian3-0-delta1.vercel.app)**
 
 Stellar Guardian 3.0 uses a modern **Full-Stack Next.js (App Router) + BaaS** architecture. There is **no separate backend application** (like Express or Python) to deploy.
 
@@ -722,12 +724,13 @@ AWS_REGION=us-east-1
 ```
 5. Click **Deploy**. Vercel will automatically configure Next.js and your serverless API routes.
 
-**Cron jobs** (configured in `web/vercel.json`):
+**Cron jobs** (configured in `web/vercel.json`, Hobby plan — daily limit):
 
 | Route | Schedule | Purpose |
 |---|---|---|
-| `/api/cron/cleanup` | Every hour | Idempotency key cleanup |
-| `/api/cron/escrow-reconcile` | Every 15 min | Escrow state sync |
+| `/api/cron` | Daily at midnight UTC (`0 0 * * *`) | Runs all scheduled jobs: deadline enforcement, retention archival, idempotency cleanup, challenge cleanup, review window expiry |
+
+> **Note:** The single `/api/cron` endpoint orchestrates all scheduled jobs in one call, making it compatible with Vercel's Hobby plan (one cron per day). Upgrade to Vercel Pro for more frequent scheduling.
 
 ---
 
