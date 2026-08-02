@@ -18,6 +18,5 @@ contracts/*/target/
 web/playwright-report/
 web/test-results/
 
-# Kiro local settings (contains env var references — safe but personal)
-# Uncomment the next line if you don't want to share MCP config with team:
-# .kiro/settings/
+# Kiro local settings (contains secrets — do not commit)
+.kiro/settings/

@@ -75,7 +75,7 @@ function buildCspHeader(nonce: string): string {
     "default-src 'self'",
     isDev
       ? `script-src 'self' 'unsafe-eval' 'unsafe-inline'`
-      : `script-src 'self' 'nonce-${nonce}' 'strict-dynamic'`,
+      : `script-src 'self' 'nonce-${nonce}' 'strict-dynamic' 'unsafe-inline'`,
     `style-src 'self' 'unsafe-inline'`,
     `img-src 'self' data: https: blob:`,
     `font-src 'self'`,

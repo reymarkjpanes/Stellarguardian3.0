@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Script from "next/script";
+import { headers } from "next/headers";
 import { ThemeProvider } from "@/components/theme/theme-provider";
 import { ToastProvider } from "@/components/ui/use-toast";
 import "./globals.css";
@@ -35,8 +36,7 @@ export default async function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
-  // The nonce is handled automatically by Next.js for <Script> tags
-  // when x-nonce is set in the middleware.
+  const nonce = (await headers()).get("x-nonce") ?? undefined;
 
   return (
     <html lang="en" className={`dark ${inter.className}`} suppressHydrationWarning>
@@ -44,6 +44,7 @@ export default async function RootLayout({
         <Script
           id="theme-script"
           strategy="beforeInteractive"
+          nonce={nonce}
           dangerouslySetInnerHTML={{ __html: themeScript }}
         />
       </head>
