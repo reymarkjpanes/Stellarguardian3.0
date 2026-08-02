@@ -2,8 +2,9 @@ import path from "node:path";
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  // Enable standalone output for Docker deployments (Req 1.7, 38.4).
-  output: "standalone",
+  // Note: output: "standalone" is intentionally omitted here.
+  // Standalone mode is for Docker/self-hosted deployments only.
+  // Vercel manages its own build output — setting standalone breaks Vercel serving.
 
   // Pin the workspace root to the repo root so Turbopack can resolve
   // monorepo-level linked dependencies (contracts, packages, shared-kernel).
