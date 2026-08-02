@@ -21,6 +21,11 @@ Stellar Guardian 3.0 is a full-stack platform for running hackathons, competitiv
 </div>
 
 ---
+Important Note: use this login credentials for testing.
+Email: reymarkjpanes@gmail.com
+pass: 123123123
+
+still improving the app.
 
 ## Table of Contents
 
