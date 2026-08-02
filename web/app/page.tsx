@@ -104,7 +104,7 @@ export default async function HomePage() {
             <StepCard
               number="2"
               title="Fund the escrow"
-              description="Deposit XLM to a platform-custodied escrow account via your Stellar wallet. Funds are verifiable on-chain."
+              description="Deposit XLM to a Soroban smart contract on Stellar via your wallet. Funds are locked on-chain and verifiable by anyone."
             />
             <StepCard
               number="3"

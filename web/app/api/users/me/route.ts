@@ -91,17 +91,41 @@ export const PATCH = withErrorHandling(async function PATCH(request: NextRequest
   }
 
   if (Object.keys(updates).length > 0) {
-    const { error } = await supabase.from("users").upsert({
-      id: user.id,
-      email: user.email ?? "",
-      ...updates,
-    });
+    // Try UPDATE first with the authenticated client (respects RLS).
+    // A row in public.users is normally created by a Supabase trigger on
+    // auth.users INSERT. If that trigger hasn't run yet (race condition on
+    // first login, or missing trigger in some environments), the UPDATE will
+    // affect 0 rows. In that case we fall back to INSERT via the service
+    // client (which bypasses RLS) so onboarding never silently fails.
+    const { error: updateError, count } = await supabase
+      .from("users")
+      .update(updates)
+      .eq("id", user.id)
+      .select("id", { count: "exact", head: true });
 
-    if (error) {
+    if (updateError) {
       return NextResponse.json(
-        { error: { code: "INTERNAL_ERROR", message: error.message } },
+        { error: { code: "INTERNAL_ERROR", message: updateError.message } },
         { status: 500 },
       );
+    }
+
+    // Row didn't exist — create it via service client (bypasses RLS INSERT restriction)
+    if (count === 0) {
+      const { createServiceClient } = await import("@/lib/supabase/service");
+      const serviceClient = createServiceClient();
+      const { error: insertError } = await serviceClient.from("users").insert({
+        id: user.id,
+        email: user.email ?? "",
+        ...updates,
+      });
+
+      if (insertError) {
+        return NextResponse.json(
+          { error: { code: "INTERNAL_ERROR", message: insertError.message } },
+          { status: 500 },
+        );
+      }
     }
   }
 

@@ -39,6 +39,14 @@ export default async function OrganizerPrizeDashboardPage(props: {
     .single();
 
   const PRIZE_ACCESSIBLE_STATES = new Set([
+    // H5: allow organizers to pre-configure prize categories before judging starts
+    "Draft",
+    "Published",
+    "RegistrationOpen",
+    "RegistrationClosed",
+    "TeamFormation",
+    "SubmissionOpen",
+    "SubmissionClosed",
     "JudgingRound1",
     "JudgingRound2",
     "WinnerVerification",

@@ -5,11 +5,31 @@
  *
  * Email/password login via the Supabase browser client with automatic
  * token refresh handled by @supabase/ssr cookie persistence.
+ *
+ * Supports `?redirect=<path>` query param — after successful login the user
+ * is sent to their originally requested destination (C1 fix).
+ * The redirect value is validated to be a relative path to prevent open-redirect.
  */
 import { useState } from "react";
+import { useSearchParams, useRouter } from "next/navigation";
 import { createBrowserClient } from "@/lib/supabase/client";
 
+/** Sanitize redirect: only allow relative paths (no protocol, no external hosts). */
+function sanitizeRedirect(value: string | null): string | null {
+  if (!value) return null;
+  try {
+    // If it parses as an absolute URL it's external — reject it
+    const url = new URL(value, window.location.origin);
+    if (url.origin !== window.location.origin) return null;
+    return url.pathname + url.search;
+  } catch {
+    return null;
+  }
+}
+
 export default function LoginPage() {
+  const searchParams = useSearchParams();
+  const router = useRouter();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -32,16 +52,25 @@ export default function LoginPage() {
         return;
       }
 
-      // Check if user has a workspace
+      // Honour ?redirect= param so users return to their intended destination.
+      const redirectParam = searchParams.get("redirect");
+      const safeRedirect = sanitizeRedirect(redirectParam);
+
+      if (safeRedirect) {
+        router.push(safeRedirect);
+        return;
+      }
+
+      // Default: workspace members → dashboard, new users → onboarding
       const { data: workspaces } = await supabase
         .from("workspace_members")
         .select("workspace_id")
         .limit(1);
 
       if (workspaces && workspaces.length > 0) {
-        window.location.href = "/dashboard";
+        router.push("/dashboard");
       } else {
-        window.location.href = "/onboarding";
+        router.push("/onboarding");
       }
     } catch {
       setError("An unexpected error occurred. Please try again.");

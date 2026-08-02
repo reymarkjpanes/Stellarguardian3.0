@@ -66,7 +66,7 @@ export const GET = withErrorHandling(async function GET(
     email: usersMap.get(m.user_id)?.email ?? "",
   }));
 
-  return NextResponse.json({ data: enriched });
+  return NextResponse.json({ data: enriched, currentUserId: user.id });
 });
 export const POST = withErrorHandling(async function POST(
   request: NextRequest,

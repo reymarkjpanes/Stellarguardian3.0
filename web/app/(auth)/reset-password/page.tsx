@@ -7,6 +7,7 @@ import { createBrowserClient } from "@/lib/supabase/client";
 export default function ResetPasswordPage() {
   const router = useRouter();
   const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -15,6 +16,17 @@ export default function ResetPasswordPage() {
     e.preventDefault();
     setError(null);
     setMessage(null);
+
+    // M5: validate passwords match before hitting the server
+    if (password !== confirmPassword) {
+      setError("Passwords don't match. Please try again.");
+      return;
+    }
+    if (password.length < 8) {
+      setError("Password must be at least 8 characters.");
+      return;
+    }
+
     setLoading(true);
 
     try {
@@ -29,7 +41,7 @@ export default function ResetPasswordPage() {
         return;
       }
 
-      setMessage("Password updated successfully.");
+      setMessage("Password updated successfully. Redirecting to sign in…");
 
       // Redirect to login after a brief pause
       setTimeout(() => {
@@ -81,11 +93,33 @@ export default function ResetPasswordPage() {
               id="password"
               type="password"
               required
+              minLength={8}
               autoComplete="new-password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               className="w-full rounded-md border border-[var(--border)] bg-[var(--input-bg)] px-3 py-2 text-sm text-[var(--text)] placeholder:text-[var(--text-muted)] focus:border-[var(--accent)] focus:outline-none focus:ring-1 focus:ring-[var(--accent)]"
-              placeholder="••••••••"
+              placeholder="At least 8 characters"
+            />
+          </div>
+
+          {/* M5: confirm password field */}
+          <div className="space-y-2">
+            <label
+              htmlFor="confirm-password"
+              className="block text-sm font-medium text-[var(--text-secondary)]"
+            >
+              Confirm New Password
+            </label>
+            <input
+              id="confirm-password"
+              type="password"
+              required
+              minLength={8}
+              autoComplete="new-password"
+              value={confirmPassword}
+              onChange={(e) => setConfirmPassword(e.target.value)}
+              className="w-full rounded-md border border-[var(--border)] bg-[var(--input-bg)] px-3 py-2 text-sm text-[var(--text)] placeholder:text-[var(--text-muted)] focus:border-[var(--accent)] focus:outline-none focus:ring-1 focus:ring-[var(--accent)]"
+              placeholder="Re-enter password"
             />
           </div>
 
@@ -94,7 +128,7 @@ export default function ResetPasswordPage() {
             disabled={loading}
             className="w-full rounded-md bg-[var(--accent)] px-4 py-2 text-sm font-medium text-white hover:bg-[var(--accent-hover)] focus:outline-none focus:ring-2 focus:ring-[var(--accent)] focus:ring-offset-2 focus:ring-offset-[var(--bg)] disabled:opacity-50 transition-colors"
           >
-            {loading ? "Updating..." : "Update Password"}
+            {loading ? "Updating…" : "Update Password"}
           </button>
         </form>
       </div>

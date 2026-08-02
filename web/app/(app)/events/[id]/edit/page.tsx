@@ -34,13 +34,16 @@ export default function EventEditPage() {
   const [prizePool, setPrizePool] = useState("");
   // Store as YYYY-MM-DD for <input type="date"> — converted to ISO on submit
   const [deadline, setDeadline] = useState("");
+  const [submissionDeadline, setSubmissionDeadline] = useState("");
 
   useEffect(() => {
     async function loadEvent() {
       const supabase = createBrowserClient();
       const { data: event } = await supabase
         .from("events")
-        .select("title, description, category, format, team_size_min, team_size_max, prize_pool_target, registration_deadline, version, state, organizer_id")
+        .select(
+          "title, description, category, format, team_size_min, team_size_max, prize_pool_target, registration_deadline, submission_deadline, version, state, organizer_id",
+        )
         .eq("id", eventId)
         .single();
 
@@ -57,7 +60,9 @@ export default function EventEditPage() {
       }
 
       // Verify organizer (belt-and-suspenders — layout also checks)
-      const { data: { user } } = await supabase.auth.getUser();
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
       if (!user || user.id !== event.organizer_id) {
         router.push(`/events/${eventId}`);
         return;
@@ -73,6 +78,11 @@ export default function EventEditPage() {
       setPrizePool(event.prize_pool_target?.toString() ?? "");
       // Normalise to YYYY-MM-DD for <input type="date">
       setDeadline(event.registration_deadline?.slice(0, 10) ?? "");
+      setSubmissionDeadline(
+        (event as Record<string, unknown>).submission_deadline
+          ? String((event as Record<string, unknown>).submission_deadline).slice(0, 10)
+          : "",
+      );
       setLoading(false);
     }
 
@@ -131,6 +141,9 @@ export default function EventEditPage() {
         registration_deadline: deadline
           ? new Date(deadline + "T00:00:00.000Z").toISOString()
           : null,
+        submission_deadline: submissionDeadline
+          ? new Date(submissionDeadline + "T00:00:00.000Z").toISOString()
+          : null,
       }),
     });
 
@@ -177,8 +190,8 @@ export default function EventEditPage() {
       <div>
         <h1 className="text-2xl font-semibold tracking-tight text-[var(--text)]">Edit Event</h1>
         <p className="text-sm text-[var(--text-muted)] mt-1">
-          Changes take effect immediately. State transitions still require the lifecycle controls
-          on the overview page.
+          Changes take effect immediately. State transitions still require the lifecycle controls on
+          the overview page.
         </p>
       </div>
 
@@ -317,6 +330,24 @@ export default function EventEditPage() {
             />
             <p className="text-xs text-[var(--text-muted)] mt-1">
               Required before publishing. Treated as midnight UTC on the selected date.
+            </p>
+          </div>
+
+          {/* Submission Deadline (H4) */}
+          <div>
+            <label htmlFor="evt-sub-deadline" className={labelCls}>
+              Submission Deadline{" "}
+              <span className="font-normal text-[var(--text-muted)]">(optional)</span>
+            </label>
+            <input
+              id="evt-sub-deadline"
+              type="date"
+              value={submissionDeadline}
+              onChange={(e) => setSubmissionDeadline(e.target.value)}
+              className={inputCls}
+            />
+            <p className="text-xs text-[var(--text-muted)] mt-1">
+              Deadline for participants to submit their projects. Shown on the submissions page.
             </p>
           </div>
         </fieldset>

@@ -8,11 +8,7 @@ import { getCurrentUser } from "@/lib/data/user";
 import { getEventById } from "@/lib/data/event";
 import { WinnersClient } from "./winners-client";
 
-export default async function EventWinnersPage({
-  params,
-}: {
-  params: Promise<{ id: string }>;
-}) {
+export default async function EventWinnersPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
 
   const [user, event] = await Promise.all([getCurrentUser(), getEventById(id)]);
@@ -92,9 +88,7 @@ export default async function EventWinnersPage({
 
     if (subsRaw && subsRaw.length > 0) {
       const submitterIds = [...new Set(subsRaw.map((s) => s.submitter_id))];
-      const subTeamIds = [
-        ...new Set(subsRaw.filter((s) => s.team_id).map((s) => s.team_id!)),
-      ];
+      const subTeamIds = [...new Set(subsRaw.filter((s) => s.team_id).map((s) => s.team_id!))];
 
       const [{ data: subUsers }, { data: subTeams }] = await Promise.all([
         supabase.from("users").select("id, display_name").in("id", submitterIds),
@@ -121,6 +115,7 @@ export default async function EventWinnersPage({
       winners={winners}
       submissions={submissions}
       isOrganizer={isOrganizer}
+      userId={user?.id ?? null}
     />
   );
 }

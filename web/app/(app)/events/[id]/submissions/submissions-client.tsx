@@ -10,7 +10,7 @@
  *  Organizer / Judge / any other role   → Read-only submissions list
  */
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Modal } from "@/components/ui/modal";
 import { StatusBadge } from "@/components/ui/status-badge";
@@ -198,6 +198,29 @@ export function SubmissionsClient({
   const isCompleted = eventState === "Completed";
   const [isFeedbackModalOpen, setIsFeedbackModalOpen] = useState(false);
 
+  // M6: deadline countdown — computed in useEffect (post-render) to satisfy
+  // react-hooks/purity which blocks Date.now() in render/useMemo.
+  const [deadlineCountdown, setDeadlineCountdown] = useState<string | null>(null);
+  useEffect(() => {
+    if (!submissionDeadline) {
+      setDeadlineCountdown(null);
+      return;
+    }
+    function compute() {
+      const ms = new Date(submissionDeadline!).getTime() - Date.now();
+      if (ms <= 0) return "Submission deadline has passed";
+      const days = Math.floor(ms / (1000 * 60 * 60 * 24));
+      const hours = Math.floor((ms % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+      if (days > 0) return `${days} day${days !== 1 ? "s" : ""} left to submit`;
+      if (hours > 0) return `${hours} hour${hours !== 1 ? "s" : ""} left to submit`;
+      return "Less than 1 hour left — submit now!";
+    }
+    setDeadlineCountdown(compute());
+    // Refresh every minute so the countdown stays live
+    const id = setInterval(() => setDeadlineCountdown(compute()), 60_000);
+    return () => clearInterval(id);
+  }, [submissionDeadline]);
+
   // ── Organizer / Judge — read-only list ────────────────────────────────────
   if (!isParticipant) {
     return (
@@ -272,6 +295,22 @@ export function SubmissionsClient({
         </h2>
         {mySubmission && <StatusBadge status={mySubmission.status} />}
       </div>
+
+      {/* M6: submission deadline countdown */}
+      {deadlineCountdown && submissionOpen && (
+        <div className="rounded-md border border-[var(--border)] bg-[var(--bg-muted)] px-4 py-2.5 flex items-center gap-2">
+          <span className="text-xs text-[var(--text-muted)]">⏱</span>
+          <p className="text-xs font-medium text-[var(--text-secondary)]">{deadlineCountdown}</p>
+          <span className="text-xs text-[var(--text-muted)] ml-auto">
+            {new Date(submissionDeadline!).toLocaleDateString(undefined, {
+              month: "short",
+              day: "numeric",
+              hour: "2-digit",
+              minute: "2-digit",
+            })}
+          </span>
+        </div>
+      )}
 
       {mySubmission ? (
         <div className="card p-6">

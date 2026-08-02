@@ -34,11 +34,25 @@ interface EventSubNavProps {
   eventTitle: string;
   eventState: string;
   isOrganizer: boolean;
+  /** Whether the current user is already an event member (hides Register tab if so). */
+  isMember?: boolean;
 }
 
-export function EventSubNav({ eventId, eventTitle, eventState, isOrganizer }: EventSubNavProps) {
+export function EventSubNav({
+  eventId,
+  eventTitle,
+  eventState,
+  isOrganizer,
+  isMember = false,
+}: EventSubNavProps) {
   const pathname = usePathname();
-  const tabs = getTabs(eventId).filter((t) => !t.organizerOnly || isOrganizer);
+
+  // L4: show Register tab only during RegistrationOpen, for non-members/non-organizers
+  const showRegisterTab = eventState === "RegistrationOpen" && !isOrganizer && !isMember;
+
+  const tabs = getTabs(eventId)
+    .filter((t) => !t.organizerOnly || isOrganizer)
+    .concat(showRegisterTab ? [{ label: "Register", href: `/events/${eventId}/register` }] : []);
 
   function isActive(tab: Tab): boolean {
     if (tab.href === `/events/${eventId}`) {

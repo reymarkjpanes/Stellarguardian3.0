@@ -389,6 +389,37 @@ export function EventDetailClient({
         />
       )}
 
+      {/* H2: Wallet verification nudge for participants during judging/winner phases */}
+      {!isOrganizer &&
+        myMembership?.role === "Participant" &&
+        !hasVerifiedWallet &&
+        (currentState === "JudgingRound1" ||
+          currentState === "JudgingRound2" ||
+          currentState === "WinnerVerification" ||
+          currentState === "DisputeWindow") && (
+          <div
+            role="alert"
+            className="rounded-md border border-[var(--warning)] bg-[var(--warning-bg)] px-4 py-3 flex items-start gap-3"
+          >
+            <span className="text-[var(--warning)] text-base shrink-0 mt-0.5">⚠</span>
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-medium text-[var(--warning)]">
+                Connect your wallet to receive prize payouts
+              </p>
+              <p className="text-xs text-[var(--text-secondary)] mt-0.5">
+                Winners need a verified Stellar wallet on file. Without one, your prize will be held
+                until a wallet is connected.
+              </p>
+            </div>
+            <a
+              href="/settings"
+              className="shrink-0 rounded-md border border-[var(--warning)] px-3 py-1.5 text-xs font-medium text-[var(--warning)] hover:bg-[var(--warning)] hover:text-white transition-colors"
+            >
+              Connect Wallet
+            </a>
+          </div>
+        )}
+
       {/* Overview action center */}
       <EventActionCenter
         eventName={event.title as string}

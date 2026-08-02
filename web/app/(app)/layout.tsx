@@ -14,10 +14,16 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   const email = user?.email ?? "";
 
   let workspaces: WorkspaceItem[] = [];
+  let isAdmin = false;
+
   if (user) {
     const supabase = await createServerClient();
     const [{ data: profile }, { data }] = await Promise.all([
-      supabase.from("users").select("display_name").eq("id", user.id).maybeSingle(),
+      supabase
+        .from("users")
+        .select("display_name, is_platform_admin")
+        .eq("id", user.id)
+        .maybeSingle(),
       supabase
         .from("workspace_members")
         .select(
@@ -37,6 +43,8 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     if (profile?.display_name) {
       displayName = profile.display_name;
     }
+
+    isAdmin = profile?.is_platform_admin ?? false;
 
     if (data) {
       workspaces = data.map((item) => {
@@ -60,10 +68,18 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     <div className="min-h-screen flex flex-col">
       <QueryProvider>
         <WalletProvider>
+          {/* M1: skip-to-content link for keyboard navigation */}
+          <a
+            href="#main-content"
+            className="sr-only focus:not-sr-only focus:fixed focus:top-4 focus:left-4 focus:z-[100] focus:rounded-md focus:bg-[var(--bg)] focus:border focus:border-[var(--accent)] focus:px-4 focus:py-2 focus:text-sm focus:font-medium focus:text-[var(--accent)] focus:shadow-lg"
+          >
+            Skip to main content
+          </a>
           <AppNav
             user={user ? { id: user.id, name: displayName, email } : null}
             workspaces={workspaces}
             currentWorkspaceId={currentWorkspaceId}
+            isAdmin={isAdmin}
           />
           <main
             id="main-content"

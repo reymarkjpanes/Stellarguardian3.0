@@ -18,6 +18,7 @@ export default function SignupPage() {
     setMessage(null);
     setLoading(true);
 
+    let succeeded = false;
     try {
       const supabase = createBrowserClient();
       const { error: authError } = await supabase.auth.signUp({
@@ -36,11 +37,15 @@ export default function SignupPage() {
         return;
       }
 
+      succeeded = true;
       setMessage("Check your email for the confirmation link.");
     } catch {
       setError("An unexpected error occurred. Please try again.");
     } finally {
-      setLoading(false);
+      // Keep the button disabled after success to prevent accidental re-submit
+      if (!succeeded) {
+        setLoading(false);
+      }
     }
   }
 

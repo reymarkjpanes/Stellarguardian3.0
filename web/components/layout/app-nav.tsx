@@ -19,9 +19,16 @@ interface AppNavProps {
   user: { id: string; name: string; email: string } | null;
   workspaces?: WorkspaceItem[];
   currentWorkspaceId?: string;
+  /** Whether the current user is a platform admin — shows Admin link in profile menu. */
+  isAdmin?: boolean;
 }
 
-export function AppNav({ user, workspaces = [], currentWorkspaceId }: AppNavProps) {
+export function AppNav({
+  user,
+  workspaces = [],
+  currentWorkspaceId,
+  isAdmin = false,
+}: AppNavProps) {
   const [mobileOpen, setMobileOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
@@ -157,6 +164,15 @@ export function AppNav({ user, workspaces = [], currentWorkspaceId }: AppNavProp
                           >
                             Notifications
                           </Link>
+                          {isAdmin && (
+                            <Link
+                              href="/admin"
+                              onClick={() => setProfileOpen(false)}
+                              className="block px-3 py-2 text-sm text-[var(--text-secondary)] hover:bg-[var(--bg-muted)] rounded-md"
+                            >
+                              Admin Panel
+                            </Link>
+                          )}
                           <button
                             onClick={handleSignOut}
                             className="block w-full text-left px-3 py-2 text-sm text-[var(--error)] hover:bg-[var(--error-bg)] rounded-md mt-1"
@@ -244,6 +260,15 @@ export function AppNav({ user, workspaces = [], currentWorkspaceId }: AppNavProp
               >
                 Settings
               </Link>
+              {isAdmin && (
+                <Link
+                  href="/admin"
+                  className="block py-2 text-sm font-medium text-[var(--text-secondary)]"
+                  onClick={() => setMobileOpen(false)}
+                >
+                  Admin Panel
+                </Link>
+              )}
               <button
                 onClick={handleSignOut}
                 className="block w-full text-left py-2 text-sm font-medium text-[var(--error)]"

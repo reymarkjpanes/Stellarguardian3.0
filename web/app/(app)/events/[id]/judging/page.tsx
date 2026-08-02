@@ -5,7 +5,8 @@ import {
   fetchJudgingAnalytics,
   fetchJudgeAssignments,
 } from "@/app/actions/judging-analytics.actions";
-import { EmptyState } from "@/components/ui/empty-state";
+import { fetchRubricsAction } from "@/app/actions/judging-rubric.actions";
+import { JudgeEvaluationsClient } from "@/components/events/judging/JudgeEvaluationsClient";
 
 export default async function JudgingPage(props: { params: Promise<{ id: string }> }) {
   const params = await props.params;
@@ -54,20 +55,18 @@ export default async function JudgingPage(props: { params: Promise<{ id: string 
 
   // ── Judge → assigned submissions view ─────────────────────────────────────
   if (role === "Judge") {
-    const { data: event } = await supabase
-      .from("events")
-      .select("state, title")
-      .eq("id", eventId)
-      .single();
-
-    const { data: evaluations } = await supabase
-      .from("evaluations")
-      .select(
-        "id, submission_id, status, total_score, conflict_of_interest, created_at, submissions!inner(id, team_id, submitter_id, event_id, teams(name), users(display_name))",
-      )
-      .eq("judge_id", user.id)
-      .eq("submissions.event_id", eventId)
-      .order("created_at", { ascending: false });
+    const [{ data: event }, { data: evaluations }, criteria] = await Promise.all([
+      supabase.from("events").select("state, title").eq("id", eventId).single(),
+      supabase
+        .from("evaluations")
+        .select(
+          "id, submission_id, status, total_score, conflict_of_interest, version, created_at, submissions!inner(id, team_id, submitter_id, event_id, teams(name), users(display_name))",
+        )
+        .eq("judge_id", user.id)
+        .eq("submissions.event_id", eventId)
+        .order("created_at", { ascending: false }),
+      fetchRubricsAction(eventId),
+    ]);
 
     const judging = (evaluations ?? []).map((e) => {
       const sub = e.submissions as unknown as {
@@ -78,9 +77,11 @@ export default async function JudgingPage(props: { params: Promise<{ id: string 
       return {
         evaluationId: e.id,
         submissionId: e.submission_id,
-        status: "Draft",
-        score: null,
+        // C4: use actual DB status instead of hardcoded "Draft"
+        status: e.status ?? "Draft",
+        score: e.total_score ?? null,
         conflictOfInterest: e.conflict_of_interest,
+        version: e.version ?? 1,
         updatedAt: e.created_at,
         teamName: sub?.teams?.name ?? null,
         submitterName: sub?.users?.display_name ?? null,
@@ -88,122 +89,15 @@ export default async function JudgingPage(props: { params: Promise<{ id: string 
     });
 
     return (
-      <JudgeEvaluationsView
+      <JudgeEvaluationsClient
         eventId={eventId}
         eventState={event?.state ?? ""}
         assignments={judging}
+        criteria={criteria}
       />
     );
   }
 
   // ── Everyone else → redirect to event overview ────────────────────────────
   redirect(`/events/${eventId}`);
-}
-
-// ─── Judge view — server component, no client needed ─────────────────────────
-
-interface EvalRow {
-  evaluationId: string;
-  submissionId: string;
-  status: string;
-  score: number | null;
-  conflictOfInterest: boolean;
-  updatedAt: string;
-  teamName: string | null;
-  submitterName: string | null;
-}
-
-function StatusBadge({ status }: { status: string }) {
-  const s = (status ?? "").toLowerCase();
-  const cls =
-    s === "submitted"
-      ? "bg-[var(--success-bg)] text-[var(--success)]"
-      : s === "draft"
-        ? "bg-[var(--warning-bg)] text-[var(--warning)]"
-        : "bg-[var(--badge-bg)] text-[var(--badge-text)]";
-  return (
-    <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${cls}`}>{status}</span>
-  );
-}
-
-function JudgeEvaluationsView({
-  eventId,
-  eventState,
-  assignments,
-}: {
-  eventId: string;
-  eventState: string;
-  assignments: EvalRow[];
-}) {
-  const judging = eventState === "JudgingRound1" || eventState === "JudgingRound2";
-
-  const totalAssignments = assignments.length;
-  const scoredCount = assignments.filter(
-    (ev) => ev.status === "Submitted" || ev.status === "Finalized" || ev.conflictOfInterest,
-  ).length;
-  const progressPercentage = totalAssignments > 0 ? (scoredCount / totalAssignments) * 100 : 0;
-
-  return (
-    <div className="space-y-6 max-w-3xl">
-      <div>
-        <h2 className="text-lg font-semibold text-[var(--text)]">My Evaluations</h2>
-        <p className="text-xs text-[var(--text-muted)] mt-0.5">
-          {judging
-            ? "Score each assigned submission below. Submit your final score when ready."
-            : `Judging is not currently active (${eventState}).`}
-        </p>
-      </div>
-
-      {assignments.length > 0 && (
-        <div className="card p-4 bg-muted/20 border-border/50">
-          <div className="flex justify-between items-center mb-2">
-            <h3 className="text-sm font-medium">Judging Progress</h3>
-            <span className="text-sm font-semibold">
-              {scoredCount} / {totalAssignments} Scored
-            </span>
-          </div>
-          <div className="w-full bg-muted rounded-full h-2">
-            <div
-              className="bg-primary h-2 rounded-full transition-all"
-              style={{ width: `${progressPercentage}%` }}
-            />
-          </div>
-        </div>
-      )}
-
-      {assignments.length === 0 ? (
-        <EmptyState
-          title="No assignments yet."
-          description="No submissions have been assigned to you yet."
-        />
-      ) : (
-        <div className="space-y-3">
-          {assignments.map((ev) => (
-            <div key={ev.evaluationId} className="card p-4 flex items-center justify-between gap-4">
-              <div className="min-w-0 flex-1">
-                <p className="text-sm font-medium text-[var(--text)] truncate">
-                  {ev.teamName ?? ev.submitterName ?? "Unknown"}
-                </p>
-                <p className="text-xs text-[var(--text-muted)] mt-0.5">
-                  {ev.score != null ? `Score: ${ev.score}` : "Not scored"}
-                  {ev.conflictOfInterest && (
-                    <span className="ml-2 text-[var(--warning)]">⚠ Conflict declared</span>
-                  )}
-                </p>
-              </div>
-              <div className="flex items-center gap-2 shrink-0">
-                <StatusBadge status={ev.status} />
-                <a
-                  href={`/events/${eventId}/judge/workspace/${ev.submissionId}`}
-                  className="rounded-md border border-[var(--accent)] px-3 py-1 text-xs font-medium text-[var(--accent)] hover:bg-[var(--accent-muted)] transition-colors"
-                >
-                  {ev.status === "Submitted" ? "View" : "Score"}
-                </a>
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
-    </div>
-  );
 }
