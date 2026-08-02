@@ -23,7 +23,7 @@
         "--caps",
         "vision,pdf"
       ],
-      "disabled": false,
+      "disabled": true,
       "autoApprove": [
         "browser_navigate",
         "browser_snapshot",
