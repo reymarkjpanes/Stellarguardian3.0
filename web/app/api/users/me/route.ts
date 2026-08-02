@@ -91,38 +91,42 @@ export const PATCH = withErrorHandling(async function PATCH(request: NextRequest
   }
 
   if (Object.keys(updates).length > 0) {
-    // Try UPDATE first with the authenticated client (respects RLS).
-    // A row in public.users is normally created by a Supabase trigger on
-    // auth.users INSERT. If that trigger hasn't run yet (race condition on
-    // first login, or missing trigger in some environments), the UPDATE will
-    // affect 0 rows. In that case we fall back to INSERT via the service
-    // client (which bypasses RLS) so onboarding never silently fails.
-    const { error: updateError, data: updatedRows } = await supabase
-      .from("users")
-      .update(updates)
-      .eq("id", user.id)
-      .select("id");
+    // Use upsert so existing rows are updated and missing rows are created.
+    // For existing users this hits the UPDATE RLS policy (allowed).
+    // For brand-new users where the handle_new_user trigger hasn't created the
+    // row yet, the upsert INSERT is blocked by RLS (no INSERT policy exists).
+    // In that case we catch the specific RLS error and retry via the service
+    // client which bypasses RLS.
+    const { error: upsertError } = await supabase.from("users").upsert({
+      id: user.id,
+      email: user.email ?? "",
+      ...updates,
+    });
 
-    if (updateError) {
-      return NextResponse.json(
-        { error: { code: "INTERNAL_ERROR", message: updateError.message } },
-        { status: 500 },
-      );
-    }
+    if (upsertError) {
+      // "new row violates row-level security policy" means the row didn't exist
+      // and RLS blocked the INSERT half of upsert. Retry via service client.
+      const isRlsInsertBlock =
+        upsertError.code === "42501" ||
+        upsertError.message.toLowerCase().includes("row-level security");
 
-    // Row didn't exist — create it via service client (bypasses RLS INSERT restriction)
-    if (!updatedRows || updatedRows.length === 0) {
-      const { createServiceClient } = await import("@/lib/supabase/service");
-      const serviceClient = createServiceClient();
-      const { error: insertError } = await serviceClient.from("users").insert({
-        id: user.id,
-        email: user.email ?? "",
-        ...updates,
-      });
-
-      if (insertError) {
+      if (isRlsInsertBlock) {
+        const { createServiceClient } = await import("@/lib/supabase/service");
+        const serviceClient = createServiceClient();
+        const { error: insertError } = await serviceClient.from("users").insert({
+          id: user.id,
+          email: user.email ?? "",
+          ...updates,
+        });
+        if (insertError) {
+          return NextResponse.json(
+            { error: { code: "INTERNAL_ERROR", message: insertError.message } },
+            { status: 500 },
+          );
+        }
+      } else {
         return NextResponse.json(
-          { error: { code: "INTERNAL_ERROR", message: insertError.message } },
+          { error: { code: "INTERNAL_ERROR", message: upsertError.message } },
           { status: 500 },
         );
       }
