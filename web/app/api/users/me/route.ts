@@ -97,11 +97,11 @@ export const PATCH = withErrorHandling(async function PATCH(request: NextRequest
     // first login, or missing trigger in some environments), the UPDATE will
     // affect 0 rows. In that case we fall back to INSERT via the service
     // client (which bypasses RLS) so onboarding never silently fails.
-    const { error: updateError, count } = await supabase
+    const { error: updateError, data: updatedRows } = await supabase
       .from("users")
       .update(updates)
       .eq("id", user.id)
-      .select("id", { count: "exact", head: true });
+      .select("id");
 
     if (updateError) {
       return NextResponse.json(
@@ -111,7 +111,7 @@ export const PATCH = withErrorHandling(async function PATCH(request: NextRequest
     }
 
     // Row didn't exist — create it via service client (bypasses RLS INSERT restriction)
-    if (count === 0) {
+    if (!updatedRows || updatedRows.length === 0) {
       const { createServiceClient } = await import("@/lib/supabase/service");
       const serviceClient = createServiceClient();
       const { error: insertError } = await serviceClient.from("users").insert({
