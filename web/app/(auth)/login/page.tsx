@@ -6,18 +6,14 @@
  * Email/password login via the Supabase browser client with automatic
  * token refresh handled by @supabase/ssr cookie persistence.
  */
-import { useState, useCallback } from "react";
+import { useState } from "react";
 import { createBrowserClient } from "@/lib/supabase/client";
-import { TurnstileWidget } from "@/components/auth/turnstile-widget";
 
 export default function LoginPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
-  const [, setCaptchaToken] = useState<string | null>(null);
-  const onCaptchaVerify = useCallback((token: string) => setCaptchaToken(token), []);
-  const onCaptchaExpire = useCallback(() => setCaptchaToken(null), []);
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -119,8 +115,6 @@ export default function LoginPage() {
               placeholder="••••••••"
             />
           </div>
-
-          <TurnstileWidget onVerify={onCaptchaVerify} onExpire={onCaptchaExpire} />
 
           <button
             type="submit"

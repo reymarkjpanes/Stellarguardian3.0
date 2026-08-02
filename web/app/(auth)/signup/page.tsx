@@ -3,7 +3,6 @@
 import { useState } from "react";
 import Link from "next/link";
 import { createBrowserClient } from "@/lib/supabase/client";
-import { TurnstileWidget } from "@/components/auth/turnstile-widget";
 
 export default function SignupPage() {
   const [email, setEmail] = useState("");
@@ -12,7 +11,6 @@ export default function SignupPage() {
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
-  const [captchaToken, setCaptchaToken] = useState<string | null>(null);
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -29,7 +27,6 @@ export default function SignupPage() {
           data: {
             full_name: name,
           },
-          captchaToken: captchaToken ?? undefined,
           emailRedirectTo: `${window.location.origin}/login`,
         },
       });
@@ -132,10 +129,6 @@ export default function SignupPage() {
               className="w-full rounded-md border border-[var(--border)] bg-[var(--input-bg)] px-3 py-2 text-sm text-[var(--text)] placeholder:text-[var(--text-muted)] focus:border-[var(--accent)] focus:outline-none focus:ring-1 focus:ring-[var(--accent)]"
               placeholder="••••••••"
             />
-          </div>
-
-          <div className="pt-2">
-            <TurnstileWidget onVerify={setCaptchaToken} onExpire={() => setCaptchaToken(null)} />
           </div>
 
           <button
