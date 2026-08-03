@@ -1,6 +1,5 @@
 import type { Metadata, Viewport } from "next";
 import Script from "next/script";
-import { headers } from "next/headers";
 import { ThemeProvider } from "@/components/theme/theme-provider";
 import { ToastProvider } from "@/components/ui/use-toast";
 import "./globals.css";
@@ -37,20 +36,25 @@ const themeScript = `
   })();
 `;
 
-export default async function RootLayout({
+export default function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
-  const nonce = (await headers()).get("x-nonce") ?? undefined;
-
   return (
     <html lang="en" className={`dark ${inter.className}`} suppressHydrationWarning>
       <head>
+        {/*
+         * Theme script runs before paint to prevent flash.
+         * No nonce is applied here — there is no CSP nonce middleware in this
+         * project. Adding nonce={undefined} causes a server/client attribute
+         * mismatch (hydration error) because browsers/extensions strip empty
+         * nonce attributes. If a CSP nonce is added via middleware in the
+         * future, pass it through a <meta> tag or Server Action instead.
+         */}
         <Script
           id="theme-script"
           strategy="beforeInteractive"
-          nonce={nonce}
           dangerouslySetInnerHTML={{ __html: themeScript }}
         />
       </head>

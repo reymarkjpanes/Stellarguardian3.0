@@ -6,7 +6,6 @@ import { StatusBadge } from "@/components/ui/status-badge";
 interface ParticipantEventItem {
   event_id: string;
   role: string;
-  status: string;
   event_title: string;
   event_state: string;
   team_name?: string;

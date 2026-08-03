@@ -15,7 +15,6 @@ import { EmptyState } from "@/components/ui/empty-state";
 interface EventMembership {
   event_id: string;
   role: string;
-  status: string;
   event_title: string;
   event_state: string;
 }
@@ -41,7 +40,7 @@ export default async function DashboardPage() {
       supabase.from("users").select("display_name").eq("id", user.id).single(),
       supabase
         .from("event_members")
-        .select("event_id, role, status")
+        .select("event_id, role")
         .eq("user_id", user.id)
         .limit(20),
       supabase.from("workspace_members").select("workspace_id, role").eq("user_id", user.id),
@@ -74,7 +73,6 @@ export default async function DashboardPage() {
     return {
       event_id: m.event_id,
       role: m.role,
-      status: m.status,
       event_title: event?.title ?? "Unknown",
       event_state: event?.state ?? "Unknown",
     };
@@ -114,7 +112,7 @@ export default async function DashboardPage() {
           .from("event_members")
           .select("event_id")
           .in("event_id", organizerEventIds)
-          .eq("status", "pending")
+          .eq("role", "Participant")
       : Promise.resolve({ data: [] }),
     organizerEventIds.length > 0
       ? supabase
@@ -329,7 +327,6 @@ export default async function DashboardPage() {
                 .map((e) => ({
                   event_id: e.event_id,
                   role: e.role,
-                  status: e.status,
                   event_title: e.event_title,
                   event_state: e.event_state,
                   team_name: participantTeamMap.get(e.event_id)?.team_name,
@@ -351,7 +348,6 @@ export default async function DashboardPage() {
                 .map((e) => ({
                   event_id: e.event_id,
                   role: e.role,
-                  status: e.status,
                   event_title: e.event_title,
                   event_state: e.event_state,
                 }))}
@@ -368,7 +364,6 @@ export default async function DashboardPage() {
                 .map((e) => ({
                   event_id: e.event_id,
                   role: e.role,
-                  status: e.status,
                   event_title: e.event_title,
                   event_state: e.event_state,
                 }))}

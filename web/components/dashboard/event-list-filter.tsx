@@ -8,7 +8,6 @@ import { useState } from "react";
 interface EventItem {
   event_id: string;
   role: string;
-  status: string;
   event_title: string;
   event_state: string;
   team_name?: string;

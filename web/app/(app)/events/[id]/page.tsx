@@ -18,7 +18,7 @@ export default async function EventDetailPage({ params }: { params: Promise<{ id
   // Parallel fetch of everything this page needs.
   const [{ data: members }, { data: teams }, { data: judgeMembers }, { data: organizerWallet }] =
     await Promise.all([
-      supabase.from("event_members").select("user_id, role, status").eq("event_id", id),
+      supabase.from("event_members").select("user_id, role, availability").eq("event_id", id),
       supabase
         .from("teams")
         .select("id, name, captain_id, team_members(user_id, joined_at)")

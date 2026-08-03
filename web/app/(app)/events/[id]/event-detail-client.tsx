@@ -24,7 +24,7 @@ import type { EventState, PlatformRole } from "@/types";
 
 interface EventDetailClientProps {
   event: Record<string, unknown>;
-  members: Array<{ user_id: string; role: string; status: string }>;
+  members: Array<{ user_id: string; role: string; availability: string }>;
   teams: Array<{
     id: string;
     name: string;
@@ -32,7 +32,7 @@ interface EventDetailClientProps {
     team_members: Array<{ user_id: string; joined_at: string }>;
   }>;
   isOrganizer: boolean;
-  myMembership: { user_id: string; role: string; status: string } | null;
+  myMembership: { user_id: string; role: string; availability: string } | null;
   userId: string | null;
   judgeCount: number;
   hasVerifiedOrganizer: boolean;
@@ -303,11 +303,22 @@ export function EventDetailClient({
       timeAgo: "Recently",
       description: `Team ${t.name} was created.`,
     })),
-    ...members.slice(0, 3).map((m) => ({
-      id: `mem-${m.user_id}`,
-      timeAgo: "Recently",
-      description: `A new ${m.role.toLowerCase()} joined the event.`,
-    })),
+    // Deduplicate by user_id so an organizer who self-assigned as judge
+    // doesn't appear twice. Key includes role to stay unique in the array
+    // before dedup, then we filter to one entry per user.
+    ...Array.from(
+      new Map(
+        members
+          .slice(0, 10)
+          .map((m) => [m.user_id, m])
+      ).values()
+    )
+      .slice(0, 3)
+      .map((m, i) => ({
+        id: `mem-${m.user_id}-${i}`,
+        timeAgo: "Recently",
+        description: `A new ${m.role.toLowerCase()} joined the event.`,
+      })),
   ].slice(0, 5);
 
   const judgeCount = members.filter((m) => m.role === "Judge").length;
@@ -522,6 +533,30 @@ function PublishChecklist({
   prizeAmount: number | null;
   eventId: string;
 }) {
+  const router = useRouter();
+  const [assigningself, setAssigningSelf] = useState(false);
+  const [assignError, setAssignError] = useState<string | null>(null);
+
+  const handleSelfAssign = async () => {
+    setAssigningSelf(true);
+    setAssignError(null);
+    try {
+      const res = await fetch(`/api/events/${eventId}/self-assign-judge`, {
+        method: "POST",
+      });
+      const json = await res.json();
+      if (res.ok && json.data?.success) {
+        router.refresh();
+      } else {
+        setAssignError(json.error?.message ?? "Failed to assign yourself as judge.");
+      }
+    } catch {
+      setAssignError("Network error. Please try again.");
+    } finally {
+      setAssigningSelf(false);
+    }
+  };
+
   const reqs = [
     { done: hasPrizePool, weight: 1 },
     { done: hasDeadline, weight: 1 },
@@ -595,16 +630,34 @@ function PublishChecklist({
             label={hasJudges ? "Judges assigned" : "Assign at least one judge"}
             action={
               !hasJudges ? (
-                <a
-                  href={`/events/${eventId}/members`}
-                  className="text-[11px] font-semibold text-[var(--accent)] hover:underline ml-auto bg-[var(--accent-muted)] px-2 py-1 rounded"
-                >
-                  Assign
-                </a>
+                <JudgeAssignAction
+                  eventId={eventId}
+                  assigning={assigningself}
+                  error={assignError}
+                  onSelfAssign={handleSelfAssign}
+                  onDismissError={() => setAssignError(null)}
+                />
               ) : undefined
             }
           />
         </ul>
+
+        {/* Inline error for self-assign — shown below the grid so it doesn't break layout */}
+        {assignError && (
+          <div
+            role="alert"
+            className="flex items-center justify-between gap-2 rounded-md border border-[var(--error)]/40 bg-[var(--error-bg,#fef2f2)] px-3 py-2 text-xs text-[var(--error,#dc2626)]"
+          >
+            <span>{assignError}</span>
+            <button
+              onClick={() => setAssignError(null)}
+              className="hover:underline shrink-0"
+              aria-label="Dismiss error"
+            >
+              ✕
+            </button>
+          </div>
+        )}
       </div>
 
       {!allMet && (
@@ -623,6 +676,48 @@ function PublishChecklist({
           </p>
         </div>
       )}
+    </div>
+  );
+}
+
+/**
+ * Inline judge-assign action shown in the Pre-flight Checklist when no
+ * judges are assigned yet. Gives the organizer two options without
+ * navigating away:
+ *   1. "Assign myself" — one-click self-assign via server action
+ *   2. "Manage members" — link to the full members management view
+ */
+function JudgeAssignAction({
+  eventId,
+  assigning,
+  error,
+  onSelfAssign,
+  onDismissError,
+}: {
+  eventId: string;
+  assigning: boolean;
+  error: string | null;
+  onSelfAssign: () => void;
+  onDismissError: () => void;
+}) {
+  return (
+    <div className="ml-auto flex items-center gap-1.5 flex-shrink-0">
+      <button
+        onClick={onSelfAssign}
+        disabled={assigning}
+        className="text-[11px] font-semibold text-[var(--accent)] hover:underline bg-[var(--accent-muted)] px-2 py-1 rounded disabled:opacity-50 disabled:cursor-not-allowed transition-opacity"
+        title="Assign yourself as a judge for this event"
+      >
+        {assigning ? "Assigning…" : "Assign myself"}
+      </button>
+      <span className="text-[var(--text-muted)] text-[10px]">or</span>
+      <a
+        href={`/events/${eventId}/members?view=management`}
+        className="text-[11px] font-semibold text-[var(--text-secondary)] hover:text-[var(--text)] hover:underline bg-[var(--bg-muted)] px-2 py-1 rounded transition-colors"
+        title="Open members management to assign a judge"
+      >
+        Manage members
+      </a>
     </div>
   );
 }

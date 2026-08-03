@@ -12,10 +12,13 @@ function MemberActions({ member }: { member: MemberDirectoryProjection }) {
   const router = useRouter();
   const eventId = params.id as string;
   const [loading, setLoading] = useState(false);
+  const [actionError, setActionError] = useState<string | null>(null);
+  const [confirmRemove, setConfirmRemove] = useState(false);
 
   async function updateMember(data: { status: string } | { role: string }) {
     if (loading) return;
     setLoading(true);
+    setActionError(null);
     try {
       const res = await fetch(`/api/events/${eventId}/members/${member.id}`, {
         method: "PATCH",
@@ -23,68 +26,86 @@ function MemberActions({ member }: { member: MemberDirectoryProjection }) {
         body: JSON.stringify(data),
       });
       if (res.ok) router.refresh();
-      else alert("Update failed");
+      else setActionError("Update failed");
     } finally {
       setLoading(false);
     }
   }
 
   async function removeMember() {
-    if (loading || !confirm(`Remove ${member.displayName}?`)) return;
+    if (loading) return;
+    setConfirmRemove(false);
     setLoading(true);
+    setActionError(null);
     try {
       const res = await fetch(`/api/events/${eventId}/members/${member.id}`, {
         method: "DELETE",
       });
       if (res.ok) router.refresh();
-      else alert("Removal failed");
+      else setActionError("Removal failed");
     } finally {
       setLoading(false);
     }
   }
 
   return (
-    <div className="flex justify-end gap-2 text-sm">
-      {member.membershipStatus === "Pending" ? (
-        <>
-          <button
-            onClick={() => updateMember({ status: "Approved" })}
-            className="text-green-600 font-medium hover:underline disabled:opacity-50"
-            disabled={loading}
-          >
-            Approve
-          </button>
-          <button
-            onClick={() => updateMember({ status: "Rejected" })}
-            className="text-red-600 font-medium hover:underline disabled:opacity-50"
-            disabled={loading}
-          >
-            Reject
-          </button>
-        </>
-      ) : (
-        <>
-          <select
-            value={member.eventRole}
-            onChange={(e) => updateMember({ role: e.target.value })}
-            className="bg-transparent border border-border rounded px-2 py-1 text-xs"
-            disabled={loading}
-          >
-            <option value="Participant">Participant</option>
-            <option value="Judge">Judge</option>
-            <option value="Organizer">Organizer</option>
-            <option value="Mentor">Mentor</option>
-            <option value="Sponsor">Sponsor</option>
-          </select>
-          <button
-            onClick={removeMember}
-            className="text-red-600 hover:underline disabled:opacity-50"
-            disabled={loading}
-          >
-            Remove
-          </button>
-        </>
+    <div className="flex flex-col items-end gap-1">
+      {actionError && (
+        <p className="text-[10px] text-red-500">{actionError}</p>
       )}
+      <div className="flex justify-end gap-2 text-sm">
+        {member.membershipStatus === "Pending" ? (
+          <>
+            <button
+              onClick={() => updateMember({ status: "Approved" })}
+              className="text-green-600 font-medium hover:underline disabled:opacity-50"
+              disabled={loading}
+            >
+              Approve
+            </button>
+            <button
+              onClick={() => updateMember({ status: "Rejected" })}
+              className="text-red-600 font-medium hover:underline disabled:opacity-50"
+              disabled={loading}
+            >
+              Reject
+            </button>
+          </>
+        ) : (
+          <>
+            <select
+              value={member.eventRole}
+              onChange={(e) => updateMember({ role: e.target.value })}
+              className="bg-transparent border border-border rounded px-2 py-1 text-xs"
+              disabled={loading}
+            >
+              <option value="Participant">Participant</option>
+              <option value="Judge">Judge</option>
+              <option value="Organizer">Organizer</option>
+              <option value="Mentor">Mentor</option>
+              <option value="Sponsor">Sponsor</option>
+            </select>
+            {!confirmRemove ? (
+              <button
+                onClick={() => setConfirmRemove(true)}
+                className="text-red-600 hover:underline disabled:opacity-50"
+                disabled={loading}
+              >
+                Remove
+              </button>
+            ) : (
+              <span className="flex items-center gap-1">
+                <button onClick={removeMember} className="text-[10px] font-medium text-red-600 hover:underline">
+                  Yes
+                </button>
+                <button onClick={() => setConfirmRemove(false)} className="text-[10px] text-muted-foreground hover:text-foreground">
+                  No
+                </button>
+              </span>
+            )}
+          </>
+        )}
+      </div>
     </div>
   );
 }
@@ -134,6 +155,7 @@ export function ManagementTable({
   const [selectedKeys, setSelectedKeys] = useState<Set<string>>(new Set());
   const [bulkLoading, setBulkLoading] = useState(false);
   const [bulkRole, setBulkRole] = useState("");
+  const [confirmBulk, setConfirmBulk] = useState<{ action: "approve" | "reject" | "role"; role?: string } | null>(null);
 
   if (isLoading) {
     return (
