@@ -9,8 +9,12 @@
  * Supports `?redirect=<path>` query param — after successful login the user
  * is sent to their originally requested destination (C1 fix).
  * The redirect value is validated to be a relative path to prevent open-redirect.
+ *
+ * useSearchParams() requires a <Suspense> boundary during static prerendering
+ * (Next.js App Router). LoginForm is isolated so the outer page shell can be
+ * prerendered while the search-param-dependent form hydrates on the client.
  */
-import { useState } from "react";
+import { Suspense, useState } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { createBrowserClient } from "@/lib/supabase/client";
 
@@ -28,6 +32,27 @@ function sanitizeRedirect(value: string | null): string | null {
 }
 
 export default function LoginPage() {
+  return (
+    <main className="min-h-screen flex items-center justify-center px-4 bg-[var(--bg)]">
+      <Suspense
+        fallback={
+          <div className="w-full max-w-sm space-y-6 animate-pulse">
+            <div className="h-8 w-48 mx-auto bg-[var(--bg-muted)] rounded" />
+            <div className="space-y-4">
+              <div className="h-10 bg-[var(--bg-muted)] rounded" />
+              <div className="h-10 bg-[var(--bg-muted)] rounded" />
+              <div className="h-10 bg-[var(--bg-muted)] rounded" />
+            </div>
+          </div>
+        }
+      >
+        <LoginForm />
+      </Suspense>
+    </main>
+  );
+}
+
+function LoginForm() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const [email, setEmail] = useState("");
@@ -80,14 +105,13 @@ export default function LoginPage() {
   }
 
   return (
-    <main className="min-h-screen flex items-center justify-center px-4 bg-[var(--bg)]">
-      <div className="w-full max-w-sm space-y-6">
-        <div className="text-center space-y-2">
-          <h1 className="text-2xl font-semibold tracking-tight text-[var(--text)]">Welcome back</h1>
-          <p className="text-sm text-[var(--text-muted)]">
-            Sign in to your Stellar Guardian account
-          </p>
-        </div>
+    <div className="w-full max-w-sm space-y-6">
+      <div className="text-center space-y-2">
+        <h1 className="text-2xl font-semibold tracking-tight text-[var(--text)]">Welcome back</h1>
+        <p className="text-sm text-[var(--text-muted)]">
+          Sign in to your Stellar Guardian account
+        </p>
+      </div>
 
         <form onSubmit={handleSubmit} className="space-y-4">
           {error && (
@@ -166,6 +190,5 @@ export default function LoginPage() {
           </a>
         </p>
       </div>
-    </main>
   );
 }
