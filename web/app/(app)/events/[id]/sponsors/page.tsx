@@ -107,7 +107,7 @@ export default function SponsorsPage() {
         return;
       }
 
-      const [sponsorsRes, escrowRes] = await Promise.all([
+      const [sponsorsRes] = await Promise.all([
         fetch(`/api/events/${eventId}/sponsors`),
         fetch(`/api/events/${eventId}/escrow`).catch(() => null),
       ]);

@@ -690,9 +690,7 @@ function PublishChecklist({
 function JudgeAssignAction({
   eventId,
   assigning,
-  error,
   onSelfAssign,
-  onDismissError,
 }: {
   eventId: string;
   assigning: boolean;
