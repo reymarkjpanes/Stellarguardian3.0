@@ -14,7 +14,7 @@ export default function ForgotPasswordPage() {
   const [sent, setSent] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
+  async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setLoading(true);
     setError(null);
@@ -77,13 +77,15 @@ export default function ForgotPasswordPage() {
               onChange={(e) => setEmail(e.target.value)}
               required
               autoComplete="email"
+              aria-describedby={error ? "forgot-error" : undefined}
+              aria-invalid={error ? true : undefined}
               className="w-full rounded-md border border-[var(--border)] bg-[var(--bg)] px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--accent)]"
               placeholder="you@example.com"
             />
           </div>
 
           {error && (
-            <p className="text-sm text-[var(--error)]" role="alert">
+            <p id="forgot-error" className="text-sm text-[var(--error)]" role="alert">
               {error}
             </p>
           )}

@@ -6,6 +6,7 @@
  * Design: single-line sticky header under the app nav. Active tab uses a
  * bottom border accent. Scrollable on mobile (no wrapping).
  * Organizer tabs visible only to the event organizer.
+ * Sponsor tabs (Milestones, Sponsors) visible to Organizer and Sponsor roles.
  */
 import { usePathname } from "next/navigation";
 
@@ -13,6 +14,8 @@ interface Tab {
   label: string;
   href: string;
   organizerOnly?: boolean;
+  /** Visible to Organizer AND Sponsor roles */
+  sponsorVisible?: boolean;
 }
 
 function getTabs(eventId: string): Tab[] {
@@ -26,8 +29,23 @@ function getTabs(eventId: string): Tab[] {
     { label: "Disputes", href: `/events/${eventId}/disputes` },
     { label: "Members", href: `/events/${eventId}/members`, organizerOnly: true },
     { label: "Prizes", href: `/events/${eventId}/prizes`, organizerOnly: true },
+    { label: "Milestones", href: `/events/${eventId}/milestones`, sponsorVisible: true },
+    { label: "Sponsors", href: `/events/${eventId}/sponsors`, sponsorVisible: true },
   ];
 }
+
+/** States where the Escrow tab is meaningful — hide it in very early states (M11). */
+const ESCROW_VISIBLE_STATES = new Set([
+  "JudgingRound1",
+  "JudgingRound2",
+  "WinnerVerification",
+  "DisputeWindow",
+  "PrizeApproved",
+  "EscrowRelease",
+  "Completed",
+  "Archived",
+  "Cancelled",
+]);
 
 interface EventSubNavProps {
   eventId: string;
@@ -36,6 +54,8 @@ interface EventSubNavProps {
   isOrganizer: boolean;
   /** Whether the current user is already an event member (hides Register tab if so). */
   isMember?: boolean;
+  /** The current user's role in this event (e.g. "Sponsor", "Judge"). */
+  memberRole?: string | null;
 }
 
 export function EventSubNav({
@@ -44,14 +64,23 @@ export function EventSubNav({
   eventState,
   isOrganizer,
   isMember = false,
+  memberRole = null,
 }: EventSubNavProps) {
   const pathname = usePathname();
+  const isSponsor = memberRole === "Sponsor";
 
   // L4: show Register tab only during RegistrationOpen, for non-members/non-organizers
   const showRegisterTab = eventState === "RegistrationOpen" && !isOrganizer && !isMember;
 
   const tabs = getTabs(eventId)
     .filter((t) => !t.organizerOnly || isOrganizer)
+    // Sponsor-visible tabs shown to Organizer and Sponsor roles
+    .filter((t) => !t.sponsorVisible || isOrganizer || isSponsor)
+    // M11: hide Escrow tab in early lifecycle states where it adds no value
+    .filter((t) => {
+      if (t.label === "Escrow") return ESCROW_VISIBLE_STATES.has(eventState);
+      return true;
+    })
     .concat(showRegisterTab ? [{ label: "Register", href: `/events/${eventId}/register` }] : []);
 
   function isActive(tab: Tab): boolean {

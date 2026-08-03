@@ -53,6 +53,7 @@ export async function handlePrizeReleased(event: PrizeReleasedEvent): Promise<vo
       .eq("id", event.eventId)
       .maybeSingle();
 
+    // Notify organizer
     if (eventRow?.organizer_id) {
       await createNotification({
         userId: eventRow.organizer_id,
@@ -61,6 +62,33 @@ export async function handlePrizeReleased(event: PrizeReleasedEvent): Promise<vo
         body: `${event.paidCount} winner(s) paid${event.heldCount > 0 ? `, ${event.heldCount} held (no wallet)` : ""} for "${eventRow.title ?? event.eventId}".`,
         eventId: event.eventId,
       });
+    }
+
+    // Notify each winner individually (H3)
+    const { data: winners } = await supabase
+      .from("winners")
+      .select("recipient_id, prize_amount, disbursement_status")
+      .eq("event_id", event.eventId);
+
+    if (winners && winners.length > 0) {
+      await Promise.allSettled(
+        winners.map((w) => {
+          const isPaid = (w.disbursement_status ?? "").toLowerCase() === "disbursed";
+          const _isHeld = (w.disbursement_status ?? "").toLowerCase() === "held";
+          const title = isPaid ? "🎉 Your prize has been sent!" : "Prize held — wallet required";
+          const body = isPaid
+            ? `${w.prize_amount} XLM has been sent to your verified wallet for "${eventRow?.title ?? event.eventId}".`
+            : `Your prize of ${w.prize_amount} XLM is held because no verified wallet is on file. Go to Settings → Wallets to connect one.`;
+
+          return createNotification({
+            userId: w.recipient_id,
+            category: "disbursement",
+            title,
+            body,
+            eventId: event.eventId,
+          });
+        }),
+      );
     }
 
     logger.info("[escrow-events] PrizeReleased handled", {

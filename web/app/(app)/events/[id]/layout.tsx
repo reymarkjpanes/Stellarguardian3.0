@@ -31,6 +31,7 @@ export default async function EventLayout({
     .maybeSingle();
 
   const isMember = !!membership;
+  const memberRole = membership?.role ?? null;
 
   return (
     <div className="space-y-0">
@@ -47,6 +48,7 @@ export default async function EventLayout({
         eventState={event.state}
         isOrganizer={isOrganizer}
         isMember={isMember}
+        memberRole={memberRole}
       />
       <div className="pt-6">{children}</div>
     </div>

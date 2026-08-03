@@ -52,6 +52,7 @@ export function ScoringPanel({
   const [version, setVersion] = useState(initialVersion);
   const [saveState, setSaveState] = useState<"idle" | "saving" | "saved" | "error">("idle");
   const [conflictError, setConflictError] = useState<string | null>(null);
+  const [confirmCOI, setConfirmCOI] = useState(false);
 
   const [validationResult, setValidationResult] = useState(() =>
     ScoreCalculator.validateScores(
@@ -177,7 +178,7 @@ export function ScoringPanel({
       setConflictError(res.error || "Draft is out of date.");
     } else {
       setSaveState("error");
-      alert(`Submit failed: ${res.error}`);
+      // Error is surfaced via saveState === "error" UI — no alert needed
     }
   };
 
@@ -187,13 +188,7 @@ export function ScoringPanel({
   };
 
   const handleDeclareConflict = async () => {
-    if (
-      !window.confirm(
-        "Are you sure you want to declare a conflict of interest? You will be excused from scoring this submission.",
-      )
-    )
-      return;
-
+    setConfirmCOI(false);
     setSaveState("saving");
     const res = await declareConflictAction(
       evaluationId,
@@ -205,10 +200,9 @@ export function ScoringPanel({
 
     if (res.success) {
       setSaveState("saved");
-      router.refresh(); // Will reload the page and pass down isConflict=true, isReadOnly=true
+      router.refresh();
     } else {
       setSaveState("error");
-      alert(`Failed to declare conflict: ${res.error}`);
     }
   };
 
@@ -343,12 +337,12 @@ export function ScoringPanel({
           </div>
         )}
 
-        <div className="flex gap-2">
-          {!isReadOnly && !isConflict && (
+        <div className="flex flex-col gap-2">
+          {!isReadOnly && !isConflict && !confirmCOI && (
             <Button
               variant="outline"
               className="text-red-500 hover:text-red-600 hover:bg-red-50 shrink-0"
-              onClick={handleDeclareConflict}
+              onClick={() => setConfirmCOI(true)}
               disabled={saveState === "saving"}
               title="Flag Conflict of Interest"
             >
@@ -357,23 +351,52 @@ export function ScoringPanel({
             </Button>
           )}
 
-          {!isReadOnly && (
-            <Button
-              className="flex-1"
-              onClick={handleSubmit}
-              disabled={
-                !validationResult.isValid || saveState === "saving" || !!conflictError || isConflict
-              }
+          {!isReadOnly && !isConflict && confirmCOI && (
+            <div
+              role="alertdialog"
+              aria-label="Confirm conflict of interest"
+              className="rounded-md border border-red-400/40 bg-red-50 dark:bg-red-900/20 px-3 py-2 flex items-center gap-2"
             >
-              <Send className="w-4 h-4 mr-2" />
-              Submit Evaluation
-            </Button>
+              <p className="text-xs text-red-700 dark:text-red-300 flex-1">
+                Declare conflict? You will be excused from scoring.
+              </p>
+              <button
+                onClick={handleDeclareConflict}
+                className="text-xs font-medium text-red-700 dark:text-red-300 hover:underline"
+              >
+                Confirm
+              </button>
+              <button
+                onClick={() => setConfirmCOI(false)}
+                className="text-xs text-muted-foreground hover:text-foreground"
+              >
+                Cancel
+              </button>
+            </div>
           )}
-          {isReadOnly && (
-            <Button className="flex-1" disabled variant="secondary">
-              {isConflict ? "Evaluation Locked" : "Evaluation Submitted"}
-            </Button>
-          )}
+
+          <div className="flex gap-2">
+            {!isReadOnly && (
+              <Button
+                className="flex-1"
+                onClick={handleSubmit}
+                disabled={
+                  !validationResult.isValid ||
+                  saveState === "saving" ||
+                  !!conflictError ||
+                  isConflict
+                }
+              >
+                <Send className="w-4 h-4 mr-2" />
+                Submit Evaluation
+              </Button>
+            )}
+            {isReadOnly && (
+              <Button className="flex-1" disabled variant="secondary">
+                {isConflict ? "Evaluation Locked" : "Evaluation Submitted"}
+              </Button>
+            )}
+          </div>
         </div>
       </div>
     </div>

@@ -56,7 +56,7 @@ function PhaseGate({ state }: { state: string }) {
     Published: "Submissions open once the organizer starts the submission phase.",
     RegistrationOpen: "Submissions open after registration closes.",
     RegistrationClosed: "Submissions open when the submission phase begins.",
-    SubmissionClosed: "Submissions have closed.",
+    SubmissionClosed: "Submissions are closed. Judging begins soon.",
     Judging: "Submissions are under review by judges.",
     Completed: "This event has completed.",
     Archived: "This event is archived.",
@@ -67,6 +67,36 @@ function PhaseGate({ state }: { state: string }) {
       <p className="text-sm text-[var(--text-muted)]">
         {messages[state] ?? `Submissions unavailable in ${state} phase.`}
       </p>
+    </div>
+  );
+}
+
+/** Inline banner shown to participants while judging is in progress (H1). */
+function JudgingInProgressBanner({ state }: { state: string }) {
+  const judgingStates = new Set([
+    "JudgingRound1",
+    "JudgingRound2",
+    "WinnerVerification",
+    "DisputeWindow",
+  ]);
+  if (!judgingStates.has(state)) return null;
+
+  const message =
+    state === "WinnerVerification"
+      ? "Judging is complete — winners are being verified. Results will be published shortly."
+      : state === "DisputeWindow"
+        ? "Winners have been verified. The dispute window is open until the organizer approves prizes."
+        : "Judging is in progress. Your submission is under review. Results will be available once judging completes.";
+
+  return (
+    <div
+      role="status"
+      className="rounded-md border border-[var(--accent)]/30 bg-[var(--accent-muted)] px-4 py-3 flex items-start gap-3"
+    >
+      <span className="text-[var(--accent)] text-base shrink-0 mt-0.5" aria-hidden="true">
+        ⏳
+      </span>
+      <p className="text-sm text-[var(--accent)]">{message}</p>
     </div>
   );
 }
@@ -249,6 +279,8 @@ export function SubmissionsClient({
             Deadline: {new Date(submissionDeadline).toLocaleDateString()}
           </p>
         )}
+        {/* H1: judging-in-progress banner so participants aren't left in the dark */}
+        <JudgingInProgressBanner state={eventState} />
         <PhaseGate state={eventState} />
         {/* Still show submitted projects if any exist */}
         {submissions.length > 0 && (
@@ -295,6 +327,9 @@ export function SubmissionsClient({
         </h2>
         {mySubmission && <StatusBadge status={mySubmission.status} />}
       </div>
+
+      {/* H1: judging banner even when participant has a submission on file */}
+      <JudgingInProgressBanner state={eventState} />
 
       {/* M6: submission deadline countdown */}
       {deadlineCountdown && submissionOpen && (

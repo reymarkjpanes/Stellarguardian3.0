@@ -173,6 +173,12 @@ export default function EventEscrowPage() {
   const [actionError, setActionError] = useState<string | null>(null);
   const [simulationResult, setSimulationResult] = useState<SimulationResult | null>(null);
 
+  // Wallet picker — shown when multiple adapters are available (H5)
+  const [availableAdapters, setAvailableAdapters] = useState<
+    Array<{ provider: string; connect: () => Promise<{ publicKey: string }> }>
+  >([]);
+  const [showWalletPicker, setShowWalletPicker] = useState(false);
+
   // Live indicator
   const [liveFlash, setLiveFlash] = useState(false);
   const liveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -318,7 +324,6 @@ export default function EventEscrowPage() {
   }
 
   async function handleConnectWallet() {
-    setFundingStep("connecting");
     setFundingError(null);
     try {
       const { getAvailableAdapters } = await import("@/lib/wallet/registry");
@@ -328,7 +333,28 @@ export default function EventEscrowPage() {
           "No Stellar wallet detected. Install Freighter, xBull, or LOBSTR and try again.",
         );
       }
-      const adapter = adapters[0]!;
+      // H5: if multiple wallets installed, show picker; otherwise connect directly
+      if (adapters.length > 1) {
+        setAvailableAdapters(adapters);
+        setShowWalletPicker(true);
+        return;
+      }
+      // Single wallet — connect immediately
+      await connectWithAdapter(adapters[0]!);
+    } catch (err) {
+      setFundingError(err instanceof Error ? err.message : "Wallet connection failed.");
+      setFundingStep("error");
+    }
+  }
+
+  async function connectWithAdapter(adapter: {
+    provider: string;
+    connect: () => Promise<{ publicKey: string }>;
+  }) {
+    setShowWalletPicker(false);
+    setFundingStep("connecting");
+    setFundingError(null);
+    try {
       const { publicKey } = await adapter.connect();
       setWallet({ provider: adapter.provider, publicKey });
       setFundingStep("connected");
@@ -374,10 +400,12 @@ export default function EventEscrowPage() {
 
       // Step: wallet signature
       setFundingStep("signing");
-      const { getAvailableAdapters } = await import("@/lib/wallet/registry");
-      const adapters = await getAvailableAdapters();
-      if (adapters.length === 0) throw new Error("Wallet disconnected. Reconnect and try again.");
-      const adapter = adapters[0]!;
+      const { getAdapter } = await import("@/lib/wallet/registry");
+      // Use the specific adapter the user selected/connected (H5)
+      const adapter = wallet.provider
+        ? getAdapter(wallet.provider as import("@/lib/wallet/types").WalletProvider)
+        : undefined;
+      if (!adapter) throw new Error("Wallet disconnected. Reconnect and try again.");
       const networkMode = escrow.network === "public" ? ("mainnet" as const) : ("testnet" as const);
       const signedXdr = await adapter.signTransaction(unsignedXdr, networkMode);
 
@@ -811,14 +839,43 @@ export default function EventEscrowPage() {
                 </div>
               )}
 
-              {/* Step 1: Connect wallet */}
-              {fundingStep === "idle" && !wallet && (
+              {/* Step 1: Connect wallet — with multi-wallet picker (H5) */}
+              {fundingStep === "idle" && !wallet && !showWalletPicker && (
                 <button
                   onClick={handleConnectWallet}
                   className="btn-primary px-5 py-2.5 rounded-md text-sm font-medium w-full sm:w-auto"
                 >
                   Connect Stellar Wallet
                 </button>
+              )}
+
+              {/* H5: Wallet picker — shown when >1 wallet is installed */}
+              {showWalletPicker && (
+                <div className="space-y-3">
+                  <p className="text-sm font-medium text-[var(--text)]">
+                    Multiple wallets detected — choose one to connect:
+                  </p>
+                  <div className="grid gap-2 sm:grid-cols-2">
+                    {availableAdapters.map((adapter) => (
+                      <button
+                        key={adapter.provider}
+                        onClick={() => connectWithAdapter(adapter)}
+                        className="flex items-center gap-3 rounded-lg border border-[var(--border)] bg-[var(--bg)] px-4 py-3 text-left text-sm font-medium text-[var(--text)] hover:border-[var(--accent)] hover:bg-[var(--accent-muted)] transition-colors"
+                      >
+                        <span className="h-7 w-7 rounded-full bg-[var(--bg-muted)] flex items-center justify-center text-xs font-bold shrink-0">
+                          {adapter.provider.charAt(0)}
+                        </span>
+                        {adapter.provider}
+                      </button>
+                    ))}
+                  </div>
+                  <button
+                    onClick={() => setShowWalletPicker(false)}
+                    className="text-xs text-[var(--text-muted)] hover:text-[var(--text)] transition-colors"
+                  >
+                    Cancel
+                  </button>
+                </div>
               )}
 
               {/* Step 2: Enter amount + fund */}
@@ -832,6 +889,7 @@ export default function EventEscrowPage() {
                       <input
                         type="number"
                         min="0"
+                        max={escrow.expected_balance}
                         step="any"
                         value={fundAmount}
                         onChange={(e) => setFundAmount(e.target.value)}

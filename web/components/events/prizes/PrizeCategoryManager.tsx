@@ -31,6 +31,7 @@ export function PrizeCategoryManager({
   isLocked,
 }: PrizeCategoryManagerProps) {
   const [loading, setLoading] = useState(false);
+  const [categoryError, setCategoryError] = useState<string | null>(null);
   const [form, setForm] = useState({
     name: "",
     prizeType: "Cash",
@@ -40,6 +41,7 @@ export function PrizeCategoryManager({
 
   const handleApplyTemplate = async (templateKey: keyof typeof TEMPLATES) => {
     if (isLocked) return;
+    setCategoryError(null);
     setLoading(true);
     try {
       const template = TEMPLATES[templateKey];
@@ -58,8 +60,7 @@ export function PrizeCategoryManager({
       }
       setCategories([...categories, ...newCats]);
     } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err);
-      alert(`Error applying template: ${msg}`);
+      setCategoryError(err instanceof Error ? err.message : String(err));
     } finally {
       setLoading(false);
     }
@@ -67,6 +68,7 @@ export function PrizeCategoryManager({
 
   const handleCreate = async () => {
     if (isLocked) return;
+    setCategoryError(null);
     setLoading(true);
     try {
       const cat = await createPrizeCategory({
@@ -81,8 +83,7 @@ export function PrizeCategoryManager({
       setCategories([...categories, cat as PrizeCategory]);
       setForm({ name: "", prizeType: "Cash", totalAmount: "", maxWinners: "1" });
     } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err);
-      alert(`Error creating category: ${msg}`);
+      setCategoryError(err instanceof Error ? err.message : String(err));
     } finally {
       setLoading(false);
     }
@@ -90,6 +91,17 @@ export function PrizeCategoryManager({
 
   return (
     <div className="space-y-6">
+      {categoryError && (
+        <div
+          role="alert"
+          className="rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 flex justify-between items-center text-sm text-destructive"
+        >
+          <span>{categoryError}</span>
+          <button onClick={() => setCategoryError(null)} className="text-xs hover:underline ml-3">
+            ✕
+          </button>
+        </div>
+      )}
       <div className="flex gap-4">
         <Button
           variant="outline"

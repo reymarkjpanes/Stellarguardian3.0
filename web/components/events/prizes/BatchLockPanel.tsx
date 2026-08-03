@@ -40,21 +40,25 @@ export function BatchLockPanel({
 }: BatchLockPanelProps) {
   const [loading, setLoading] = useState(false);
   const [validationErrors, setValidationErrors] = useState<string[]>([]);
+  const [batchMessage, setBatchMessage] = useState<string | null>(null);
+  const [batchError, setBatchError] = useState<string | null>(null);
+  const [confirmLock, setConfirmLock] = useState(false);
 
   const handleValidate = async () => {
     setLoading(true);
+    setBatchError(null);
+    setBatchMessage(null);
     try {
       const res = await validateBatchAction(batchId);
       if (res.valid) {
         setStatus?.("Validated");
         setValidationErrors([]);
-        alert("Validation successful! Batch is now ready to lock.");
+        setBatchMessage("Validation successful! Batch is now ready to lock.");
       } else {
         setValidationErrors(res.errors ?? []);
       }
     } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err);
-      alert(`Validation failed: ${msg}`);
+      setBatchError(err instanceof Error ? err.message : String(err));
     } finally {
       setLoading(false);
     }
@@ -62,22 +66,19 @@ export function BatchLockPanel({
 
   const handleLock = async () => {
     if (status !== "Validated") {
-      alert("You must validate the batch first.");
+      setBatchError("You must validate the batch first.");
       return;
     }
-    const confirmed = confirm(
-      "Are you sure? Locking will permanently freeze these allocations and hand them over to Escrow.",
-    );
-    if (!confirmed) return;
-
+    setConfirmLock(false);
     setLoading(true);
+    setBatchError(null);
+    setBatchMessage(null);
     try {
       await lockBatchAction(batchId);
       setStatus?.("Locked");
-      alert("Batch Locked successfully! Ready for Escrow (Module 8).");
+      setBatchMessage("Batch Locked successfully! Ready for Escrow.");
     } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err);
-      alert(`Lock failed: ${msg}`);
+      setBatchError(err instanceof Error ? err.message : String(err));
     } finally {
       setLoading(false);
     }
@@ -115,6 +116,29 @@ export function BatchLockPanel({
           </div>
         </div>
 
+        {batchMessage && (
+          <div
+            role="status"
+            className="p-3 rounded-md bg-green-500/10 border border-green-500/30 text-sm text-green-700 dark:text-green-300 flex justify-between"
+          >
+            <span>{batchMessage}</span>
+            <button onClick={() => setBatchMessage(null)} className="text-xs hover:underline ml-3">
+              ✕
+            </button>
+          </div>
+        )}
+        {batchError && (
+          <div
+            role="alert"
+            className="p-3 rounded-md bg-destructive/10 border border-destructive/30 text-sm text-destructive flex justify-between"
+          >
+            <span>{batchError}</span>
+            <button onClick={() => setBatchError(null)} className="text-xs hover:underline ml-3">
+              ✕
+            </button>
+          </div>
+        )}
+
         {validationErrors.length > 0 && (
           <div className="p-4 bg-destructive/10 text-destructive border border-destructive rounded-md space-y-2">
             <p className="font-bold">Validation Errors:</p>
@@ -132,9 +156,9 @@ export function BatchLockPanel({
               Run Validation Pass
             </Button>
           )}
-          {status === "Validated" && (
+          {status === "Validated" && !confirmLock && (
             <Button
-              onClick={handleLock}
+              onClick={() => setConfirmLock(true)}
               disabled={loading}
               variant="destructive"
               className="w-full"
@@ -142,10 +166,32 @@ export function BatchLockPanel({
               Lock &amp; Send to Escrow
             </Button>
           )}
+          {status === "Validated" && confirmLock && (
+            <div
+              role="alertdialog"
+              aria-label="Confirm lock batch"
+              className="w-full rounded-md border border-destructive/40 bg-destructive/10 p-3 space-y-2"
+            >
+              <p className="text-sm text-destructive font-medium">
+                Lock allocations? This permanently freezes them and hands them to Escrow.
+              </p>
+              <div className="flex gap-3">
+                <Button onClick={handleLock} disabled={loading} variant="destructive" size="sm">
+                  {loading ? "Locking…" : "Confirm Lock"}
+                </Button>
+                <Button onClick={() => setConfirmLock(false)} variant="outline" size="sm">
+                  Cancel
+                </Button>
+              </div>
+            </div>
+          )}
           {(status === "Locked" || status === "Escrowed") && (
             <div className="flex flex-col items-center gap-4 p-4 w-full text-center bg-muted text-muted-foreground rounded-md">
               <p>Batch is Locked and handed over to Escrow. No further edits allowed.</p>
-              <Button onClick={() => (window.location.href = `/events/${eventId}/escrow`)} variant="outline">
+              <Button
+                onClick={() => (window.location.href = `/events/${eventId}/escrow`)}
+                variant="outline"
+              >
                 Proceed to Escrow
               </Button>
             </div>

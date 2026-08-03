@@ -30,7 +30,7 @@ export function OnboardingForm({ initialDisplayName = "" }: OnboardingFormProps)
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
+  async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
 
@@ -112,6 +112,7 @@ export function OnboardingForm({ initialDisplayName = "" }: OnboardingFormProps)
         <form onSubmit={handleSubmit} className="space-y-4 pt-4">
           {error && (
             <div
+              id="onboarding-error"
               role="alert"
               className="rounded-md border border-[var(--error)] bg-[var(--error-bg)] px-4 py-3 text-sm text-[var(--error)]"
             >
@@ -139,6 +140,8 @@ export function OnboardingForm({ initialDisplayName = "" }: OnboardingFormProps)
                   setWorkspaceName(e.target.value ? `${e.target.value}'s Workspace` : "");
                 }
               }}
+              aria-describedby={error ? "onboarding-error" : undefined}
+              aria-invalid={error ? true : undefined}
               className="w-full rounded-md border border-[var(--border)] bg-[var(--input-bg)] px-3 py-2 text-sm text-[var(--text)] placeholder:text-[var(--text-muted)] focus:outline-none focus:ring-1 focus:ring-[var(--accent)]"
               placeholder="Alice Organizer"
             />
@@ -162,6 +165,8 @@ export function OnboardingForm({ initialDisplayName = "" }: OnboardingFormProps)
               maxLength={200}
               value={workspaceName}
               onChange={(e) => setWorkspaceName(e.target.value)}
+              aria-describedby={error ? "onboarding-error" : undefined}
+              aria-invalid={error ? true : undefined}
               className="w-full rounded-md border border-[var(--border)] bg-[var(--input-bg)] px-3 py-2 text-sm text-[var(--text)] placeholder:text-[var(--text-muted)] focus:outline-none focus:ring-1 focus:ring-[var(--accent)]"
               placeholder="e.g. Acme Corp Hackathons"
             />

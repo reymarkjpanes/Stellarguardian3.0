@@ -53,6 +53,7 @@ export function JudgeEvaluationsClient({ eventId, eventState, assignments, crite
   const [rows, setRows] = useState<EvalRow[]>(assignments);
   const [coiError, setCoiError] = useState<string | null>(null);
   const [declaringId, setDeclaringId] = useState<string | null>(null);
+  const [confirmCOIId, setConfirmCOIId] = useState<string | null>(null);
   const [criteriaOpen, setCriteriaOpen] = useState(false);
 
   const judging = eventState === "JudgingRound1" || eventState === "JudgingRound2";
@@ -65,13 +66,11 @@ export function JudgeEvaluationsClient({ eventId, eventState, assignments, crite
   const progressPercentage = totalAssignments > 0 ? (scoredCount / totalAssignments) * 100 : 0;
 
   function handleDeclareCOI(ev: EvalRow) {
-    if (
-      !confirm(
-        `Declare a conflict of interest for "${ev.teamName ?? ev.submitterName ?? "this submission"}"?\n\nThis will mark the evaluation as conflicted and exclude it from scoring.`,
-      )
-    )
-      return;
+    setConfirmCOIId(ev.evaluationId);
+  }
 
+  function executeCOI(ev: EvalRow) {
+    setConfirmCOIId(null);
     setDeclaringId(ev.evaluationId);
     setCoiError(null);
 
@@ -217,7 +216,7 @@ export function JudgeEvaluationsClient({ eventId, eventState, assignments, crite
                 <StatusBadge status={ev.conflictOfInterest ? "Conflict" : ev.status} />
 
                 {/* COI button — only when judging is active and not yet declared (H8) */}
-                {judging && !ev.conflictOfInterest && (
+                {judging && !ev.conflictOfInterest && confirmCOIId !== ev.evaluationId && (
                   <button
                     onClick={() => handleDeclareCOI(ev)}
                     disabled={isPending && declaringId === ev.evaluationId}
@@ -226,6 +225,29 @@ export function JudgeEvaluationsClient({ eventId, eventState, assignments, crite
                   >
                     {isPending && declaringId === ev.evaluationId ? "…" : "COI"}
                   </button>
+                )}
+
+                {/* Inline COI confirm */}
+                {judging && !ev.conflictOfInterest && confirmCOIId === ev.evaluationId && (
+                  <div
+                    role="alertdialog"
+                    aria-label="Confirm conflict of interest"
+                    className="flex items-center gap-1.5 rounded-md border border-[var(--warning)]/40 bg-[var(--warning-bg)] px-2 py-1"
+                  >
+                    <span className="text-[10px] text-[var(--warning)]">COI?</span>
+                    <button
+                      onClick={() => executeCOI(ev)}
+                      className="text-[10px] font-medium text-[var(--warning)] hover:underline"
+                    >
+                      Yes
+                    </button>
+                    <button
+                      onClick={() => setConfirmCOIId(null)}
+                      className="text-[10px] text-[var(--text-muted)] hover:text-[var(--text)]"
+                    >
+                      No
+                    </button>
+                  </div>
                 )}
 
                 {/* Score / View — disabled when COI declared */}

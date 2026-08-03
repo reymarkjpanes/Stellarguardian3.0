@@ -67,13 +67,15 @@ export function OrganizerJudgingDashboardClient({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isCompleted]);
 
+  const [finalizeError, setFinalizeError] = useState<string | null>(null);
+
   const handleFinalize = async () => {
+    setFinalizeError(null);
     try {
       await finalizeEventAction(eventId, expectedVersion);
       router.refresh();
     } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err);
-      alert(`Finalization failed: ${msg}`);
+      setFinalizeError(err instanceof Error ? err.message : String(err));
     }
   };
 
@@ -157,7 +159,21 @@ export function OrganizerJudgingDashboardClient({
                 />
               </div>
 
-              <div className="pt-8">
+              <div className="pt-8 space-y-3">
+                {finalizeError && (
+                  <div
+                    role="alert"
+                    className="rounded-md border border-destructive/40 bg-destructive/10 px-4 py-3 flex justify-between items-center"
+                  >
+                    <p className="text-sm text-destructive">{finalizeError}</p>
+                    <button
+                      onClick={() => setFinalizeError(null)}
+                      className="text-xs text-destructive hover:underline ml-3"
+                    >
+                      ✕
+                    </button>
+                  </div>
+                )}
                 <FinalizationActionBox
                   onFinalize={handleFinalize}
                   disabled={isFinalizationDisabled}

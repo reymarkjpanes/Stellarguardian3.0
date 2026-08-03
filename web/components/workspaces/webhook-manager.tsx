@@ -21,6 +21,7 @@ export function WebhookManager({ workspaceSlug }: { workspaceSlug: string }) {
   const [events, setEvents] = useState<string[]>(["event.state_changed"]);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
 
   const loadWebhooks = useCallback(async () => {
     try {
@@ -63,8 +64,8 @@ export function WebhookManager({ workspaceSlug }: { workspaceSlug: string }) {
     setSubmitting(false);
   }
 
-  async function handleDelete(id: string) {
-    if (!confirm("Delete this webhook?")) return;
+  async function executeDelete(id: string) {
+    setConfirmDeleteId(null);
     await fetch(`/api/workspaces/${workspaceSlug}/webhooks/${id}`, { method: "DELETE" });
     loadWebhooks();
   }
@@ -189,12 +190,34 @@ export function WebhookManager({ workspaceSlug }: { workspaceSlug: string }) {
                 >
                   {wh.active ? "Disable" : "Enable"}
                 </button>
-                <button
-                  onClick={() => handleDelete(wh.id)}
-                  className="text-xs text-[var(--error)] hover:underline"
-                >
-                  Delete
-                </button>
+                {confirmDeleteId === wh.id ? (
+                  <div
+                    role="alertdialog"
+                    aria-label="Confirm webhook deletion"
+                    className="flex items-center gap-1.5 rounded-md border border-[var(--error)]/40 bg-[var(--error-bg,#fef2f2)] px-2 py-1"
+                  >
+                    <span className="text-[10px] text-[var(--error)]">Delete?</span>
+                    <button
+                      onClick={() => executeDelete(wh.id)}
+                      className="text-[10px] font-medium text-[var(--error)] hover:underline"
+                    >
+                      Yes
+                    </button>
+                    <button
+                      onClick={() => setConfirmDeleteId(null)}
+                      className="text-[10px] text-[var(--text-muted)] hover:text-[var(--text)]"
+                    >
+                      No
+                    </button>
+                  </div>
+                ) : (
+                  <button
+                    onClick={() => setConfirmDeleteId(wh.id)}
+                    className="text-xs text-[var(--error)] hover:underline"
+                  >
+                    Delete
+                  </button>
+                )}
               </div>
             </div>
           ))}

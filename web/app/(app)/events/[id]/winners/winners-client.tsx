@@ -21,6 +21,8 @@ interface Winner {
   disbursement_status: string;
   recipient_name: string;
   team_name: string | null;
+  /** Verified Stellar wallet address for payout — null if none on file (M13). */
+  wallet_address: string | null;
 }
 
 interface SubmissionOption {
@@ -167,6 +169,19 @@ export function WinnersClient({
             <span className="text-xs text-[var(--text-muted)]">Disbursement status:</span>
             <DisbursementBadge status={myWin.disbursement_status} />
           </div>
+          {/* M13: show which wallet address is registered for payout */}
+          {myWin.wallet_address ? (
+            <p className="text-xs text-[var(--text-secondary)]">
+              Payout wallet:{" "}
+              <code className="font-mono text-[var(--text)]">
+                {myWin.wallet_address.slice(0, 8)}…{myWin.wallet_address.slice(-6)}
+              </code>
+            </p>
+          ) : (
+            <p className="text-xs text-[var(--warning)]">
+              No verified wallet on file — your prize will be held until you connect one.
+            </p>
+          )}
           {myWin.disbursement_status === "held" && (
             <p className="text-xs text-[var(--warning)]">
               Your prize is held because no verified wallet is on file. Go to{" "}

@@ -25,9 +25,11 @@ export function PrizeAllocationBoard({
   isLocked,
 }: PrizeAllocationBoardProps) {
   const [loading, setLoading] = useState(false);
+  const [allocationError, setAllocationError] = useState<string | null>(null);
 
   const handleAllocate = async (snapshot: RankingSnapshot, category: PrizeCategory) => {
     if (isLocked) return;
+    setAllocationError(null);
     setLoading(true);
     try {
       const res = await allocatePrizeAction(
@@ -51,8 +53,7 @@ export function PrizeAllocationBoard({
         },
       ]);
     } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err);
-      alert(`Allocation failed: ${msg}`);
+      setAllocationError(err instanceof Error ? err.message : String(err));
     } finally {
       setLoading(false);
     }
@@ -60,13 +61,13 @@ export function PrizeAllocationBoard({
 
   const handleRemove = async (allocationId: string) => {
     if (isLocked) return;
+    setAllocationError(null);
     setLoading(true);
     try {
       await removeAllocationAction(allocationId);
       setAllocations(allocations.filter((a) => a.id !== allocationId));
     } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err);
-      alert(`Remove failed: ${msg}`);
+      setAllocationError(err instanceof Error ? err.message : String(err));
     } finally {
       setLoading(false);
     }
@@ -74,6 +75,17 @@ export function PrizeAllocationBoard({
 
   return (
     <div className="space-y-6">
+      {allocationError && (
+        <div
+          role="alert"
+          className="rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 flex justify-between items-center text-sm text-destructive"
+        >
+          <span>{allocationError}</span>
+          <button onClick={() => setAllocationError(null)} className="text-xs hover:underline ml-3">
+            ✕
+          </button>
+        </div>
+      )}
       <div className="grid grid-cols-2 gap-6">
         {/* Left: Rankings */}
         <div className="space-y-4">

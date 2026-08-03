@@ -1,5 +1,6 @@
 /**
  * Workspace members management page — with invitation send form (C6 fix).
+ * Uses inline confirmation UI instead of window.confirm for accessibility (L8).
  */
 "use client";
 
@@ -22,6 +23,41 @@ interface Invitation {
   created_at: string;
 }
 
+/** Inline confirm row — replaces window.confirm for accessibility (L8). */
+function ConfirmInline({
+  message,
+  confirmLabel,
+  onConfirm,
+  onCancel,
+}: {
+  message: string;
+  confirmLabel: string;
+  onConfirm: () => void;
+  onCancel: () => void;
+}) {
+  return (
+    <div
+      role="alertdialog"
+      aria-label={message}
+      className="flex items-center gap-2 rounded-md border border-[var(--error)]/40 bg-[var(--error-bg)] px-3 py-2"
+    >
+      <p className="text-xs text-[var(--error)] flex-1">{message}</p>
+      <button
+        onClick={onConfirm}
+        className="text-xs font-medium text-[var(--error)] hover:underline"
+      >
+        {confirmLabel}
+      </button>
+      <button
+        onClick={onCancel}
+        className="text-xs text-[var(--text-muted)] hover:text-[var(--text)]"
+      >
+        Cancel
+      </button>
+    </div>
+  );
+}
+
 export default function WorkspaceMembersPage() {
   const { slug } = useParams<{ slug: string }>();
   const router = useRouter();
@@ -36,6 +72,10 @@ export default function WorkspaceMembersPage() {
   const [inviting, setInviting] = useState(false);
   const [inviteError, setInviteError] = useState<string | null>(null);
   const [inviteSuccess, setInviteSuccess] = useState<string | null>(null);
+
+  // Inline confirmation state (replaces window.confirm)
+  const [pendingRemoveId, setPendingRemoveId] = useState<string | null>(null);
+  const [pendingRevokeId, setPendingRevokeId] = useState<string | null>(null);
 
   useEffect(() => {
     let ignore = false;
@@ -77,8 +117,6 @@ export default function WorkspaceMembersPage() {
   const canManage = canManageFromApi;
 
   async function handleRemove(userId: string) {
-    if (!confirm("Remove this member from the workspace?")) return;
-
     const res = await fetch(`/api/workspaces/${slug}/members`, {
       method: "DELETE",
       headers: { "Content-Type": "application/json" },
@@ -88,6 +126,7 @@ export default function WorkspaceMembersPage() {
     if (res.ok) {
       setMembers((prev) => prev.filter((m) => m.user_id !== userId));
     }
+    setPendingRemoveId(null);
   }
 
   async function handleInvite(e: React.FormEvent) {
@@ -117,9 +156,7 @@ export default function WorkspaceMembersPage() {
     setInviting(false);
   }
 
-  async function handleRevokeInvitation(invitationId: string, email: string) {
-    if (!confirm(`Revoke invitation for ${email}?`)) return;
-
+  async function handleRevokeInvitation(invitationId: string) {
     const res = await fetch(`/api/workspaces/${slug}/invitations/${invitationId}`, {
       method: "DELETE",
     });
@@ -127,6 +164,7 @@ export default function WorkspaceMembersPage() {
     if (res.ok) {
       setInvitations((prev) => prev.filter((inv) => inv.id !== invitationId));
     }
+    setPendingRevokeId(null);
   }
 
   if (loading) {
@@ -157,29 +195,39 @@ export default function WorkspaceMembersPage() {
           Current Members
         </h2>
         {members.map((member) => (
-          <div key={member.user_id} className="card p-4 flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div className="h-9 w-9 rounded-full bg-[var(--bg-muted)] flex items-center justify-center text-sm font-semibold text-[var(--text)]">
-                {member.display_name.charAt(0).toUpperCase()}
+          <div key={member.user_id} className="card p-4 space-y-2">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="h-9 w-9 rounded-full bg-[var(--bg-muted)] flex items-center justify-center text-sm font-semibold text-[var(--text)]">
+                  {member.display_name.charAt(0).toUpperCase()}
+                </div>
+                <div>
+                  <p className="text-sm font-medium text-[var(--text)]">{member.display_name}</p>
+                  <p className="text-xs text-[var(--text-muted)]">{member.email}</p>
+                </div>
               </div>
-              <div>
-                <p className="text-sm font-medium text-[var(--text)]">{member.display_name}</p>
-                <p className="text-xs text-[var(--text-muted)]">{member.email}</p>
+              <div className="flex items-center gap-3">
+                <span className="rounded-full bg-[var(--bg-muted)] px-2.5 py-0.5 text-xs font-medium text-[var(--text-secondary)]">
+                  {member.role}
+                </span>
+                {member.role !== "Owner" && canManage && pendingRemoveId !== member.user_id && (
+                  <button
+                    onClick={() => setPendingRemoveId(member.user_id)}
+                    className="text-xs text-[var(--error)] hover:underline"
+                  >
+                    Remove
+                  </button>
+                )}
               </div>
             </div>
-            <div className="flex items-center gap-3">
-              <span className="rounded-full bg-[var(--bg-muted)] px-2.5 py-0.5 text-xs font-medium text-[var(--text-secondary)]">
-                {member.role}
-              </span>
-              {member.role !== "Owner" && canManage && (
-                <button
-                  onClick={() => handleRemove(member.user_id)}
-                  className="text-xs text-[var(--error)] hover:underline"
-                >
-                  Remove
-                </button>
-              )}
-            </div>
+            {pendingRemoveId === member.user_id && (
+              <ConfirmInline
+                message={`Remove ${member.display_name} from this workspace?`}
+                confirmLabel="Remove"
+                onConfirm={() => handleRemove(member.user_id)}
+                onCancel={() => setPendingRemoveId(null)}
+              />
+            )}
           </div>
         ))}
         {members.length === 0 && (
@@ -268,24 +316,36 @@ export default function WorkspaceMembersPage() {
             Pending Invitations
           </h2>
           {invitations.map((inv) => (
-            <div key={inv.id} className="card p-4 flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-[var(--text)]">{inv.email}</p>
-                <p className="text-xs text-[var(--text-muted)] mt-0.5">
-                  {inv.role} · Invited {new Date(inv.created_at).toLocaleDateString()}
-                </p>
+            <div key={inv.id} className="card p-4 space-y-2">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium text-[var(--text)]">{inv.email}</p>
+                  <p className="text-xs text-[var(--text-muted)] mt-0.5">
+                    {inv.role} · Invited {new Date(inv.created_at).toLocaleDateString()}
+                  </p>
+                </div>
+                <div className="flex items-center gap-3">
+                  <span className="rounded-full bg-[var(--warning-bg)] px-2.5 py-0.5 text-xs font-medium text-[var(--warning)]">
+                    Pending
+                  </span>
+                  {pendingRevokeId !== inv.id && (
+                    <button
+                      onClick={() => setPendingRevokeId(inv.id)}
+                      className="text-xs text-[var(--error)] hover:underline"
+                    >
+                      Revoke
+                    </button>
+                  )}
+                </div>
               </div>
-              <div className="flex items-center gap-3">
-                <span className="rounded-full bg-[var(--warning-bg)] px-2.5 py-0.5 text-xs font-medium text-[var(--warning)]">
-                  Pending
-                </span>
-                <button
-                  onClick={() => handleRevokeInvitation(inv.id, inv.email)}
-                  className="text-xs text-[var(--error)] hover:underline"
-                >
-                  Revoke
-                </button>
-              </div>
+              {pendingRevokeId === inv.id && (
+                <ConfirmInline
+                  message={`Revoke invitation for ${inv.email}?`}
+                  confirmLabel="Revoke"
+                  onConfirm={() => handleRevokeInvitation(inv.id)}
+                  onCancel={() => setPendingRevokeId(null)}
+                />
+              )}
             </div>
           ))}
         </section>

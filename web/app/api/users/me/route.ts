@@ -10,7 +10,38 @@ import { withErrorHandling } from "@/lib/errors/with-error-handling";
 const UpdateProfileSchema = z.object({
   display_name: z.string().min(1).max(120).optional(),
   bio: z.string().max(500).optional().nullable(),
-  avatar_url: z.string().url().optional().nullable(),
+  // M6: restrict avatar_url to known-safe CDN/image domains to prevent tracking pixel abuse
+  avatar_url: z
+    .string()
+    .url()
+    .refine(
+      (url) => {
+        try {
+          const { hostname } = new URL(url);
+          const ALLOWED_DOMAINS = [
+            "avatars.githubusercontent.com",
+            "lh3.googleusercontent.com",
+            "i.imgur.com",
+            "imgur.com",
+            "cdn.discordapp.com",
+            "pbs.twimg.com",
+            "images.unsplash.com",
+            "res.cloudinary.com",
+            "uploadthing.com",
+            "utfs.io",
+          ];
+          return ALLOWED_DOMAINS.some((d) => hostname === d || hostname.endsWith(`.${d}`));
+        } catch {
+          return false;
+        }
+      },
+      {
+        message:
+          "Avatar URL must point to a supported image host (GitHub, Google, Imgur, Discord, Twitter, Unsplash, Cloudinary, or UploadThing).",
+      },
+    )
+    .optional()
+    .nullable(),
   skills: z.array(z.string()).optional(),
   terms_accepted_version: z.string().optional(),
 });

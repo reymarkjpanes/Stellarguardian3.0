@@ -15,6 +15,7 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { createBrowserClient } from "@/lib/supabase/client";
 import { clearDraft } from "@/lib/hooks/use-form-draft";
 import { BackButton } from "@/components/ui/back-button";
@@ -96,6 +97,7 @@ function validate(step: number, data: FormData): string | null {
 }
 
 export default function CreateEventPage() {
+  const router = useRouter();
   const [workspaces, setWorkspaces] = useState<Workspace[]>([]);
   const [step, setStep] = useState(1);
   const [form, setForm] = useState<FormData>(() => {
@@ -113,6 +115,7 @@ export default function CreateEventPage() {
   const [submitting, setSubmitting] = useState(false);
   const { toast } = useToast();
   const [submitError, setSubmitError] = useState<string | null>(null);
+  const [confirmDiscard, setConfirmDiscard] = useState(false);
 
   // Persist draft on every change
   useEffect(() => {
@@ -221,7 +224,7 @@ export default function CreateEventPage() {
       clearDraft(DRAFT_KEY);
       localStorage.removeItem(`sg-draft:${DRAFT_KEY}`);
       toast({ title: "Success", description: "Event created successfully!", type: "success" });
-      window.location.href = `/events/${data.id}`;
+      router.push(`/events/${data.id}`);
     } catch {
       const msg = "Network error. Please try again.";
       setSubmitError(msg);
@@ -305,21 +308,44 @@ export default function CreateEventPage() {
               <p className="text-[10px] text-[var(--text-muted)] mt-1.5">Step {step} of 4</p>
             </div>
 
-            {/* Discard draft */}
-            <button
-              type="button"
-              onClick={() => {
-                if (confirm("Discard this draft? All progress will be lost.")) {
-                  localStorage.removeItem(`sg-draft:${DRAFT_KEY}`);
-                  setForm(INITIAL);
-                  setStep(1);
-                  setFieldError(null);
-                }
-              }}
-              className="mt-3 w-full text-xs text-[var(--text-muted)] hover:text-[var(--error)] transition-colors"
-            >
-              Discard draft
-            </button>
+            {/* Discard draft — inline confirm to avoid window.confirm */}
+            {!confirmDiscard ? (
+              <button
+                type="button"
+                onClick={() => setConfirmDiscard(true)}
+                className="mt-3 w-full text-xs text-[var(--text-muted)] hover:text-[var(--error)] transition-colors"
+              >
+                Discard draft
+              </button>
+            ) : (
+              <div className="mt-3 rounded-md border border-[var(--error)]/40 bg-[var(--error-bg)] px-3 py-2 space-y-2">
+                <p className="text-xs text-[var(--error)]">
+                  Discard draft? All progress will be lost.
+                </p>
+                <div className="flex gap-3">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      localStorage.removeItem(`sg-draft:${DRAFT_KEY}`);
+                      setForm(INITIAL);
+                      setStep(1);
+                      setFieldError(null);
+                      setConfirmDiscard(false);
+                    }}
+                    className="text-xs font-medium text-[var(--error)] hover:underline"
+                  >
+                    Yes, discard
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setConfirmDiscard(false)}
+                    className="text-xs text-[var(--text-muted)] hover:text-[var(--text)]"
+                  >
+                    Keep editing
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         </aside>
 

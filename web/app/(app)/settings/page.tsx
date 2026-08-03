@@ -26,9 +26,10 @@ interface UserData {
 export default function SettingsPage() {
   const [user, setUser] = useState<UserData | null>(null);
   const [wallets, setWallets] = useState<WalletRecord[]>([]);
-  const [availableSkills, setAvailableSkills] = useState<{id: string, name: string}[]>([]);
+  const [availableSkills, setAvailableSkills] = useState<{ id: string; name: string }[]>([]);
   const [removingId, setRemovingId] = useState<string | null>(null);
   const [confirmRemoveId, setConfirmRemoveId] = useState<string | null>(null);
+  const [walletError, setWalletError] = useState<string | null>(null);
   const [showAddWallet, setShowAddWallet] = useState(false);
 
   useEffect(() => {
@@ -42,11 +43,11 @@ export default function SettingsPage() {
       return;
     }
     const { data } = await res.json();
-    
+
     const supabase = createBrowserClient();
     const { data: skillsData } = await supabase.from("skills").select("id, name");
     setAvailableSkills(skillsData || []);
-    
+
     setUser({
       id: data.id,
       email: data.email,
@@ -60,19 +61,19 @@ export default function SettingsPage() {
 
   async function removeWallet(walletId: string) {
     setRemovingId(walletId);
+    setWalletError(null);
     try {
-      // Find the public_key for this wallet ID
       const wallet = wallets.find((w) => w.id === walletId);
       if (!wallet) return;
       const res = await fetch(`/api/wallets/${wallet.public_key}`, { method: "DELETE" });
       if (!res.ok) {
         const { error: apiErr } = await res.json();
-        alert(apiErr?.message ?? "Failed to remove wallet.");
+        setWalletError(apiErr?.message ?? "Failed to remove wallet.");
       } else {
         setWallets((prev) => prev.filter((w) => w.id !== walletId));
       }
     } catch {
-      alert("An unexpected error occurred.");
+      setWalletError("An unexpected error occurred.");
     } finally {
       setRemovingId(null);
       setConfirmRemoveId(null);
@@ -130,6 +131,20 @@ export default function SettingsPage() {
             <p className="text-xs text-[var(--text-muted)] uppercase tracking-wide font-medium">
               Connected wallets
             </p>
+            {walletError && (
+              <div
+                role="alert"
+                className="rounded-md border border-[var(--error)] bg-[var(--error-bg)] px-3 py-2 flex justify-between items-center"
+              >
+                <p className="text-xs text-[var(--error)]">{walletError}</p>
+                <button
+                  onClick={() => setWalletError(null)}
+                  className="text-xs text-[var(--error)] hover:underline ml-3"
+                >
+                  ✕
+                </button>
+              </div>
+            )}
             {wallets.map((w) => (
               <WalletItem
                 key={w.id}
@@ -327,7 +342,7 @@ function SendXlmForm({ senderPublicKey }: { senderPublicKey: string }) {
   const [txHash, setTxHash] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  async function handleSend(e: React.FormEvent<HTMLFormElement>) {
+  async function handleSend(e: React.FormEvent) {
     e.preventDefault();
     setStep("signing");
     setError(null);
@@ -504,7 +519,7 @@ function ProfileEditForm({
   onUpdate,
 }: {
   user: UserData;
-  availableSkills: {id: string, name: string}[];
+  availableSkills: { id: string; name: string }[];
   onUpdate: (data: Partial<UserData>) => void;
 }) {
   const [editing, setEditing] = useState(false);
@@ -516,13 +531,13 @@ function ProfileEditForm({
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
 
-  async function handleSave(e: React.FormEvent<HTMLFormElement>) {
+  async function handleSave(e: React.FormEvent) {
     e.preventDefault();
     setSaving(true);
     setError(null);
     setSuccess(false);
 
-    const updates = { 
+    const updates = {
       display_name: name,
       bio: bio || null,
       avatar_url: avatarUrl || null,
@@ -553,7 +568,11 @@ function ProfileEditForm({
         {user.avatar_url && (
           <div className="mb-4">
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={user.avatar_url} alt="Avatar" className="w-16 h-16 rounded-full bg-[var(--bg-muted)] object-cover" />
+            <img
+              src={user.avatar_url}
+              alt="Avatar"
+              className="w-16 h-16 rounded-full bg-[var(--bg-muted)] object-cover"
+            />
           </div>
         )}
         <div className="grid grid-cols-2 gap-4 text-sm">
@@ -567,14 +586,16 @@ function ProfileEditForm({
           </div>
           <div className="col-span-2">
             <p className="text-[var(--text-muted)]">Bio</p>
-            <p className="font-medium text-[var(--text)] whitespace-pre-wrap">{user.bio || "No bio provided"}</p>
+            <p className="font-medium text-[var(--text)] whitespace-pre-wrap">
+              {user.bio || "No bio provided"}
+            </p>
           </div>
           <div className="col-span-2">
             <p className="text-[var(--text-muted)]">Skills</p>
             {user.skills && user.skills.length > 0 ? (
               <div className="flex flex-wrap gap-2 mt-1">
-                {user.skills.map(id => {
-                  const skill = availableSkills.find(s => s.id === id);
+                {user.skills.map((id) => {
+                  const skill = availableSkills.find((s) => s.id === id);
                   return (
                     <span key={id} className="badge-default px-2 py-1 text-xs">
                       {skill ? skill.name : "Unknown"}
@@ -663,14 +684,14 @@ function ProfileEditForm({
                 type="button"
                 onClick={() => {
                   if (isSelected) {
-                    setSelectedSkills(selectedSkills.filter(id => id !== skill.id));
+                    setSelectedSkills(selectedSkills.filter((id) => id !== skill.id));
                   } else {
                     setSelectedSkills([...selectedSkills, skill.id]);
                   }
                 }}
                 className={`px-3 py-1 text-xs rounded-full border transition-colors ${
-                  isSelected 
-                    ? "bg-[var(--accent)] text-white border-[var(--accent)]" 
+                  isSelected
+                    ? "bg-[var(--accent)] text-white border-[var(--accent)]"
                     : "bg-transparent text-[var(--text)] border-[var(--border)] hover:bg-[var(--bg-muted)]"
                 }`}
               >
@@ -717,13 +738,15 @@ function ProfileEditForm({
  * Uses Supabase Auth MFA APIs to list factors, enroll TOTP, and verify.
  */
 function MfaSection() {
-  const [status, setStatus] = useState<"loading" | "none" | "enrolled" | "enrolling" | "verifying">(
-    "loading",
-  );
+  const [status, setStatus] = useState<
+    "loading" | "none" | "enrolled" | "enrolling" | "verifying" | "confirm-unenroll"
+  >("loading");
   const [qrUri, setQrUri] = useState<string | null>(null);
   const [factorId, setFactorId] = useState<string | null>(null);
   const [verifyCode, setVerifyCode] = useState("");
+  const [unenrollCode, setUnenrollCode] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const [unenrolling, setUnenrolling] = useState(false);
 
   useEffect(() => {
     async function checkMfaStatus() {
@@ -789,14 +812,53 @@ function MfaSection() {
     setVerifyCode("");
   }
 
-  async function unenroll() {
-    const supabase = createBrowserClient();
-    const { data } = await supabase.auth.mfa.listFactors();
-    if (!data) return;
-    for (const factor of data.totp) {
-      await supabase.auth.mfa.unenroll({ factorId: factor.id });
+  /**
+   * H13: MFA unenroll requires re-authentication via the current TOTP code.
+   * Called after the user enters their 6-digit code in the confirm-unenroll UI.
+   */
+  async function confirmAndUnenroll() {
+    if (unenrollCode.length !== 6) {
+      setError("Enter your 6-digit authenticator code to confirm.");
+      return;
     }
-    setStatus("none");
+    setUnenrolling(true);
+    setError(null);
+    const supabase = createBrowserClient();
+    try {
+      const { data: factors } = await supabase.auth.mfa.listFactors();
+      if (!factors || factors.totp.length === 0) {
+        setStatus("none");
+        return;
+      }
+      const factor = factors.totp.find((f) => f.status === "verified");
+      if (!factor) {
+        setStatus("none");
+        return;
+      }
+      // Challenge + verify before unenrolling (H13)
+      const { data: challenge, error: chalError } = await supabase.auth.mfa.challenge({
+        factorId: factor.id,
+      });
+      if (chalError || !challenge) {
+        setError(chalError?.message ?? "Challenge failed. Try again.");
+        return;
+      }
+      const { error: verifyError } = await supabase.auth.mfa.verify({
+        factorId: factor.id,
+        challengeId: challenge.id,
+        code: unenrollCode,
+      });
+      if (verifyError) {
+        setError("Incorrect code. Please try again.");
+        return;
+      }
+      // Code verified — now unenroll
+      await supabase.auth.mfa.unenroll({ factorId: factor.id });
+      setStatus("none");
+      setUnenrollCode("");
+    } finally {
+      setUnenrolling(false);
+    }
   }
 
   if (status === "loading") {
@@ -818,9 +880,77 @@ function MfaSection() {
         <p className="text-xs text-[var(--text-muted)]">
           Your account is protected with TOTP two-factor authentication.
         </p>
-        <button onClick={unenroll} className="text-xs text-[var(--error)] hover:underline">
+        <button
+          onClick={() => {
+            setStatus("confirm-unenroll");
+            setError(null);
+            setUnenrollCode("");
+          }}
+          className="text-xs text-[var(--error)] hover:underline"
+        >
           Disable MFA
         </button>
+      </div>
+    );
+  }
+
+  if (status === "confirm-unenroll") {
+    return (
+      <div className="space-y-4">
+        <div className="rounded-md border border-[var(--error)]/40 bg-[var(--error-bg)] px-4 py-3 space-y-1">
+          <p className="text-sm font-medium text-[var(--error)]">Confirm disabling MFA</p>
+          <p className="text-xs text-[var(--text-muted)]">
+            Enter your 6-digit authenticator code to confirm. This is required to prevent
+            unauthorised removal of your second factor.
+          </p>
+        </div>
+
+        {error && (
+          <p className="text-xs text-[var(--error)]" role="alert">
+            {error}
+          </p>
+        )}
+
+        <div className="space-y-1">
+          <label
+            htmlFor="unenroll-code"
+            className="block text-sm font-medium text-[var(--text-secondary)]"
+          >
+            Authenticator code
+          </label>
+          <input
+            id="unenroll-code"
+            type="text"
+            inputMode="numeric"
+            maxLength={6}
+            pattern="[0-9]{6}"
+            value={unenrollCode}
+            onChange={(e) => setUnenrollCode(e.target.value.replace(/\D/g, ""))}
+            placeholder="000000"
+            autoComplete="one-time-code"
+            className="w-32 rounded-md border border-[var(--border)] bg-[var(--input-bg)] px-3 py-2 text-sm text-[var(--text)] font-mono tracking-widest focus:outline-none focus:ring-2 focus:ring-[var(--accent)]"
+          />
+        </div>
+
+        <div className="flex gap-3">
+          <button
+            onClick={confirmAndUnenroll}
+            disabled={unenrolling || unenrollCode.length !== 6}
+            className="rounded-md border border-[var(--error)] px-4 py-2 text-sm font-medium text-[var(--error)] hover:bg-[var(--error-bg)] disabled:opacity-50 transition-colors"
+          >
+            {unenrolling ? "Verifying…" : "Confirm Disable"}
+          </button>
+          <button
+            onClick={() => {
+              setStatus("enrolled");
+              setError(null);
+              setUnenrollCode("");
+            }}
+            className="rounded-md border border-[var(--border)] px-4 py-2 text-sm font-medium text-[var(--text-muted)] hover:bg-[var(--bg-muted)] transition-colors"
+          >
+            Cancel
+          </button>
+        </div>
       </div>
     );
   }

@@ -11,6 +11,7 @@
  * CSS variables throughout. System font. Single accent.
  */
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 
 function slugify(text: string): string {
   return text
@@ -25,6 +26,7 @@ function slugify(text: string): string {
 }
 
 export default function CreateWorkspacePage() {
+  const router = useRouter();
   const [name, setName] = useState("");
   const [slug, setSlug] = useState("");
   const [slugTouched, setSlugTouched] = useState(false);
@@ -35,7 +37,7 @@ export default function CreateWorkspacePage() {
   // Derive slug from name when user hasn't manually edited it
   const derivedSlug = slugTouched ? slug : slugify(name);
 
-  async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
+  async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
 
@@ -80,8 +82,8 @@ export default function CreateWorkspacePage() {
         return;
       }
 
-      // Redirect directly to the new workspace page
-      window.location.href = `/workspaces/${json.data.slug}`;
+      // Redirect to the new workspace page via SPA navigation
+      router.push(`/workspaces/${json.data.slug}`);
     } catch {
       setError("Network error. Please try again.");
       setSubmitting(false);
@@ -107,6 +109,7 @@ export default function CreateWorkspacePage() {
         <form onSubmit={handleSubmit} className="card p-6 space-y-5">
           {error && (
             <div
+              id="ws-new-error"
               role="alert"
               className="rounded-md border border-[var(--error)] bg-[var(--error-bg)] px-4 py-3 text-sm text-[var(--error)]"
             >
@@ -126,6 +129,8 @@ export default function CreateWorkspacePage() {
               maxLength={60}
               value={name}
               onChange={(e) => setName(e.target.value)}
+              aria-describedby={error ? "ws-new-error" : undefined}
+              aria-invalid={error ? true : undefined}
               className={inputCls}
               placeholder="Stellar Hackathon Team"
             />
@@ -150,11 +155,13 @@ export default function CreateWorkspacePage() {
                   setSlug(e.target.value);
                   setSlugTouched(true);
                 }}
+                aria-describedby={error ? "ws-new-error" : "ws-slug-hint"}
+                aria-invalid={error ? true : undefined}
                 className={inputCls}
                 placeholder="stellar-hackathon-team"
               />
             </div>
-            <p className="text-xs text-[var(--text-muted)] mt-1">
+            <p id="ws-slug-hint" className="text-xs text-[var(--text-muted)] mt-1">
               Lowercase letters, numbers, and hyphens only.
             </p>
           </div>

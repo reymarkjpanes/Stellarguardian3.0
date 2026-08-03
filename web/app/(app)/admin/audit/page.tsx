@@ -1,36 +1,66 @@
 /**
- * Admin audit log page — view all audit records (Req 31).
+ * Admin audit log page — view all platform audit records (Req 31, H8).
  *
- * Uses createServiceClient (bypasses RLS) so all platform records are visible,
- * not just those belonging to the currently logged-in admin (H11 fix).
+ * Supports filter by:
+ *   - action keyword  (?action=)
+ *   - date range      (?from= and ?to=, YYYY-MM-DD)
+ *   - resource type   (?resource=)
+ * Passes enriched records to AuditLogClient for rendering + CSV export.
+ * Uses createServiceClient to bypass RLS so all platform records are visible.
  */
 import { createServerClient } from "@/lib/supabase/server";
 import { createServiceClient } from "@/lib/supabase/service";
 import { redirect } from "next/navigation";
-import { BackButton } from "@/components/ui/back-button";
+import { AuditLogClient, type AuditRecord } from "./audit-log-client";
 
-export default async function AuditLogPage() {
-  // Auth gate — still use the cookie client to verify the admin session
+interface PageProps {
+  searchParams: Promise<{
+    action?: string;
+    from?: string;
+    to?: string;
+    resource?: string;
+  }>;
+}
+
+export default async function AuditLogPage({ searchParams }: PageProps) {
+  // Auth gate — cookie client to verify admin session
   const supabase = await createServerClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
   if (!user) redirect("/login");
 
-  // Use service client so RLS does not filter platform-wide records (H11)
+  const { action = "", from = "", to = "", resource = "" } = await searchParams;
+
   const serviceClient = createServiceClient();
 
-  // Also resolve actor display names for readability (M11)
-  const { data: records } = await serviceClient
+  // Build filtered query
+  let query = serviceClient
     .from("audit_records")
-    .select("*")
+    .select("id, action, actor_id, resource_type, resource_id, metadata, event_id, created_at")
     .order("created_at", { ascending: false })
-    .limit(100);
+    .limit(500);
 
-  // Collect unique actor UUIDs (skip "system")
+  if (action.trim()) {
+    query = query.ilike("action", `%${action.trim()}%`);
+  }
+  if (resource.trim()) {
+    query = query.ilike("resource_type", `%${resource.trim()}%`);
+  }
+  if (from) {
+    query = query.gte("created_at", `${from}T00:00:00.000Z`);
+  }
+  if (to) {
+    query = query.lte("created_at", `${to}T23:59:59.999Z`);
+  }
+
+  const { data: rawRecords } = await query;
+  const records = rawRecords ?? [];
+
+  // Resolve actor display names
   const actorIds = [
     ...new Set(
-      (records ?? [])
+      records
         .map((r) => r.actor_id)
         .filter((id): id is string => typeof id === "string" && id !== "system"),
     ),
@@ -47,54 +77,25 @@ export default async function AuditLogPage() {
     }
   }
 
+  const enriched: AuditRecord[] = records.map((r) => ({
+    id: r.id,
+    action: r.action,
+    actorDisplay:
+      r.actor_id === "system"
+        ? "⚙ system"
+        : (actorNames.get(r.actor_id) ?? (r.actor_id?.slice(0, 8) ?? "?") + "…"),
+    resourceType: r.resource_type ?? "",
+    resourceId: r.resource_id ?? "",
+    eventId: r.event_id ?? null,
+    metadata: r.metadata ?? {},
+    createdAt: r.created_at,
+  }));
+
   return (
-    <main className="max-w-6xl mx-auto px-4 py-8 space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Audit Log</h1>
-          <p className="text-sm text-[var(--text-muted)] mt-1">
-            Immutable record of all platform actions
-          </p>
-        </div>
-        <BackButton href="/admin" label="Back to Admin" />
-      </div>
-
-      {records && records.length > 0 ? (
-        <div className="space-y-2">
-          {records.map((record) => {
-            const actorDisplay =
-              record.actor_id === "system"
-                ? "⚙ system"
-                : (actorNames.get(record.actor_id) ?? record.actor_id?.slice(0, 8) + "…");
-
-            return (
-              <div key={record.id} className="card p-4">
-                <div className="flex items-center justify-between mb-1">
-                  <span className="text-sm font-medium text-[var(--text)]">{record.action}</span>
-                  <span className="text-xs text-[var(--text-muted)]">
-                    {new Date(record.created_at).toLocaleString()}
-                  </span>
-                </div>
-                <div className="flex gap-4 text-xs text-[var(--text-muted)]">
-                  <span>Actor: {actorDisplay}</span>
-                  <span>
-                    Resource: {record.resource_type}/{record.resource_id?.slice(0, 8)}…
-                  </span>
-                </div>
-                {record.metadata && Object.keys(record.metadata).length > 0 && (
-                  <pre className="mt-2 text-xs bg-[var(--bg-muted)] p-2 rounded overflow-x-auto">
-                    {JSON.stringify(record.metadata, null, 2)}
-                  </pre>
-                )}
-              </div>
-            );
-          })}
-        </div>
-      ) : (
-        <div className="card p-8 text-center">
-          <p className="text-sm text-[var(--text-muted)]">No audit records found.</p>
-        </div>
-      )}
-    </main>
+    <AuditLogClient
+      records={enriched}
+      filters={{ action, from, to, resource }}
+      totalCount={records.length}
+    />
   );
 }

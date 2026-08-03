@@ -21,6 +21,8 @@ export function RubricConfigDialog({ eventId, isCompleted }: RubricConfigDialogP
   const [isOpen, setIsOpen] = useState(false);
   const [rubrics, setRubrics] = useState<EvaluationCriterion[]>([]);
   const [loading, setLoading] = useState(false);
+  const [rubricError, setRubricError] = useState<string | null>(null);
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
 
   // Edit state
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -58,7 +60,11 @@ export function RubricConfigDialog({ eventId, isCompleted }: RubricConfigDialogP
   };
 
   const handleSave = async () => {
-    if (!editForm.name) return alert("Name is required");
+    if (!editForm.name) {
+      setRubricError("Name is required.");
+      return;
+    }
+    setRubricError(null);
 
     const payload = { ...editForm };
     if (editingId && editingId.startsWith("new_")) {
@@ -70,17 +76,18 @@ export function RubricConfigDialog({ eventId, isCompleted }: RubricConfigDialogP
       setEditingId(null);
       loadRubrics();
     } else {
-      alert("Failed to save: " + res.error);
+      setRubricError("Failed to save: " + (res.error ?? "unknown error"));
     }
   };
 
   const handleDelete = async (id: string) => {
-    if (!confirm("Are you sure you want to delete this criterion?")) return;
+    setConfirmDeleteId(null);
+    setRubricError(null);
     const res = await deleteRubricCriterionAction(eventId, id);
     if (res.success) {
       loadRubrics();
     } else {
-      alert("Failed to delete: " + res.error);
+      setRubricError("Failed to delete: " + (res.error ?? "unknown error"));
     }
   };
 
@@ -117,6 +124,20 @@ export function RubricConfigDialog({ eventId, isCompleted }: RubricConfigDialogP
                 <div className="text-center text-muted-foreground py-8">Loading rubrics...</div>
               ) : (
                 <div className="space-y-4">
+                  {rubricError && (
+                    <div
+                      role="alert"
+                      className="rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 flex justify-between items-center"
+                    >
+                      <p className="text-sm text-destructive">{rubricError}</p>
+                      <button
+                        onClick={() => setRubricError(null)}
+                        className="text-xs text-destructive hover:underline ml-3"
+                      >
+                        ✕
+                      </button>
+                    </div>
+                  )}
                   {rubrics.length === 0 && !editingId && (
                     <div className="text-center p-8 border border-dashed rounded-lg text-muted-foreground">
                       No criteria defined yet.
@@ -202,18 +223,35 @@ export function RubricConfigDialog({ eventId, isCompleted }: RubricConfigDialogP
                             </div>
                           </div>
                           {!isCompleted && (
-                            <div className="flex gap-2">
+                            <div className="flex gap-2 items-center">
                               <Button variant="ghost" size="icon" onClick={() => handleEdit(r)}>
                                 <Edit2 className="w-4 h-4" />
                               </Button>
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                onClick={() => handleDelete(r.id)}
-                                className="text-red-500 hover:text-red-600 hover:bg-red-50"
-                              >
-                                <Trash2 className="w-4 h-4" />
-                              </Button>
+                              {confirmDeleteId === r.id ? (
+                                <div className="flex items-center gap-1">
+                                  <button
+                                    onClick={() => handleDelete(r.id)}
+                                    className="text-xs font-medium text-red-500 hover:underline"
+                                  >
+                                    Delete
+                                  </button>
+                                  <button
+                                    onClick={() => setConfirmDeleteId(null)}
+                                    className="text-xs text-muted-foreground hover:text-foreground"
+                                  >
+                                    Cancel
+                                  </button>
+                                </div>
+                              ) : (
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  onClick={() => setConfirmDeleteId(r.id)}
+                                  className="text-red-500 hover:text-red-600 hover:bg-red-50"
+                                >
+                                  <Trash2 className="w-4 h-4" />
+                                </Button>
+                              )}
                             </div>
                           )}
                         </div>

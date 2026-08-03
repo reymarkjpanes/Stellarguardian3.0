@@ -34,7 +34,7 @@ export default async function EventWinnersPage({ params }: { params: Promise<{ i
 
   const isOrganizer = membership?.role === "Organizer";
 
-  // Enrich winners with display names
+  // Enrich winners with display names and verified wallet addresses (M13)
   type EnrichedWinner = {
     id: string;
     recipient_id: string;
@@ -43,6 +43,7 @@ export default async function EventWinnersPage({ params }: { params: Promise<{ i
     disbursement_status: string;
     recipient_name: string;
     team_name: string | null;
+    wallet_address: string | null;
   };
 
   let winners: EnrichedWinner[] = [];
@@ -51,20 +52,32 @@ export default async function EventWinnersPage({ params }: { params: Promise<{ i
     const recipientIds = winnersRaw.map((w) => w.recipient_id);
     const teamIds = winnersRaw.filter((w) => w.team_id).map((w) => w.team_id!);
 
-    const [{ data: usersData }, { data: teamsData }] = await Promise.all([
+    const [{ data: usersData }, { data: teamsData }, { data: walletsData }] = await Promise.all([
       supabase.from("users").select("id, display_name").in("id", recipientIds),
       teamIds.length > 0
         ? supabase.from("teams").select("id, name").in("id", teamIds)
         : Promise.resolve({ data: [] }),
+      // Fetch verified wallets so participants can see which address is registered
+      supabase
+        .from("wallets")
+        .select("user_id, public_key")
+        .in("user_id", recipientIds)
+        .eq("verification_status", "Verified"),
     ]);
 
     const usersMap = new Map((usersData ?? []).map((u) => [u.id, u.display_name]));
     const teamsMap = new Map((teamsData ?? []).map((t) => [t.id, t.name]));
+    // Use the first verified wallet per user
+    const walletsMap = new Map<string, string>();
+    for (const w of walletsData ?? []) {
+      if (!walletsMap.has(w.user_id)) walletsMap.set(w.user_id, w.public_key);
+    }
 
     winners = winnersRaw.map((w) => ({
       ...w,
       recipient_name: usersMap.get(w.recipient_id) ?? "Unknown",
       team_name: w.team_id ? (teamsMap.get(w.team_id) ?? null) : null,
+      wallet_address: walletsMap.get(w.recipient_id) ?? null,
     }));
   }
 

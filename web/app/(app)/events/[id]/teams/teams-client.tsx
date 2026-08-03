@@ -444,17 +444,12 @@ export function TeamsClient({ eventId, eventState, teams: init, userId, userRole
 
   // ── leave ────────────────────────────────────────────────────────────────
   const [leaving, setLeaving] = useState(false);
+  const [confirmLeave, setConfirmLeave] = useState(false);
+  const [confirmDisbandId, setConfirmDisbandId] = useState<string | null>(null);
 
   async function leave() {
     if (!myTeam) return;
-    const next =
-      captain && myTeam.members.length > 1
-        ? myTeam.members.find((m) => m.user_id !== userId)?.display_name
-        : null;
-    const msg = next
-      ? `Leave "${myTeam.name}"? Captaincy transfers to ${next}.`
-      : `Leave "${myTeam.name}"?`;
-    if (!window.confirm(msg)) return;
+    setConfirmLeave(false);
     setLeaving(true);
     setErr(null);
     const r = await fetch(`/api/events/${eventId}/teams/${myTeam.id}`, { method: "DELETE" });
@@ -465,6 +460,17 @@ export function TeamsClient({ eventId, eventState, teams: init, userId, userRole
       return;
     }
     router.refresh();
+  }
+
+  async function disbandTeam(teamId: string) {
+    setConfirmDisbandId(null);
+    const r = await fetch(`/api/events/${eventId}/teams/${teamId}`, { method: "DELETE" });
+    if (!r.ok) {
+      const { error } = await r.json();
+      setErr(error?.message ?? "Failed.");
+    } else {
+      router.refresh();
+    }
   }
 
   // ── render ───────────────────────────────────────────────────────────────
@@ -571,13 +577,37 @@ export function TeamsClient({ eventId, eventState, teams: init, userId, userRole
               </p>
             </div>
             {canAct && (
-              <button
-                disabled={leaving}
-                onClick={leave}
-                className="shrink-0 rounded-md border border-[var(--error)] px-3 py-1 text-xs font-medium text-[var(--error)] hover:bg-[var(--error-bg)] disabled:opacity-50 transition-colors"
-              >
-                {leaving ? "Leaving…" : "Leave Team"}
-              </button>
+              <div className="shrink-0 flex flex-col gap-1.5">
+                {!confirmLeave ? (
+                  <button
+                    disabled={leaving}
+                    onClick={() => setConfirmLeave(true)}
+                    className="rounded-md border border-[var(--error)] px-3 py-1 text-xs font-medium text-[var(--error)] hover:bg-[var(--error-bg)] disabled:opacity-50 transition-colors"
+                  >
+                    {leaving ? "Leaving…" : "Leave Team"}
+                  </button>
+                ) : (
+                  <div
+                    role="alertdialog"
+                    aria-label="Confirm leaving team"
+                    className="flex items-center gap-2 rounded-md border border-[var(--error)]/40 bg-[var(--error-bg)] px-3 py-2"
+                  >
+                    <p className="text-xs text-[var(--error)]">Leave team?</p>
+                    <button
+                      onClick={leave}
+                      className="text-xs font-medium text-[var(--error)] hover:underline"
+                    >
+                      Yes
+                    </button>
+                    <button
+                      onClick={() => setConfirmLeave(false)}
+                      className="text-xs text-[var(--text-muted)] hover:text-[var(--text)]"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                )}
+              </div>
             )}
           </div>
 
@@ -788,19 +818,36 @@ export function TeamsClient({ eventId, eventState, teams: init, userId, userRole
                 {/* Organizer controls */}
                 {isOrganizer && (
                   <div className="pt-2 border-t border-[var(--border)] mt-2">
-                    <button
-                      onClick={async () => {
-                        if (!window.confirm(`Force disband team "${team.name}"?`)) return;
-                        const r = await fetch(`/api/events/${eventId}/teams/${team.id}`, {
-                          method: "DELETE",
-                        });
-                        if (r.ok) router.refresh();
-                        else alert("Failed to disband team.");
-                      }}
-                      className="text-xs text-[var(--error)] hover:underline"
-                    >
-                      Disband Team
-                    </button>
+                    {confirmDisbandId === team.id ? (
+                      <div
+                        role="alertdialog"
+                        aria-label={`Confirm disband ${team.name}`}
+                        className="flex items-center gap-2 rounded-md border border-[var(--error)]/40 bg-[var(--error-bg)] px-3 py-2"
+                      >
+                        <p className="text-xs text-[var(--error)] flex-1">
+                          Disband &quot;{team.name}&quot;?
+                        </p>
+                        <button
+                          onClick={() => disbandTeam(team.id)}
+                          className="text-xs font-medium text-[var(--error)] hover:underline"
+                        >
+                          Disband
+                        </button>
+                        <button
+                          onClick={() => setConfirmDisbandId(null)}
+                          className="text-xs text-[var(--text-muted)] hover:text-[var(--text)]"
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                    ) : (
+                      <button
+                        onClick={() => setConfirmDisbandId(team.id)}
+                        className="text-xs text-[var(--error)] hover:underline"
+                      >
+                        Disband Team
+                      </button>
+                    )}
                   </div>
                 )}
 

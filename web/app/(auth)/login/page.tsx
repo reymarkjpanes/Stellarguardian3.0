@@ -35,7 +35,7 @@ export default function LoginPage() {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
-  async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
+  async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
     setLoading(true);
@@ -92,6 +92,7 @@ export default function LoginPage() {
         <form onSubmit={handleSubmit} className="space-y-4">
           {error && (
             <div
+              id="login-error"
               role="alert"
               className="rounded-md border border-[var(--error)] bg-[var(--error-bg)] px-4 py-3 text-sm text-[var(--error)]"
             >
@@ -113,6 +114,8 @@ export default function LoginPage() {
               autoComplete="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
+              aria-describedby={error ? "login-error" : undefined}
+              aria-invalid={error ? true : undefined}
               className="w-full rounded-md border border-[var(--border)] bg-[var(--input-bg)] px-3 py-2 text-sm text-[var(--text)] placeholder:text-[var(--text-muted)] focus:border-[var(--accent)] focus:outline-none focus:ring-1 focus:ring-[var(--accent)]"
               placeholder="you@example.com"
             />
@@ -140,6 +143,8 @@ export default function LoginPage() {
               autoComplete="current-password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
+              aria-describedby={error ? "login-error" : undefined}
+              aria-invalid={error ? true : undefined}
               className="w-full rounded-md border border-[var(--border)] bg-[var(--input-bg)] px-3 py-2 text-sm text-[var(--text)] placeholder:text-[var(--text-muted)] focus:border-[var(--accent)] focus:outline-none focus:ring-1 focus:ring-[var(--accent)]"
               placeholder="••••••••"
             />
