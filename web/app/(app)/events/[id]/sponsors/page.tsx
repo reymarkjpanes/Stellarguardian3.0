@@ -4,9 +4,11 @@
  * All members can view the sponsors list.
  * Organizers can add sponsors (name, tier, contribution amount).
  * Sponsors see their own contribution details prominently.
+ * Sponsors with a wallet can self-serve fund the escrow via admin_deposit (Phase 3.2).
  *
  * Data: GET /api/events/[id]/sponsors
  * Create: POST /api/events/[id]/sponsors (organizer only)
+ * Fund: POST /api/escrow/[escrowId]/build-admin-deposit → sign → POST /api/stellar/submit
  */
 "use client";
 
@@ -23,6 +25,24 @@ interface Sponsor {
   user_id: string | null;
   created_at: string;
 }
+
+/** Escrow state relevant to whether deposit is available */
+interface EscrowInfo {
+  id: string;
+  status: string;
+  expected_balance: string;
+  contract_address: string | null;
+}
+
+type DepositStep =
+  | "idle"
+  | "connecting"
+  | "connected"
+  | "building"
+  | "signing"
+  | "submitting"
+  | "done"
+  | "error";
 
 const TIER_META: Record<
   Sponsor["tier"],
@@ -41,8 +61,17 @@ export default function SponsorsPage() {
   const [sponsors, setSponsors] = useState<Sponsor[]>([]);
   const [loading, setLoading] = useState(true);
   const [isOrganizer, setIsOrganizer] = useState(false);
+  const [isSponsor, setIsSponsor] = useState(false);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [escrow, setEscrow] = useState<EscrowInfo | null>(null);
+
+  // Sponsor deposit state (Phase 3.2)
+  const [depositStep, setDepositStep] = useState<DepositStep>("idle");
+  const [depositError, setDepositError] = useState<string | null>(null);
+  const [depositAmount, setDepositAmount] = useState("");
+  const [depositWallet, setDepositWallet] = useState<{ provider: string; publicKey: string } | null>(null);
+  const [depositTxHash, setDepositTxHash] = useState<string | null>(null);
 
   // Create form
   const [showAdd, setShowAdd] = useState(false);
@@ -78,8 +107,18 @@ export default function SponsorsPage() {
         return;
       }
 
-      const res = await fetch(`/api/events/${eventId}/sponsors`);
-      const { data } = await res.json();
+      const [sponsorsRes, escrowRes] = await Promise.all([
+        fetch(`/api/events/${eventId}/sponsors`),
+        fetch(`/api/events/${eventId}/escrow`).catch(() => null),
+      ]);
+      const { data } = await sponsorsRes.json();
+
+      // Fetch escrow info directly from Supabase (for deposit eligibility)
+      const { data: escrowData } = await supabase
+        .from("escrow_accounts")
+        .select("id, status, expected_balance, contract_address")
+        .eq("event_id", eventId)
+        .maybeSingle();
 
       if (!ignore) {
         setSponsors(
@@ -88,7 +127,9 @@ export default function SponsorsPage() {
           ),
         );
         setIsOrganizer(membership.role === "Organizer");
+        setIsSponsor(membership.role === "Sponsor");
         setCurrentUserId(user.id);
+        if (escrowData) setEscrow(escrowData as EscrowInfo);
         setLoading(false);
       }
     }
@@ -97,6 +138,119 @@ export default function SponsorsPage() {
       ignore = true;
     };
   }, [eventId, router]);
+
+  // ── Sponsor deposit handlers (Phase 3.2) ──────────────────────────────────
+
+  async function handleConnectWallet() {
+    setDepositStep("connecting");
+    setDepositError(null);
+    try {
+      const { getAvailableAdapters } = await import("@/lib/wallet/registry");
+      const adapters = await getAvailableAdapters();
+      if (adapters.length === 0) {
+        throw new Error("No Stellar wallet detected. Install Freighter, xBull, or LOBSTR.");
+      }
+      const adapter = adapters[0]!;
+      const { publicKey } = await adapter.connect();
+      setDepositWallet({ provider: adapter.provider, publicKey });
+      setDepositStep("connected");
+    } catch (err) {
+      setDepositError(err instanceof Error ? err.message : "Wallet connection failed.");
+      setDepositStep("error");
+    }
+  }
+
+  async function handleSponsorDeposit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!depositWallet || !escrow || !depositAmount) return;
+
+    const amountXlm = parseFloat(depositAmount);
+    if (isNaN(amountXlm) || amountXlm <= 0) {
+      setDepositError("Enter a valid amount greater than 0.");
+      return;
+    }
+
+    const amountStroops = BigInt(Math.round(amountXlm * 10_000_000)).toString();
+    setDepositError(null);
+
+    try {
+      // Step 1: Build admin_deposit XDR (platform pre-signs server-side)
+      setDepositStep("building");
+      const buildRes = await fetch(`/api/escrow/${escrow.id}/build-admin-deposit`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          sponsorPublicKey: depositWallet.publicKey,
+          amountStroops,
+        }),
+      });
+
+      if (!buildRes.ok) {
+        const e = await buildRes.json();
+        throw new Error(e.error?.message ?? "Failed to build deposit transaction.");
+      }
+      const { xdr: partiallySignedXdr } = await buildRes.json();
+
+      // Step 2: Sponsor wallet adds their signature
+      setDepositStep("signing");
+      const { getAdapter } = await import("@/lib/wallet/registry");
+      const adapter = getAdapter(depositWallet.provider as import("@/lib/wallet/types").WalletProvider);
+      if (!adapter) throw new Error("Wallet disconnected. Reconnect and try again.");
+
+      // Determine network from escrow (contract_address presence = testnet typically)
+      const networkMode: "testnet" | "mainnet" =
+        process.env.NEXT_PUBLIC_STELLAR_NETWORK === "mainnet" ? "mainnet" : "testnet";
+      const signedXdr = await adapter.signTransaction(partiallySignedXdr, networkMode);
+
+      // Step 3: Submit the fully-signed transaction
+      setDepositStep("submitting");
+      const submitRes = await fetch("/api/stellar/submit", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ signedXdr }),
+      });
+
+      if (!submitRes.ok) {
+        const e = await submitRes.json();
+        throw new Error(e.error ?? "Transaction submission failed.");
+      }
+      const { hash, successful } = await submitRes.json();
+
+      if (!successful) throw new Error("Transaction submitted but not confirmed on-chain.");
+
+      setDepositTxHash(hash);
+      setDepositStep("done");
+      setDepositAmount("");
+
+      // Refresh sponsors list to reflect updated contribution
+      const updatedRes = await fetch(`/api/events/${eventId}/sponsors`);
+      const { data } = await updatedRes.json();
+      setSponsors(
+        (data ?? []).sort(
+          (a: Sponsor, b: Sponsor) => TIER_META[a.tier].order - TIER_META[b.tier].order,
+        ),
+      );
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "Deposit failed.";
+      if (msg.toLowerCase().includes("reject") || msg.toLowerCase().includes("cancel")) {
+        setDepositStep("connected");
+        setDepositError("Transaction cancelled. You can try again.");
+      } else {
+        setDepositError(msg);
+        setDepositStep("error");
+      }
+    }
+  }
+
+  function resetDeposit() {
+    setDepositStep("idle");
+    setDepositError(null);
+    setDepositTxHash(null);
+    setDepositWallet(null);
+    setDepositAmount("");
+  }
+
+  // ── Add sponsor handler ────────────────────────────────────────────────────
 
   async function handleAdd(e: React.FormEvent) {
     e.preventDefault();
@@ -203,6 +357,116 @@ export default function SponsorsPage() {
               {sponsors.length} sponsor{sponsors.length !== 1 ? "s" : ""}
             </p>
           </div>
+        </div>
+      )}
+
+      {/* Sponsor deposit panel — visible to Sponsor role when escrow is fundable (Phase 3.2) */}
+      {isSponsor && escrow && (escrow.status === "PendingFunding" || escrow.status === "PartiallyFunded") && (
+        <div className="card p-5 space-y-4 border-2 border-[var(--accent)]/30">
+          <div>
+            <h2 className="text-sm font-semibold text-[var(--text)]">Fund the Escrow</h2>
+            <p className="text-xs text-[var(--text-muted)] mt-1">
+              Contribute XLM directly to the Soroban escrow contract via your Stellar wallet.
+              Target: <strong>{Number(escrow.expected_balance).toLocaleString()} XLM</strong>
+            </p>
+          </div>
+
+          {depositStep === "done" && depositTxHash && (
+            <div role="status" className="rounded-md border border-[var(--success-bg)] bg-[var(--success-bg)] px-4 py-3 space-y-1">
+              <p className="text-sm font-semibold text-[var(--success,#16a34a)]">✓ Deposit confirmed on-chain!</p>
+              <p className="text-xs text-[var(--text-muted)]">
+                Tx:{" "}
+                <a
+                  href={`https://stellar.expert/explorer/testnet/tx/${depositTxHash}`}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="font-mono hover:underline"
+                >
+                  {depositTxHash.slice(0, 16)}…
+                </a>
+              </p>
+              <button onClick={resetDeposit} className="text-xs text-[var(--accent)] hover:underline mt-1">
+                Make another deposit
+              </button>
+            </div>
+          )}
+
+          {depositError && (
+            <div role="alert" className="rounded-md border border-[var(--error)] bg-[var(--error-bg)] px-3 py-2 flex justify-between items-center">
+              <p className="text-xs text-[var(--error)]">{depositError}</p>
+              <button onClick={() => { setDepositError(null); setDepositStep(depositWallet ? "connected" : "idle"); }} className="text-xs text-[var(--error)] hover:underline ml-3">✕</button>
+            </div>
+          )}
+
+          {depositStep !== "done" && (
+            <>
+              {/* Step 1: Connect wallet */}
+              {!depositWallet && depositStep !== "connecting" && (
+                <button
+                  onClick={handleConnectWallet}
+                  className="rounded-md bg-[var(--accent)] px-5 py-2 text-sm font-medium text-white hover:bg-[var(--accent-hover)] transition-colors"
+                >
+                  Connect Stellar Wallet
+                </button>
+              )}
+
+              {depositStep === "connecting" && (
+                <p className="text-xs text-[var(--text-muted)] animate-pulse">Connecting wallet…</p>
+              )}
+
+              {/* Step 2: Enter amount and fund */}
+              {depositWallet && (depositStep === "connected" || depositStep === "idle") && (
+                <form onSubmit={handleSponsorDeposit} className="space-y-3">
+                  <div className="flex items-center gap-2 text-xs text-[var(--text-secondary)]">
+                    <span className="h-2 w-2 rounded-full bg-green-400" />
+                    {depositWallet.provider}: {depositWallet.publicKey.slice(0, 8)}…{depositWallet.publicKey.slice(-6)}
+                  </div>
+                  <div>
+                    <label htmlFor="deposit-amount" className="block text-xs font-medium text-[var(--text-secondary)] mb-1">
+                      Amount (XLM)
+                    </label>
+                    <input
+                      id="deposit-amount"
+                      type="number"
+                      min="0"
+                      step="any"
+                      required
+                      value={depositAmount}
+                      onChange={(e) => setDepositAmount(e.target.value)}
+                      placeholder="e.g. 1000"
+                      className="w-full rounded-md border border-[var(--border)] bg-[var(--input-bg)] px-3 py-2 text-sm text-[var(--text)] placeholder:text-[var(--text-muted)] focus:outline-none focus:ring-2 focus:ring-[var(--accent)]"
+                    />
+                  </div>
+                  <button
+                    type="submit"
+                    disabled={!depositAmount}
+                    className="rounded-md bg-[var(--accent)] px-5 py-2 text-sm font-medium text-white hover:bg-[var(--accent-hover)] disabled:opacity-50 transition-colors"
+                  >
+                    Deposit to Escrow
+                  </button>
+                </form>
+              )}
+
+              {(depositStep === "building" || depositStep === "signing" || depositStep === "submitting") && (
+                <div className="space-y-1">
+                  {[
+                    { key: "building", label: "Building transaction…" },
+                    { key: "signing", label: "Waiting for wallet signature…" },
+                    { key: "submitting", label: "Broadcasting to Stellar…" },
+                  ].map(({ key, label }) => (
+                    <div key={key} className={`flex items-center gap-2 text-xs ${depositStep === key ? "text-[var(--accent)] font-medium" : "text-[var(--text-muted)]"}`}>
+                      {depositStep === key ? (
+                        <span className="h-3 w-3 rounded-full border-2 border-[var(--accent)] border-t-transparent animate-spin" />
+                      ) : (
+                        <span className="h-3 w-3 rounded-full bg-[var(--bg-muted)]" />
+                      )}
+                      {label}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </>
+          )}
         </div>
       )}
 

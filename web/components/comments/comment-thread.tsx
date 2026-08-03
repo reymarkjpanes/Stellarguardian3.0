@@ -52,7 +52,7 @@ export function CommentThread({ eventId, submissionId, disputeId }: CommentThrea
     loadComments();
   }, [loadComments]);
 
-  async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
+  async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!newComment.trim()) return;
     setSubmitting(true);

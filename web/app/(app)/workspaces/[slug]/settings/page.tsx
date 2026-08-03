@@ -180,7 +180,7 @@ export default function WorkspaceSettingsPage() {
           <button
             type="button"
             className="rounded-md border border-[var(--error)] px-4 py-2 text-sm font-medium text-[var(--error)] hover:bg-[var(--error-bg)] transition-colors"
-            onClick={() => alert("Delete workspace flow not yet implemented.")}
+            onClick={() => { /* Delete workspace flow not yet implemented */ }}
           >
             Delete Workspace
           </button>

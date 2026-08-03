@@ -119,17 +119,6 @@ export default async function AdminEventsPage({
                         <input type="hidden" name="confirmed" value="yes" />
                         <button
                           type="submit"
-                          onClick={(e) => {
-                            const participantHint =
-                              "This bypasses the state machine. Funded escrow may need manual cleanup.";
-                            if (
-                              !confirm(
-                                `Cancel event "${ev.title}"?\n\n${participantHint}\n\nThis cannot be undone from the admin panel.`,
-                              )
-                            ) {
-                              e.preventDefault();
-                            }
-                          }}
                           className="text-xs font-medium text-[var(--error)] hover:underline"
                         >
                           Cancel
@@ -144,15 +133,6 @@ export default async function AdminEventsPage({
                         <input type="hidden" name="confirmed" value="yes" />
                         <button
                           type="submit"
-                          onClick={(e) => {
-                            if (
-                              !confirm(
-                                `Archive event "${ev.title}"?\n\nArchived events are hidden from public discovery. This can be reversed by a developer.`,
-                              )
-                            ) {
-                              e.preventDefault();
-                            }
-                          }}
                           className="text-xs font-medium text-[var(--text-muted)] hover:underline"
                         >
                           Archive

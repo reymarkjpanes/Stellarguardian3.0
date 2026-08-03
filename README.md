@@ -25,8 +25,6 @@ Important Note: use this login credentials for testing.
 Email: reymarkjpanes@gmail.com
 pass: 123123123
 
-still improving the app.
-
 ## Table of Contents
 
 - [Problem](#problem)
@@ -89,7 +87,7 @@ Stellar Guardian 3.0 eliminates the trust gap by holding prize pools in a **Soro
 | **Participant** | Registers for events, submits projects, can file disputes |
 | **Team Captain** | Leads a team, creates/updates the submission, accepts join requests |
 | **Judge** | Reviews and scores assigned submissions against configured rubrics |
-| **Sponsor** | Contributes to prize pools via `admin_deposit`; monitors escrow and milestones |
+| **Sponsor** | Contributes to prize pools via `admin_deposit` directly from their Stellar wallet; monitors escrow status and event milestones |
 | **Workspace Owner / Admin** | Manages the workspace, members, and invitations; can run events |
 | **Platform Admin** | Full platform access — resolves disputes, manages escrow health, oversees disbursements |
 
@@ -114,6 +112,9 @@ Stellar Guardian 3.0 eliminates the trust gap by holding prize pools in a **Soro
 A pure TypeScript state machine governs every event from draft to settlement. Validated with property-based tests via `fast-check`.
 
 `Draft` → `Published` → `RegistrationOpen` → `RegistrationClosed` → `TeamFormationLocked` → `SubmissionOpen` → `SubmissionClosed` → `JudgingRound1` → `JudgingRound2` → `WinnerVerification` → `DisputeWindow` → `PrizeApproved` → `EscrowRelease` → `Completed` → `Archived` (+ `Cancelled` at any stage)
+
+### Sponsor Self-Serve Deposit
+Sponsors can fund the escrow directly from their own Stellar wallet without organiser involvement. The platform co-signs via `admin_deposit`, then the sponsor's wallet extension adds the final signature. The full 3-step signing flow (build → sign → submit) is built into the Sponsors tab.
 
 ### Soroban Smart Contract Escrow
 | Contract Operation | Trigger |

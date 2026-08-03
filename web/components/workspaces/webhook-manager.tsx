@@ -42,7 +42,7 @@ export function WebhookManager({ workspaceSlug }: { workspaceSlug: string }) {
     loadWebhooks();
   }, [loadWebhooks]);
 
-  async function handleCreate(e: React.FormEvent<HTMLFormElement>) {
+  async function handleCreate(e: React.FormEvent) {
     e.preventDefault();
     setSubmitting(true);
     setError(null);
